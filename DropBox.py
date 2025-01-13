@@ -7,9 +7,11 @@ from dropbox.sharing import MemberSelector, AddMember
 import webbrowser
 import os 
 
-# EncryptoSphere APP on DropBox (under shaqedmov@gmail.com account)
-APP_KEY = ''
-APP_SECRET = ''
+from dotenv import load_dotenv 
+load_dotenv()
+
+DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
+DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 
 # Function to authenticate the Dropbox account and get access token
 def authenticate_dropbox():
@@ -17,7 +19,7 @@ def authenticate_dropbox():
     print(f"Authenticating {email}'s Dropbox account...")
 
     # Start the OAuth flow
-    auth_flow = DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
+    auth_flow = DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
 
     # Generate the authorization URL
     auth_url = auth_flow.start()
@@ -155,6 +157,7 @@ def list_shared_files_and_collaborators(access_token):
 
         # Iterate through each shared folder
         for folder in shared_folders.entries:
+            
             print(f"Shared Folder: {folder.name}")
 
             # List files in the shared folder using the shared folder path
