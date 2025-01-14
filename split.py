@@ -56,14 +56,14 @@ def main():
     choice = input("Enter your choice: ")
 
     if choice == '1':
-        file_path = "test.txt"
+        file_path = "test.txt" #path to the file you want to split
         if os.path.exists(file_path):
             split_file(file_path)
         else:
             print("Error: File not found.")
     elif choice == '2':
         parts_folder = "split_parts"
-        output_file = "merged.txt"
+        output_file = "merged.txt" 
         if os.path.exists(parts_folder):
             merge_parts(parts_folder, output_file)
         else:
