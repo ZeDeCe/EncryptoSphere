@@ -118,7 +118,7 @@ class GoogleDriveImp:
             files = results.get('files', [])
             
             if not files:
-                print(f"הקובץ {file_name} לא נמצא ב-Drive")
+                print(f"{file_name} not exists")
                 return
             
             # Catch the first one (if some files share the same name)
@@ -126,7 +126,7 @@ class GoogleDriveImp:
             mime_type = files[0].get('mimeType', '')
             
             # File path - might change later
-            desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+            desktop_path = os.path.join(os.path.expanduser("~"), "Downloads")
             destination_path = os.path.join(desktop_path, file_name)
             
             # Handle Google Workspace files
@@ -139,13 +139,64 @@ class GoogleDriveImp:
             else:
                 request = self.drive_service.files().get_media(fileId=file_id)
             
+            # Download the file
             with open(destination_path, 'wb') as f:
                 downloader = MediaIoBaseDownload(f, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
             
-            print(f"Download succesfuly to: {destination_path}")
+            print(f"Successfully download to: {destination_path}")
+            return destination_path
         
         except HttpError as error:
             print(f"Error: {error}")
+
+    # Delete file
+    def delete_file(self, file_name):
+        try:
+            # Search for file by name
+            results = self.drive_service.files().list(
+                q=f"name = '{file_name}'",
+                fields="files(id, name)"
+            ).execute()
+            
+            files = results.get('files', [])
+            
+            if not files:
+                print(f"File '{file_name}' not found in Drive")
+                return
+            
+            # If multiple files with same name exist, ask user which one to delete
+            if len(files) > 1:
+                print(f"\nFound {len(files)} files with the name '{file_name}':")
+                for i, file in enumerate(files, 1):
+                    print(f"{i}. ID: {file['id']}")
+                
+                choice = input("\nEnter the number of the file you want to delete (or 'cancel' to abort): ")
+                if choice.lower() == 'cancel':
+                    print("Deletion cancelled")
+                    return
+                
+                try:
+                    file_index = int(choice) - 1
+                    if 0 <= file_index < len(files):
+                        file_id = files[file_index]['id']
+                    else:
+                        print("Invalid selection")
+                        return
+                except ValueError:
+                    print("Invalid input")
+                    return
+            else:
+                file_id = files[0]['id']
+            
+            # Delete the file
+            self.drive_service.files().delete(fileId=file_id).execute()
+            print(f"File '{file_name}' successfully deleted")
+
+        except HttpError as error:
+            print(f"Error deleting file: {error}")
 
     # Create a folder
     def create_folder(self, folder_name):
@@ -287,7 +338,8 @@ def main():
         print("5. Share file/folder")
         print("6. Unshare folder")
         print("7. List all shared folders and files")
-        print("8. Exit")
+        print("8. Delete file from Google Drive")
+        print("9. Exit")
 
         choice = input("Enter your choice: ")
 
@@ -313,6 +365,9 @@ def main():
         elif choice == '7':
             drive_service.list_shared_files()
         elif choice == '8':
+            file_name = input("Enter the file name to delete: ")
+            drive_service.delete_file(file_name)
+        elif choice == '9':
             print("Exiting...")
             break
         else:

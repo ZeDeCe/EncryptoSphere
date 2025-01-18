@@ -117,6 +117,8 @@ class DropboxImp:
                 f.write(res.content)
 
             print(f"File downloaded successfully to {local_dest_path}.")
+            return local_dest_path
+
         except dropbox.exceptions.ApiError as e:
             print(f"Error: {e}")
         except FileNotFoundError:
