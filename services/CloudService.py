@@ -31,12 +31,17 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def share(self, folder, email):
+    def share(self, folder, emails):
         #Share a file or folder with a user (read/write permissions)
         pass
  
     @abstractmethod
-    def unshare(self):
+    def unshare_folder(self, folder):
+        #Unshare a file or folder from a user
+        pass
+
+    @abstractmethod
+    def unshare_by_email(self, folder, emails):
         #Unshare a file or folder from a user
         pass
 
