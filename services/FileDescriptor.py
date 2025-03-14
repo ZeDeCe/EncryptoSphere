@@ -1,4 +1,24 @@
 import os
+import json
+
+"""
+File descriptors look like this:
+FD:
+[
+    {
+        name, 
+        upload_date, 
+        edit_date, 
+        encryption_algo, 
+        splitting_algo, 
+        shared_with, 
+        encryption_salt,
+        file_hash,
+        path,
+        [file_parts]
+    }
+]
+"""
 
 
 class FileDescriptor:
@@ -27,7 +47,8 @@ class FileDescriptor:
         # a filedescriptor represents a filesystem, will be used in sharing as a file system for shared folders
         self.root = root
         self.file = open(os.path.join(os.getenv("ENCRYPTO_ROOT"), self.root, "FD"), "rw") # TODO: Error handling
-    
+        self.files = {}
+
     def __init__(self, filedescriptor):
         """
         Creates a new FileDescriptor object from an existing FileDescriptor file
@@ -38,6 +59,7 @@ class FileDescriptor:
             raise OSError()
         self.file = open(filedescriptor, "rw")
         self.root = os.path.dirname(filedescriptor)
+        self.files = json.load(self.file)
         
     def __del__(self):
         self.file.close()
@@ -78,3 +100,8 @@ class FileDescriptor:
         Returns the path of the filedescriptor
         """
         return os.path.realpath(self.file.name)
+    
+    def sync_to_file(self):
+        """
+        Sync the filemapping to disk
+        """
