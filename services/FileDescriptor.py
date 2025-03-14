@@ -3,21 +3,21 @@ import os
 
 class FileDescriptor:
 
-    class LFUCache:
-        """
-        The LFU cache of the FileDescriptor class
-        This cache gets called on files that are being accessed to save their metadata
-        for frequent use
-        """
-        def __init__(self, capacity):
-            self.capacity = capacity
-            self.cache = []
+    # class LFUCache:
+    #     """
+    #     The LFU cache of the FileDescriptor class
+    #     This cache gets called on files that are being accessed to save their metadata
+    #     for frequent use
+    #     """
+    #     def __init__(self, capacity):
+    #         self.capacity = capacity
+    #         self.cache = []
 
-        def get(self, file_id):
-            pass
+    #     def get(self, file_id):
+    #         pass
 
-        def put(self, data):
-            pass
+    #     def put(self, data):
+    #         pass
 
     def __init__(self, root):
         """
