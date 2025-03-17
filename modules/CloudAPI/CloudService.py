@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 class CloudService(ABC):
     @abstractmethod
-    def authenticate_cloud(self):
+    def authenticate_cloud(self, email : str) -> bool:
         #Authenticate with the cloud service
         pass
 
