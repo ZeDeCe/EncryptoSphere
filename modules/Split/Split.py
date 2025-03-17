@@ -17,6 +17,14 @@ class Split(ABC):
         @return the merged file path
         """
         pass
+    
+    @abstractmethod
+    def get_name(self):
+        """
+        Returns the signature of the splitting algorithm
+        Used to write to the file descriptor
+        """
+        pass
 
 
 

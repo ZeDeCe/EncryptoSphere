@@ -6,7 +6,7 @@ import os
 
 from dotenv import load_dotenv
 import dropbox.exceptions 
-from CloudService import CloudService
+from modules.CloudAPI.CloudService import CloudService
 from utils.DialogBox import input_dialog
 load_dotenv()
 

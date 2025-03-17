@@ -5,6 +5,9 @@ from zfec.easyfec import Decoder
 import Split
 
 class ShamirSplit(Split):
+    def get_name(self):
+        return "Shamir"
+
     def split_file(self, file_path, num_parts=4, min_parts=3):
         encoder = Encoder(k=3, m=4)
         with open(file_path, 'rb') as file:

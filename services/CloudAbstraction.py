@@ -1,6 +1,10 @@
 import os
-import shutil
-import uuid
+import tempfile
+
+import modules.Split.Split as Split
+import modules.Encrypt.Encrypt as Encrypt
+import modules.FileDescriptor as FileDescriptor
+import modules.CloudAPI.CloudService as CloudService
 
 class CloudAbstraction:
     """
@@ -8,34 +12,50 @@ class CloudAbstraction:
     CloudAbstraction does not handle errors and throws any error to user classes to handle.
     """
 
-    def __split(self, file):
-        pass
-    def __encrypt(self, file):
-        pass
-    def __decrypt(self, file):
-        pass
-    def __merge(self, file):
-        pass
+    def __init__(self, clouds, split : Split, encrypt : Encrypt, file_descriptor : FileDescriptor):
+        self.split = split
+        self.encrypt = encrypt
+        self.fd = file_descriptor
+        self.clouds = clouds
 
-    def __create_temp_file(self, os_filepath):
-        new_path = os.path.join(os.getenv("ENCRYPTO_ROOT"), "temp", uuid.uuid4())
-        shutil.copyfile(os_filepath, new_path)
-        return new_path
+    def __split(self, file, parts):
+        return self.split.split_file(file, parts)
     
-    def __delete_osfile(self, os_filepath):
-        pass
+    def __merge(self, folder):
+        output = os.path.join(folder,"merged")
+        self.split.merge_parts(folder, output)
+        return output
+    
+    def __encrypt(self, file):
+        self.encrypt.encrypt_file(file)
+        return file
+    
+    def __decrypt(self, file):
+        self.encrypt.decrypt_file(file)
+        return file
 
+    def __tempfile_from_path(self, os_filepath):
+        file = tempfile.TemporaryFile()
+        with open(os_filepath, "r") as osfile:
+            for line in osfile:
+                file.write(line)
+        return file
+
+    def authenticate(self, email):
+        for cloud in self.clouds:
+            cloud.authenticate_cloud(email)
+
+    # TODO: async this
     def upload_file(self, os_filepath, path):
         if not os.path.isfile(os_filepath):
             raise OSError()
         
-        file = self.__create_temp_file(self, os_filepath)
-        # File only gets edited in memory
-        self.__encrypt(file)
-        split_list = self.__split(file)
-        # TODO: finish function
-
-        self.__delete_osfile(file)
+        with self.__tempfile_from_path(self, os_filepath) as file:
+            self.__encrypt(file)
+            split_folder = self.__split(file, len(self.clouds))
+            # TODO: add filedescriptor
+            for i,f in enumerate(os.listdir(split_folder)):
+                self.clouds[i].upload_file(f)
 
     # TODO: error handling
     def upload_folder(self, folder):
@@ -61,6 +81,12 @@ class CloudAbstraction:
         """
         Using filedescriptor functions, gathers all files under the folder_name and then calls self.download
         on all of those files. Constructs them as the hierarchy in the filedescriptor.
+        """
+        pass
+
+    def sync_filedescriptor(self):
+        """
+        When called, uploads the filedescriptor to the clouds
         """
         pass
 
