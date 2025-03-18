@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 class Split(ABC):
     @abstractmethod
-    def split_file(self, file, num_parts) -> str:
+    def split_file(self, file : str, num_parts : int) -> str:
         """
         Splits the file into num_parts
         @return the folder path
@@ -10,7 +10,7 @@ class Split(ABC):
         pass
 
     @abstractmethod
-    def merge_parts(self, folder) -> str:
+    def merge_parts(self, folder : str) -> str:
         """
         Merges parts using the split algorithm
         @param folder the folder that the parts exist in
@@ -19,7 +19,7 @@ class Split(ABC):
         pass
     
     @abstractmethod
-    def get_name(self):
+    def get_name(self) -> str:
         """
         Returns the signature of the splitting algorithm
         Used to write to the file descriptor
