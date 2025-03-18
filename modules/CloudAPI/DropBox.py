@@ -17,6 +17,7 @@ class DropBox(CloudService):
     def __init__(self, rootfolder):
         self.dbx = None
         self.userid = None
+        self.root_folder = None
         self.root = rootfolder
 
     # Function to authenticate the Dropbox account and get access token
@@ -39,8 +40,7 @@ class DropBox(CloudService):
         access_token = auth_result.access_token
         self.user_id = auth_result.user_id   
         # If EncryptoSphere folder wasn't created yet, create it.        
-        if type(self.root) is str:
-            self.root = self.create_folder(self.root)
+        self.root_folder = self.create_folder(self.root)
         return True
 
     # Function to verify if the token is valid for the given email
@@ -61,20 +61,17 @@ class DropBox(CloudService):
             print(f"Error {e}")
             return None
 
-    # Call DropBox upload_file implementation
-    def upload_file(self, file_path):
-        self.upload_file_imp(file_path)
+    def upload_file(self, data, file_name: str, path=None):
+        if path is None:
+            path = f"{self.root}/{file_name}"
+        else:
+            path = f"{self.root}/{path}/{file_name}"
 
-    # Dropbox implementation of file upload
-    def upload_file_imp(self, file_path, dropbox_dest_path):
         try:
-            with open(file_path, "rb") as f:
-                self.dbx.files_upload(f.read(), dropbox_dest_path, mute=True)
-            print(f"File uploaded successfully to {dropbox_dest_path}.")
-        except FileNotFoundError:
-            print("The file was not found.")
+            self.dbx.files_upload(data, path, mute=True)
+            print(f"File uploaded successfully to {path}.")
         except Exception as e:
-            print(f"Error: {e}")
+            raise Exception(f"DropBox: Failed to upload file: {e}")
 
     # Create folder on DropBox
     def create_folder(self, folder_name):
@@ -82,10 +79,9 @@ class DropBox(CloudService):
             result = self.dbx.files_create_folder_v2(folder_name)
             return result.metadata.id
         except dropbox.exceptions.ApiError as e:
-            # Folder already exsist
+            # Folder already exists
             if e.error.is_path() and e.error.get_path().is_conflict():
-                print(f"Error {e}")
-                return None
+                return self.dbx.files_get_metadata(folder_name).id
             else:
                 print(f"Error {e}")
                 return None
