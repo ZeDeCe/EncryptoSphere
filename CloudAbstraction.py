@@ -19,7 +19,7 @@ class CloudAbstraction:
         self.clouds = clouds
 
     def __split(self, file, parts):
-        return self.split.split_file(file, parts)
+        return self.split.split(file, parts)
     
     def __merge(self, folder):
         output = os.path.join(folder,"merged")
@@ -35,10 +35,9 @@ class CloudAbstraction:
         return file
 
     def __tempfile_from_path(self, os_filepath):
-        file = tempfile.TemporaryFile()
+        file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
         with open(os_filepath, "r") as osfile:
-            for line in osfile:
-                file.write(line)
+            file.write(osfile.read().encode('utf-8'))
         return file
 
     def authenticate(self, email):
@@ -46,16 +45,17 @@ class CloudAbstraction:
             cloud.authenticate_cloud(email)
 
     # TODO: async this
-    def upload_file(self, os_filepath, path):
+    def upload_file(self, os_filepath, path=None):
         if not os.path.isfile(os_filepath):
             raise OSError()
         
-        with self.__tempfile_from_path(self, os_filepath) as file:
-            self.__encrypt(file)
-            split_folder = self.__split(file, len(self.clouds))
+        with open(os_filepath, 'rb') as file:
+            data = file.read()
+            data = self.__encrypt(data)
+            data = self.__split(data, len(self.clouds))
             # TODO: add filedescriptor
-            for i,f in enumerate(os.listdir(split_folder)):
-                self.clouds[i].upload_file(f)
+            for i,f in enumerate(data):
+                self.clouds[i].upload_file(f, "temptest.txt", path)
 
     # TODO: error handling
     def upload_folder(self, folder):

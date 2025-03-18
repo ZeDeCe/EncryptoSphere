@@ -274,7 +274,7 @@ class GoogleDrive:
 def main():
     print("Google Drive POC")
 
-    drive_service = GoogleDriveImp()
+    drive_service = GoogleDrive()
     drive_service.authenticate_google_drive()
     if not drive_service:
         print("Authentication failed.")

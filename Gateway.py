@@ -22,10 +22,11 @@ def main():
     except:
         print("Failed to authenticate")
         return
-    
+    manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
     try:
-        manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
-    except:
+        pass
+    except Exception as e:
+        print(e)
         print("Failed to upload file")
         return
 

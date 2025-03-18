@@ -7,22 +7,22 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def list_files(self):
+    def list_files(self, folder=None):
         #List files in the cloud storage, optionally in a specific folder
         pass
 
     @abstractmethod
-    def upload_file(self, file_path):
+    def upload_file(self, data, file_name, path=None):
         #Upload a file to the cloud storage
         pass
 
     @abstractmethod
-    def download_file(self, file_name):
+    def download_file(self, file_id):
         #Download a file from the cloud storage
         pass
 
     @abstractmethod
-    def delete_file(self, file_name):
+    def delete_file(self, file_id):
         #Download a file from the cloud storage
         pass
     @abstractmethod

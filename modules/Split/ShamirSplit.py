@@ -8,51 +8,31 @@ class ShamirSplit(Split):
     def get_name(self):
         return "Shamir"
 
-    def split_file(self, file_path, num_parts=4, min_parts=3):
-        encoder = Encoder(k=3, m=4)
-        with open(file_path, 'rb') as file:
-            data = file.read()
-
-        parts = encoder.encode(data)
-
-        parts_folder = os.path.join(os.path.dirname(file_path), 'split_parts')
-        os.makedirs(parts_folder, exist_ok=True)
-
-        for i, part in enumerate(parts):
-            with open(os.path.join(parts_folder, f'part_{i + 1}.bin'), 'wb') as part_file:
-                part_file.write(part)
-
-        print(f"File '{file_path}' split into {num_parts} parts in folder '{parts_folder}'.")
-        return parts_folder
+    def split(self, data, num_parts=4, min_parts=3):
+        encoder = Encoder(k=min_parts, m=num_parts)
+        try:
+            return encoder.encode(data)
+        except Exception:
+            raise Exception("Shamir: Error during split")
 
 
-    def merge_parts(self, parts_folder, output_file, num_parts=4, min_parts=3):
-        parts = []
+    def merge_parts(self, data, num_parts=4, min_parts=3):
         sharenums = []
-        for i in range(1, num_parts + 1):
-            part_path = os.path.join(parts_folder, f'part_{i}.bin')
-            if os.path.exists(part_path):
-                with open(part_path, 'rb') as part_file:
-                    parts.append(part_file.read())
-                    sharenums.append(i - 1)
+        if (len(data) != num_parts):
+            raise Exception("Shamir: Number of parts does not match data given!")
+        if len(data) < min_parts:
+            raise Exception(f"Shamir: At least {min_parts} parts are required to reconstruct the file.")
+        
+        for i in range(0, num_parts):
+            sharenums.append(i)
 
-        if len(parts) < min_parts:
-            print(f"Error: At least {min_parts} parts are required to reconstruct the file.")
-            return
-
-        decoder = Decoder(k=3, m=4)
+        decoder = Decoder(k=min_parts, m=num_parts)
 
         try:
             padlen = 0
-
-            decoded_data = decoder.decode(parts, sharenums, padlen)
-
-            with open(output_file, 'wb') as output:
-                output.write(decoded_data)
-
-            print(f"File successfully reconstructed into '{output_file}'.")
-        except Exception as e:
-            print(f"Error during reconstruction: {e}")
+            return decoder.decode(data, sharenums, padlen)
+        except Exception:
+            raise Exception("Shamir: error during reconstruction")
 
 
 def test():
