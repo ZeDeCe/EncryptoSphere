@@ -1,10 +1,10 @@
 import os
 import tempfile
 
-import modules.Split.Split as Split
-import modules.Encrypt.Encrypt as Encrypt
-import modules.FileDescriptor as FileDescriptor
-import modules.CloudAPI.CloudService as CloudService
+from modules.Split import Split
+from modules import Encrypt
+from modules import FileDescriptor
+from modules.CloudAPI import CloudService
 
 class CloudAbstraction:
     """
