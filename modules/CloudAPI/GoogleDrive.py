@@ -16,7 +16,7 @@ API_KEY = os.getenv("GOOGLE_API_KEY")
 SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
 
 
-class GoogleDriveImp:
+class GoogleDrive:
     def __init__(self):
         self.drive_service = None
 

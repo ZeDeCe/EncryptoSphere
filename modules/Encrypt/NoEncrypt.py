@@ -1,10 +1,8 @@
-from abc import ABC, abstractmethod
+from .Encrypt import Encrypt
 
-class Encrypt(ABC):
-    @abstractmethod
+class NoEncrypt(Encrypt):
     def encrypt_file(file_path):
         pass
     
-    @abstractmethod
     def decrypt_file(file_path):
         pass

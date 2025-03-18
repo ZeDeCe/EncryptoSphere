@@ -1,7 +1,7 @@
 import os
 import shutil
 
-import Split
+from .Split import Split
 
 class NoSplit(Split):
     def split_file(self, file, num_parts) -> str:
