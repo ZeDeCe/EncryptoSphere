@@ -13,7 +13,7 @@ load_dotenv()
 DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
 DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 
-class DropboxImp(CloudService):
+class DropBox(CloudService):
     def __init__(self, rootfolder):
         self.dbx = None
         self.userid = None

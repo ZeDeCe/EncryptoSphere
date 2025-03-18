@@ -2,7 +2,7 @@ import os
 from zfec.easyfec import Encoder
 from zfec.easyfec import Decoder
 
-import Split
+from .Split import Split
 
 class ShamirSplit(Split):
     def get_name(self):

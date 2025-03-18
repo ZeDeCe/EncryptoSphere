@@ -57,7 +57,7 @@ class FileDescriptor:
         """
         if not os.path.isfile(filedescriptor):
             raise OSError()
-        self.file = open(filedescriptor, "rw")
+        self.file = open(filedescriptor, "r+")
         self.root = os.path.dirname(filedescriptor)
         self.files = json.load(self.file)
         
