@@ -10,6 +10,8 @@ from modules.CloudAPI import *
 from FileDescriptor import FileDescriptor
 
 import utils.DialogBox as DialogBox
+import utils.app as app
+
 
 def main():
     clouds = [DropBox("/EncryptoSphere")]
@@ -19,10 +21,11 @@ def main():
                                FileDescriptor(os.path.join(os.getcwd(),"Test\\fd")))
     try:
         manager.authenticate(DialogBox.input_dialog("EncryptoSphere", "Enter your email: "))
+
     except:
         print("Failed to authenticate")
         return
-    
+    app.run_app()
     try:
         manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
     except:

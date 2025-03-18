@@ -108,6 +108,7 @@ class DropBox(CloudService):
                         print(f"Folder: {file.name}")
                     '''
                     file_names.append(file.name)
+                return file_names
         except dropbox.exceptions.ApiError as e:
             print(f"Error {e}")
             return None
