@@ -12,7 +12,6 @@ from FileDescriptor import FileDescriptor
 import utils.DialogBox as DialogBox
 import utils.app as app
 
-
 def main():
     clouds = [DropBox("/EncryptoSphere")]
     manager = CloudAbstraction(clouds, 
@@ -21,14 +20,15 @@ def main():
                                FileDescriptor(os.path.join(os.getcwd(),"Test\\fd")))
     try:
         manager.authenticate(DialogBox.input_dialog("EncryptoSphere", "Enter your email: "))
-
     except:
         print("Failed to authenticate")
         return
     app.run_app()
+    manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
     try:
-        manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
-    except:
+        pass
+    except Exception as e:
+        print(e)
         print("Failed to upload file")
         return
 
