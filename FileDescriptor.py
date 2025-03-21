@@ -5,7 +5,7 @@ import json
 File descriptors look like this:
 FD:
 [
-    {
+    id = {
         name, 
         upload_date, 
         edit_date, 
@@ -22,7 +22,6 @@ FD:
 
 
 class FileDescriptor:
-
     # class LFUCache:
     #     """
     #     The LFU cache of the FileDescriptor class
@@ -48,6 +47,7 @@ class FileDescriptor:
         self.root = root
         self.file = open(os.path.join(os.getenv("ENCRYPTO_ROOT"), self.root, "FD"), "rw") # TODO: Error handling
         self.files = {}
+        self.last_id = 0
 
     def __init__(self, filedescriptor):
         """
@@ -60,6 +60,7 @@ class FileDescriptor:
         self.file = open(filedescriptor, "r+")
         self.root = os.path.dirname(filedescriptor)
         self.files = json.load(self.file)
+        self.last_id = self.files["__metadata"].last_id
         
     def __del__(self):
         self.file.close()
@@ -69,31 +70,37 @@ class FileDescriptor:
         Add a new file to the filedescriptor listing
         @return the file_id
         """
-        pass
+        # TODO: check if data is valid
+        self.last_id += 1
+        self.files[f"{self.last_id}"] = data
 
     def delete_file(self, file_id):
         """
         Delete a file listing for a file that does not exist anymore
         @return the file metadata that got deleted
         """
+        self.files.pop(file_id)
 
     def edit_file(self, file_id, data):
         """
         Edits the file metadata of file_id with the new data in data
         @return the file_id
         """
+        file = self.files[file_id]
+        for key, val in data.items():
+            file[key] = val
 
     def get_file_data(self, file_id):
         """
         Returns the data of a file_id as an array that can be edited and sent to edit_file
         """
-        pass
+        return self.files[file_id]
 
     def get_file_list(self):
         """
         Returns the list of all files in the FileDescriptor
         """
-        pass
+        return list(map(lambda f: f["name"],self.files))
 
     def get_path(self):
         """
@@ -105,3 +112,4 @@ class FileDescriptor:
         """
         Sync the filemapping to disk
         """
+        self.file.write(json.dump(self.files))
