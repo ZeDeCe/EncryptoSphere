@@ -60,6 +60,7 @@ class CloudAbstraction:
         data = self.__split(data, len(self.clouds))
         file_id = self.fd.add_file(
             os.path.basename(os_filepath),
+            path,
             self.encrypt.get_name(),
             self.split.get_name(),
             self.cloud_name_list
