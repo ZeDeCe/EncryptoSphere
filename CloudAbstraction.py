@@ -1,5 +1,5 @@
 import os
-import tempfile
+from datetime import datetime, timezone
 
 from modules import Split
 from modules import Encrypt
@@ -17,6 +17,7 @@ class CloudAbstraction:
         self.encrypt = encrypt
         self.fd = file_descriptor
         self.clouds = clouds
+        self.cloud_name_list = map(lambda c: c.get_name(), self.clouds)
 
     def __split(self, file, parts):
         return self.split.split(file, parts)
@@ -34,11 +35,11 @@ class CloudAbstraction:
         self.encrypt.decrypt_file(file)
         return file
 
-    def __tempfile_from_path(self, os_filepath):
-        file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
-        with open(os_filepath, "r") as osfile:
-            file.write(osfile.read().encode('utf-8'))
-        return file
+    # def __tempfile_from_path(self, os_filepath):
+    #     file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
+    #     with open(os_filepath, "r") as osfile:
+    #         file.write(osfile.read().encode('utf-8'))
+    #     return file
 
     def authenticate(self, email):
         for cloud in self.clouds:
@@ -49,13 +50,27 @@ class CloudAbstraction:
         if not os.path.isfile(os_filepath):
             raise OSError()
         
+        data = None
         with open(os_filepath, 'rb') as file:
             data = file.read()
-            data = self.__encrypt(data)
-            data = self.__split(data, len(self.clouds))
-            # TODO: add filedescriptor
-            for i,f in enumerate(data):
-                self.clouds[i].upload_file(f, "temptest.txt", path)
+
+        data = self.__encrypt(data)
+        data = self.__split(data, len(self.clouds))
+        now = str(datetime.now(timezone.utc))
+        file_id = self.fd.add_file({
+            "name": os.path.basename(os_filepath),
+            "upload_date" : now,
+            "edit_date" : now,
+            "e_alg" : self.encrypt.get_name(),
+            "s_alg" : self.split.get_name(),
+            "parts" : self.cloud_name_list
+        })
+        for i,f in enumerate(data):
+            try:
+                self.clouds[i].upload_file(f, f"{file_id}", path)
+            except:
+                print("Failed to upload one of the files")
+                raise Exception()
 
     # TODO: error handling
     def upload_folder(self, folder):

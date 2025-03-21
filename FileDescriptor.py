@@ -6,16 +6,15 @@ File descriptors look like this:
 FD:
 [
     id = {
-        name, 
-        upload_date, 
-        edit_date, 
-        encryption_algo, 
-        splitting_algo, 
-        shared_with, 
-        encryption_salt,
-        file_hash,
-        path,
-        [file_parts]
+        name : str, The name of the file
+        upload_date : , The upload date
+        edit_date, The edit date
+        e_alg, The encryption algorithm used to encrypt the file
+        s_alg, The splitting algorithm used to split the file
+        shared_with, Who it is shared with
+        encryption_salt, The encryption salt
+        file_hash, The MD5 hash of the file
+        parts = [file_parts] Ordered list of file parts (e.g [Google, DropBox])
     }
 ]
 """
@@ -73,6 +72,7 @@ class FileDescriptor:
         # TODO: check if data is valid
         self.last_id += 1
         self.files[f"{self.last_id}"] = data
+        return self.last_id
 
     def delete_file(self, file_id):
         """
