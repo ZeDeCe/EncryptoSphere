@@ -1,28 +1,26 @@
 import os
 import json
+from datetime import datetime, timezone
 
 """
 File descriptors look like this:
 FD:
-[
-    {
-        name, 
-        upload_date, 
-        edit_date, 
-        encryption_algo, 
-        splitting_algo, 
-        shared_with, 
-        encryption_salt,
-        file_hash,
-        path,
-        [file_parts]
+{
+    id = {
+        name : str, The name of the file
+        upload_date : , The upload date
+        edit_date, The edit date
+        e_alg, The encryption algorithm used to encrypt the file
+        s_alg, The splitting algorithm used to split the file
+        shared_with, Who it is shared with
+        encryption_salt, The encryption salt
+        file_hash, The MD5 hash of the file
+        parts = [file_parts] Ordered list of file parts (e.g [Google, DropBox])
     }
-]
+}
 """
 
-
 class FileDescriptor:
-
     # class LFUCache:
     #     """
     #     The LFU cache of the FileDescriptor class
@@ -41,67 +39,100 @@ class FileDescriptor:
 
     def __init__(self, root):
         """
-        Construct a new FileDescriptor
-        """
-        # root is the "root folder" that this filedescriptor is based on
-        # a filedescriptor represents a filesystem, will be used in sharing as a file system for shared folders
-        self.root = root
-        self.file = open(os.path.join(os.getenv("ENCRYPTO_ROOT"), self.root, "FD"), "rw") # TODO: Error handling
-        self.files = {}
-
-    def __init__(self, filedescriptor):
-        """
         Creates a new FileDescriptor object from an existing FileDescriptor file
         Creating a filedescriptor with an invalid filedescriptor file will raise an OSError
-        @param filedescriptor the path to the filedescriptor in the OS
+        @param root the path of the filedescriptor in the os
         """
-        if not os.path.isfile(filedescriptor):
-            raise OSError()
-        self.file = open(filedescriptor, "r+")
-        self.root = os.path.dirname(filedescriptor)
-        self.files = json.load(self.file)
+        try:
+            if not os.path.exists(root):
+                os.makedirs(root)
+        except:
+            raise OSError("Root folder given for FD is invalid")
+
+        self.root = root
+        fd_path = os.path.join(self.root, "$FD")
+
+        if not os.path.isdir(root):
+            raise OSError("Root of file descriptor isn't a valid file or folder")
         
+        if os.path.isfile(fd_path) and os.path.getsize(fd_path)!=0:
+            self.file = open(fd_path, "r+")
+            
+            try:
+                self.files = json.load(self.file)
+            except:
+                raise OSError("Failed to parse the filedescriptor from json, file descriptor corrupted")
+        else:
+            self.file = open(fd_path, "w") # TODO: Error handling
+            self.files = {}
+            self.files["metadata"] = {}
+            self.files["metadata"]["last_id"] = "0"
+
+        self.metadata = self.files["metadata"]
+            
+    def __get_last_id(self):
+        return self.metadata["last_id"]
+
+    def __inc_last_id(self):
+        self.metadata["last_id"] = str(int(self.metadata["last_id"]) + 1)
+        return self.metadata["last_id"]
+
     def __del__(self):
         self.file.close()
 
-    def add_file(self, data):
+    def add_file(self, name, encryption_alg_sig, splitting_alg_sig, clouds_order):
         """
         Add a new file to the filedescriptor listing
         @return the file_id
         """
-        pass
+        # TODO: check if data is valid
+        new_id = self.__inc_last_id()
+        now = str(datetime.now(timezone.utc).timestamp())
+        self.files[new_id] = {
+            "name": name,
+            "upload_date" : now,
+            "edit_date" : now,
+            "e_alg" : encryption_alg_sig,
+            "s_alg" : splitting_alg_sig,
+            "parts" : clouds_order
+        }
+        return new_id
 
     def delete_file(self, file_id):
         """
         Delete a file listing for a file that does not exist anymore
         @return the file metadata that got deleted
         """
+        return self.files.pop(file_id)
 
     def edit_file(self, file_id, data):
         """
         Edits the file metadata of file_id with the new data in data
         @return the file_id
         """
+        file = self.files[file_id]
+        for key, val in data.items():
+            file[key] = val
 
     def get_file_data(self, file_id):
         """
         Returns the data of a file_id as an array that can be edited and sent to edit_file
         """
-        pass
+        return self.files[file_id]
 
     def get_file_list(self):
         """
         Returns the list of all files in the FileDescriptor
         """
-        pass
-
-    def get_path(self):
-        """
-        Returns the path of the filedescriptor
-        """
-        return os.path.realpath(self.file.name)
+        return list(map(lambda f: f["name"],self.files))
     
     def sync_to_file(self):
         """
         Sync the filemapping to disk
         """
+        self.file.seek(0)
+        self.file.truncate()
+        json.dump(self.files, self.file)
+
+    def __str__(self):
+        return str(self.files)
