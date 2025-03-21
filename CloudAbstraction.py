@@ -49,7 +49,7 @@ class CloudAbstraction:
             return False
 
     # TODO: async this
-    def upload_file(self, os_filepath, path=None):
+    def upload_file(self, os_filepath, path="/"):
         if not os.path.isfile(os_filepath):
             raise OSError()
         
@@ -76,7 +76,7 @@ class CloudAbstraction:
                 raise Exception()
 
     # TODO: error handling
-    def upload_folder(self, os_folder, path):
+    def upload_folder(self, os_folder, path="/"):
         """
         This function uploads an entire folder to the cloud
         Since EncryptoSphere keeps hierarchy only in the FileDescriptor and uploads all files to the same EncryptoSphere
@@ -86,13 +86,14 @@ class CloudAbstraction:
         """
         os_folder = os.path.abspath(os_folder)
         folder_name = os.path.basename(os_folder)
+        if path[-1] !="/":
+            path = f"{path}/"
         for root, _, files in os.walk(os_folder):
             root_arr = root.split(os.sep)
             root_arr = root_arr[root_arr.index(folder_name):]
             encrypto_root = "/".join(root_arr)
             for file in files:
-                print(f"/{encrypto_root}/{file}")
-                self.upload_file(self, file, path)
+                self.upload_file(os.path.join(root,file), f"{path}{encrypto_root}")
         # can add yield here to tell which files have been uploaded
 
     def download_file(self, file_id):
