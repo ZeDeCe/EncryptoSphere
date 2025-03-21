@@ -27,9 +27,7 @@ def main():
     #app.run_app()
     try:
         print(manager.fd)
-        manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
-        print(manager.fd)
-        manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme2.txt"), "/test")
+        manager.upload_folder(".\\Test\\folder","/test")
         print(manager.fd)
         manager.fd.sync_to_file()
         print()
