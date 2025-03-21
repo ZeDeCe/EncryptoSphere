@@ -6,3 +6,6 @@ class NoEncrypt(Encrypt):
     
     def decrypt_file(self, data):
         return data
+    
+    def get_name(self):
+        return "No"
