@@ -49,7 +49,7 @@ class CloudAbstraction:
             return False
 
     # TODO: async this
-    def upload_file(self, os_filepath, path=None):
+    def upload_file(self, os_filepath, path="/"):
         if not os.path.isfile(os_filepath):
             raise OSError()
         
