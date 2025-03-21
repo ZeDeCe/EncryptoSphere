@@ -7,8 +7,9 @@ File descriptors look like this:
 FD:
 {
     id = {
-        name : str, The name of the file
-        upload_date : , The upload date
+        name, The name of the file
+        path, The path of the file in EncryptoSphere
+        upload_date, The upload date
         edit_date, The edit date
         e_alg, The encryption algorithm used to encrypt the file
         s_alg, The splitting algorithm used to split the file
@@ -80,7 +81,7 @@ class FileDescriptor:
     def __del__(self):
         self.file.close()
 
-    def add_file(self, name, encryption_alg_sig, splitting_alg_sig, clouds_order):
+    def add_file(self, name, path, encryption_alg_sig, splitting_alg_sig, clouds_order):
         """
         Add a new file to the filedescriptor listing
         @return the file_id
@@ -88,8 +89,14 @@ class FileDescriptor:
         # TODO: check if data is valid
         new_id = self.__inc_last_id()
         now = str(datetime.now(timezone.utc).timestamp())
+
+        # split = file_path.split("/")
+        # name = split[-1]
+        # path = "/".join(split[:-1])
+
         self.files[new_id] = {
             "name": name,
+            "path": path,
             "upload_date" : now,
             "edit_date" : now,
             "e_alg" : encryption_alg_sig,
@@ -122,9 +129,15 @@ class FileDescriptor:
 
     def get_file_list(self):
         """
-        Returns the list of all files in the FileDescriptor
+        Returns the list of all files in the FileDescriptor as follows:
+        [
+            [file_id, name, path, upload_date, edit_date],
+            [file_id, name, path, upload_date, edit_date],
+            ...
+        ]
         """
-        return list(map(lambda f: f["name"],self.files))
+        return [{"id": id, "name": f["name"], "path": f["path"], "upload_date": f["upload_date"], "edit_date": f["edit_date"]} for id,f in self.files.items() if id!="metadata"]
+
     
     def sync_to_file(self):
         """
