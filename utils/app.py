@@ -52,5 +52,3 @@ def run_app():
 
     # Run the application
     app.mainloop()
-
-run_app()
