@@ -50,7 +50,7 @@ class CloudService(ABC):
         #List all shared files and folders in the cloud storage
         pass
 
-    # Technically can do this with __tostring__
+    # Technically can do this with __str__
     @abstractmethod
     def get_name(self):
         # Return the string name of the cloud service
