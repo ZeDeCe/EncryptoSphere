@@ -265,6 +265,9 @@ class DropBox(CloudService):
                 print(f"Error removing member '{email}' from folder '{folder}': {e}")
                 return None
         return True
+    
+    def get_name(self):
+        return "D"
 
 '''    
 # Main function to interact with the user

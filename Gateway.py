@@ -17,16 +17,20 @@ def main():
     manager = CloudAbstraction(clouds, 
                                NoSplit(), 
                                NoEncrypt(), 
-                               FileDescriptor(os.path.join(os.getcwd(),"Test\\fd")))
+                               FileDescriptor("Test\\EncryptoSphere\\data"))
     try:
         manager.authenticate(DialogBox.input_dialog("EncryptoSphere", "Enter your email: "))
     except:
         print("Failed to authenticate")
         return
-    app.run_app()
-    manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
+    #app.run_app()
     try:
-        pass
+        print(manager.fd)
+        manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
+        print(manager.fd)
+        manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme2.txt"))
+        print(manager.fd)
+        manager.fd.sync_to_file()
     except Exception as e:
         print(e)
         print("Failed to upload file")

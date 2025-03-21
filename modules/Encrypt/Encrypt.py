@@ -8,3 +8,7 @@ class Encrypt(ABC):
     @abstractmethod
     def decrypt_file(self, data):
         pass
+
+    @abstractmethod
+    def get_name(self) -> str:
+        pass
