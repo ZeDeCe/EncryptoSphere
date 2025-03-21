@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+import tempfile
 
 from modules import Split
 from modules import Encrypt
@@ -11,21 +11,19 @@ class CloudAbstraction:
     This class is the top application layer for handling actions that relate to files from OS to cloud services
     CloudAbstraction does not handle errors and throws any error to user classes to handle.
     """
-
     def __init__(self, clouds, split : Split, encrypt : Encrypt, file_descriptor : FileDescriptor):
         self.split = split
         self.encrypt = encrypt
         self.fd = file_descriptor
         self.clouds = clouds
-        self.cloud_name_list = map(lambda c: c.get_name(), self.clouds)
+        self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
 
     def __split(self, file, parts):
         return self.split.split(file, parts)
     
     def __merge(self, folder):
-        output = os.path.join(folder,"merged")
-        self.split.merge_parts(folder, output)
-        return output
+        # TODO: finish function
+        return self.split.merge_parts()
     
     def __encrypt(self, file):
         self.encrypt.encrypt_file(file)
@@ -35,15 +33,19 @@ class CloudAbstraction:
         self.encrypt.decrypt_file(file)
         return file
 
-    # def __tempfile_from_path(self, os_filepath):
-    #     file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
-    #     with open(os_filepath, "r") as osfile:
-    #         file.write(osfile.read().encode('utf-8'))
-    #     return file
+    def __tempfile_from_path(self, os_filepath):
+        file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
+        with open(os_filepath, "r") as osfile:
+            file.write(osfile.read().encode('utf-8'))
+        return file
 
     def authenticate(self, email):
-        for cloud in self.clouds:
-            cloud.authenticate_cloud(email)
+        try:
+            for cloud in self.clouds:
+                cloud.authenticate_cloud(email)
+            return True
+        except:
+            return False
 
     # TODO: async this
     def upload_file(self, os_filepath, path=None):
@@ -56,20 +58,18 @@ class CloudAbstraction:
 
         data = self.__encrypt(data)
         data = self.__split(data, len(self.clouds))
-        now = str(datetime.now(timezone.utc))
-        file_id = self.fd.add_file({
-            "name": os.path.basename(os_filepath),
-            "upload_date" : now,
-            "edit_date" : now,
-            "e_alg" : self.encrypt.get_name(),
-            "s_alg" : self.split.get_name(),
-            "parts" : self.cloud_name_list
-        })
+        file_id = self.fd.add_file(
+            os.path.basename(os_filepath),
+            self.encrypt.get_name(),
+            self.split.get_name(),
+            self.cloud_name_list
+        )
         for i,f in enumerate(data):
             try:
                 self.clouds[i].upload_file(f, f"{file_id}", path)
             except:
                 print("Failed to upload one of the files")
+                self.fd.delete_file(file_id)
                 raise Exception()
 
     # TODO: error handling
@@ -98,6 +98,15 @@ class CloudAbstraction:
         on all of those files. Constructs them as the hierarchy in the filedescriptor.
         """
         pass
+
+    def delete_file(self, file_id):
+        pass
+
+    def delete_folder(self, folder):
+        pass
+
+    def get_file_list(self):
+        return self.fd.get_file_list()
 
     def sync_filedescriptor(self):
         """
