@@ -11,12 +11,13 @@ class CloudAbstraction:
     This class is the top application layer for handling actions that relate to files from OS to cloud services
     CloudAbstraction does not handle errors and throws any error to user classes to handle.
     """
-    def __init__(self, clouds, split : Split, encrypt : Encrypt, file_descriptor : FileDescriptor):
+    def __init__(self, clouds, root : str, split : Split, encrypt : Encrypt, file_descriptor : FileDescriptor):
         self.split = split
         self.encrypt = encrypt
         self.fd = file_descriptor
         self.clouds = clouds
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
+        self.root_folder = root
 
     def __split(self, file, parts):
         return self.split.split(file, parts)
@@ -67,22 +68,30 @@ class CloudAbstraction:
         )
         for i,f in enumerate(data):
             try:
-                self.clouds[i].upload_file(f, f"{file_id}", path)
-            except:
+                self.clouds[i].upload_file(f, f"{file_id}", self.root_folder)
+            except Exception as e:
+                print(e)
                 print("Failed to upload one of the files")
                 self.fd.delete_file(file_id)
                 raise Exception()
 
     # TODO: error handling
-    def upload_folder(self, folder):
+    def upload_folder(self, os_folder, path):
         """
         This function uploads an entire folder to the cloud
         Since EncryptoSphere keeps hierarchy only in the FileDescriptor and uploads all files to the same EncryptoSphere
         root folder, we iterate over the folder and upload each file seperately using self.upload_file
+        @param os_folder the folder path on the OS to upload
+        @param path the root path for the folder in encryptosphere hierarchy
         """
-        for root, _, files in os.walk(folder):
-            path = '/'.join(root.split(os.sep))
+        os_folder = os.path.abspath(os_folder)
+        folder_name = os.path.basename(os_folder)
+        for root, _, files in os.walk(os_folder):
+            root_arr = root.split(os.sep)
+            root_arr = root_arr[root_arr.index(folder_name):]
+            encrypto_root = "/".join(root_arr)
             for file in files:
+                print(f"/{encrypto_root}/{file}")
                 self.upload_file(self, file, path)
         # can add yield here to tell which files have been uploaded
 

@@ -13,8 +13,9 @@ import utils.DialogBox as DialogBox
 import utils.app as app
 
 def main():
-    clouds = [DropBox("/EncryptoSphere")]
+    clouds = [DropBox()]
     manager = CloudAbstraction(clouds, 
+                               "/EncryptoSphere",
                                NoSplit(), 
                                NoEncrypt(), 
                                FileDescriptor("Test\\EncryptoSphere\\data"))
@@ -28,14 +29,18 @@ def main():
         print(manager.fd)
         manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
         print(manager.fd)
-        manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme2.txt"))
+        manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme2.txt"), "/test")
         print(manager.fd)
         manager.fd.sync_to_file()
+        print()
+        print()
+        print()
+        print("List:")
+        print(manager.get_file_list())
     except Exception as e:
         print(e)
         print("Failed to upload file")
         return
 
-    
 if __name__=="__main__":
     main()

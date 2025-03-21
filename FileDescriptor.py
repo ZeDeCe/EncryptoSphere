@@ -81,7 +81,7 @@ class FileDescriptor:
     def __del__(self):
         self.file.close()
 
-    def add_file(self, file_path, encryption_alg_sig, splitting_alg_sig, clouds_order):
+    def add_file(self, name, path, encryption_alg_sig, splitting_alg_sig, clouds_order):
         """
         Add a new file to the filedescriptor listing
         @return the file_id
@@ -90,9 +90,9 @@ class FileDescriptor:
         new_id = self.__inc_last_id()
         now = str(datetime.now(timezone.utc).timestamp())
 
-        split = file_path.split("/")
-        name = split[-1]
-        path = "/".join(split[:-1])
+        # split = file_path.split("/")
+        # name = split[-1]
+        # path = "/".join(split[:-1])
 
         self.files[new_id] = {
             "name": name,
@@ -136,9 +136,8 @@ class FileDescriptor:
             ...
         ]
         """
-        return list(map(lambda f: 
-                        [f, self.files[f].name, self.files[f].path, self.files[f].upload_date, self.files[f].edit_date],
-                        self.files))
+        return [{"id": id, "name": f["name"], "path": f["path"], "upload_date": f["upload_date"], "edit_date": f["edit_date"]} for id,f in self.files.items() if id!="metadata"]
+
     
     def sync_to_file(self):
         """
