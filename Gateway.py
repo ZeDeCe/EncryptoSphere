@@ -8,30 +8,61 @@ from modules.Encrypt import *
 from modules.Split import *
 from modules.CloudAPI import *
 from FileDescriptor import FileDescriptor
+import customtkinter as ctk
 
 import utils.DialogBox as DialogBox
 import utils.app as app
 
-def main():
-    clouds = [DropBox("/EncryptoSphere")]
-    manager = CloudAbstraction(clouds, 
+class Gateway:
+    """
+    This class creates EncryptoSphere process and handles UI requests.
+    Acts as the api between the UI and the "backend" of the program. 
+    """
+
+    def __init__(self):
+        self.clouds = [DropBox("/EncryptoSphere")]
+        self.manager = CloudAbstraction(self.clouds, 
                                NoSplit(), 
                                NoEncrypt(), 
                                FileDescriptor(os.path.join(os.getcwd(),"Test\\fd")))
-    try:
-        manager.authenticate(DialogBox.input_dialog("EncryptoSphere", "Enter your email: "))
-    except:
-        print("Failed to authenticate")
-        return
-    app.run_app()
-    manager.upload_file(os.path.join(os.getcwd(), "Test", "uploadme.txt"))
-    try:
-        pass
-    except Exception as e:
-        print(e)
-        print("Failed to upload file")
-        return
+    
+    def authenticate(self, email):
+        self.manager.authenticate(email)
+        return True
+    
+    def get_files(self):
+        return self.manager.get_file_list()
+    
+    def download_file(self, file_id):
+        self.manager.download_file(file_id)
+        return True #if download succedded else return false
+    
+    def download_folder(self, folder_id):
+        self.manager.download_folder(folder_id)
+        return True #if download succedded else return false
+    
+    def upload_file(self, file_path):
+        self.manager.upload_file(file_path)
+        return True #if upload succedded else return false
+    
+    def upload_folder(self, folder_path):
+        self.manager.upload_folder(folder_path)
+        return True #if upload succedded else return false
+    
+    def delete_file(self, file_id):
+        self.manager.delete_file(file_id)
+        return True #if delete succedded else return false
+    
+    def delete_folder(self, folder_id):
+        self.manager.delete_folder(folder_id)
+        return True #if delete succedded else return false
 
+
+def main():
+    gateway = Gateway()
+    gui = app.App(gateway)
+    gui.run()
     
 if __name__=="__main__":
     main()
+

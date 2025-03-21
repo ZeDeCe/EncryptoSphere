@@ -1,6 +1,57 @@
 import customtkinter as ctk
 import tkinter as tk
 from CTkListbox import CTkListbox  # Ensure CTkListbox is installed
+import Gateway
+
+class App():
+    """
+    This class creates the UI features and the program main window.
+    """
+    
+    def __init__(self, gateway):
+        self.root = ctk.CTk()
+        self.root.title("EncryptoSphere")
+        self.root.geometry("400x300")
+        self.api = gateway
+        
+    def run(self):
+        self.login_window()
+        self.root.mainloop()
+        
+    def login_window(self):
+        self.main_frame = ctk.CTkFrame(self.root)
+        self.main_frame.pack(fill="both", expand=True)
+        self.message = ctk.CTkLabel(self.main_frame, text="Enter your Email Address:")
+        self.message.pack(pady=20)
+        self.entry = ctk.CTkEntry(self.main_frame, placeholder_text="Example@gmail.com")
+        self.entry.pack(pady=10)
+        self.submit_button = ctk.CTkButton(self.main_frame, text="Submit", command=self.__handle_login)
+        self.submit_button.pack(pady=10)
+
+    def __handle_login(self):
+        email = self.entry.get()
+        result = self.api.authenticate(email)
+        print(result)
+        if not result:
+            for widget in self.main_frame.winfo_children():
+                widget.destroy()
+            self.__show_error("Error While connecting to the Cloud", self.login_window)
+        else:
+            for widget in self.main_frame.winfo_children():
+                widget.destroy() 
+            self.main_window()
+    
+
+    def main_window(self):
+        files_list = self.api.get_files()
+
+    def __show_error(self, error_message, func):
+        self.error_label = ctk.CTkLabel(self.main_frame, text=error_message)
+        self.error_label.pack(pady=20)
+        # Add a button to go back and retry
+        self.retry_button = ctk.CTkButton(self.main_frame, text="Retry", command=func)
+        self.retry_button.pack(pady=10)
+
 
 # Set up the main application window
 def run_app():
@@ -53,4 +104,3 @@ def run_app():
     # Run the application
     app.mainloop()
 
-run_app()
