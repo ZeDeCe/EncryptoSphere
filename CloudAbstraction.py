@@ -17,6 +17,7 @@ class CloudAbstraction:
         self.fd = file_descriptor
         self.clouds = clouds
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
+        self.lock_session()
         self.root_folder = root
 
     def __init__(self, clouds : list, root : str, split : Split, encrypt : Encrypt):
@@ -25,7 +26,16 @@ class CloudAbstraction:
         self.clouds = clouds
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.root_folder = root
+        self.lock_session()
         self.fd = self.sync_from_clouds()
+
+    def lock_session(self):
+        """
+        Checks if a session file is active on the cloud
+        If it is raise error.
+        If not then place one to lock the session
+        """
+        pass
 
     def __split(self, file, parts):
         return self.split.split(file, parts)
