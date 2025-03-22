@@ -27,7 +27,8 @@ class CloudManager:
         self.split = split
         self.encrypt = encrypt
         self.clouds = clouds
-        self.root_folder = f"{os.getenv("ENCRYPTO_ROOT")}{root}"
+        mainroot = os.getenv("ENCRYPTO_ROOT")
+        self.root_folder = f"{mainroot}{root}"
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.fd = file_descriptor if file_descriptor else self.sync_from_clouds()
         self.lock_session()

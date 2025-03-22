@@ -2,7 +2,8 @@
 This is the main file that runs the the entire program
 """
 import os
-
+from dotenv import load_dotenv
+load_dotenv()
 from CloudManager import CloudManager
 from modules.Encrypt import *
 from modules.Split import *
