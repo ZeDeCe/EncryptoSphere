@@ -14,11 +14,9 @@ DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
 DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 
 class DropBox(CloudService):
-    def __init__(self, rootfolder):
+    def __init__(self):
         self.dbx = None
         self.userid = None
-        self.root_folder = None
-        self.root = rootfolder
 
     # Function to authenticate the Dropbox account and get access token
     # The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
@@ -39,8 +37,6 @@ class DropBox(CloudService):
         # Extract access token and user_id from the result object
         access_token = auth_result.access_token
         self.user_id = auth_result.user_id   
-        # If EncryptoSphere folder wasn't created yet, create it.        
-        self.root_folder = self.create_folder(self.root)
         return True
 
     # Function to verify if the token is valid for the given email
@@ -61,11 +57,10 @@ class DropBox(CloudService):
             print(f"Error {e}")
             return None
 
-    def upload_file(self, data, file_name: str, path=None):
-        if path is None:
-            path = f"{self.root}/{file_name}"
-        else:
-            path = f"{self.root}/{path}/{file_name}"
+    def upload_file(self, data, file_name: str, path="/"):
+        if not path[0] == "/":
+            raise Exception("DropBox: Path is invalid")
+        path = f"{path}/{file_name}"
 
         try:
             self.dbx.files_upload(data, path, mute=True)
