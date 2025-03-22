@@ -1,49 +1,95 @@
+"""
+This is the app UI 
+"""
 import customtkinter as ctk
-import tkinter as tk
-from tkinter import messagebox
 from PIL import Image
+from customtkinter import filedialog
+import os
 
+"""
+TODO: - Add correct actions to delete / dowload file
+      - Add all relevent error/info masseges
+      - Add settings button (template for advanced UI)
+      - Handle folders
+      - Add shares button and share Class (frame)
+      - Add search bar
+      - OPTIONAL: Add rename option
+"""
 class App(ctk.CTk):
     """
     This class creates the UI features and the program main window.
     """
     
     def __init__(self, gateway):
+        
         ctk.CTk.__init__(self)
         self.title("EncryptoSphere")
+
+        # As of now we are using specific sizing, on the advanced ui we will need to make dynamic sizing
         self.geometry("650x400")
+        
+        # "Backend" functions
         self.api = gateway
         
-        # creating a container for the frames
+        # Creating a container for the frames
         container = ctk.CTkFrame(self)
         container.pack(side="top", fill="both", expand=True)
-        
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
         
-        # initializing frames to an empty dictionary
+        # Initializing frames to an empty dictionary
         self.frames = {} 
+
+        # List of all context_menus in the app
+        self.context_menus = []
         
-        # creating the frames
+        # Creating the frames
         for F in (LoginPage, MainPage):
             frame = F(container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
         
-        self.show_frame(MainPage)
-    
+        # Show the start page (as of this POC, login to the clouds)
+        self.show_frame(LoginPage)
+
     def show_frame(self, cont):
+        """
+        Display the given frame
+        """
         frame = self.frames[cont]
+        frame.refresh()
         frame.tkraise()
 
     def get_api(self):
+        """
+        Get "backend" api's
+        """
         return self.api
+    
+    def register_context_menu(self, context_menu):
+        """
+        Register every new context menu
+        """
+        self.context_menus.append(context_menu)
+    
+    def button_clicked(self, button, ignore_list):
+        """
+        When any button is clicked, we need to close all opend context_menu(s)
+        """
+        for menu in self.context_menus:
+            if menu not in ignore_list:
+                menu.hide_context_menu()
 
-
-# LoginPage: Where user enters email and authenticates
 class LoginPage(ctk.CTkFrame):
+    """
+    This class creates the Login page frame -  Where user enters email and authenticates to the different clouds.
+    This class inherits ctk.CTkFrame class.
+    TODO: Design this page better.
+    """
     def __init__(self, parent, controller):
         ctk.CTkFrame.__init__(self, parent)
+        
+        self.controller = controller
         
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
@@ -59,13 +105,20 @@ class LoginPage(ctk.CTkFrame):
         
         self.submit_button = ctk.CTkButton(self, text="Submit", command=self.__handle_login)
         self.submit_button.grid(row=3, column=0, padx=10, pady=10, sticky="n")
-        
-        self.controller = controller
-
+    
+    def refresh(self):
+        """
+        Login page refresh - as of now we donr need this functionality
+        """
+        pass
+    
     def __handle_login(self):
+        """
+        This function is called when a user hit the submit button after typing the email address
+        The function hendels the login process, if succedded it pass the control to tne MainPage class - to display the main page
+        """
         email = self.entry.get()
         result = self.controller.get_api().authenticate(email)
-        print(result)
         
         if not result:
             self.__show_error("Error While connecting to the Cloud", self.controller.show_frame(LoginPage))
@@ -73,82 +126,210 @@ class LoginPage(ctk.CTkFrame):
             self.controller.show_frame(MainPage)
     
     def __show_error(self, error_message, func):
+        """
+        If authentication to the clouds fails, display the error and add retry button
+        """
         self.error_label = ctk.CTkLabel(self, text=error_message)
         self.error_label.grid(row=4, column=0, pady=20, sticky="n")
         
         self.retry_button = ctk.CTkButton(self, text="Retry", command=func)
         self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
 
-
-# MainPage: The main page that shows files after successful login
 class MainPage(ctk.CTkFrame):
+    """
+    This class creates the Main page frame after successful login.
+    This class inherits ctk.CTkFrame class.
+    """
     def __init__(self, parent, controller):
+        
+        self.controller = controller
+
+        self.context_menu_open = False
+
         ctk.CTkFrame.__init__(self, parent)
+
         
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
+        self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
+
+        encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
+        encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand = False)
+
+        self.upload_button = ctk.CTkButton(self.side_bar, text="Upload",
+                                      command=self.open_upload_menu,
+                                      width=120, height=30, fg_color="gray25", hover=False)
+        self.upload_button.pack(anchor="nw", padx=10, pady=10, expand = False)
         
-        label = ctk.CTkLabel(self, text="My Files", font=("Verdana", 25))
-        label.grid(row=0, column=0, padx=10, pady=10, sticky="n")
         
-        self.main_frame = ctk.CTkFrame(self)
-        self.main_frame.grid(row=1, column=0, padx=10, pady=10)
-        self.main_frame.place(relx=0.5, rely=0.5, anchor=ctk.CENTER)
+        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
+        self.main_frame.pack(fill = ctk.BOTH, expand = True)
+
+        # Context_menu object for the upload button (offers 2 options - upload file or upload folder)
+        # This is because windows os filesystem cannot open the explorer to select file and folder at the same time.
+        self.context_menu = OptionMenu(self, self.controller, [
+            {
+                "label": "Upload File",
+                "color": "gray25",
+                "event": lambda: self.upload_file()
+             },
+             {
+                 "label": "Upload Folder",
+                 "color": "gray25",
+                 "event": lambda: self.upload_folder()
+             }
+        ])
+
         
-        # Simulating file list
-        file_list = ["My file.txt", "Very_Long_File_Name_Example.pdf", "Image.png", "Script.py",
-              "Another_Document.docx", "Notes.txt", "Report_2024.xlsx", "Presentation.pptx"]
-        
-        file_icon = ctk.CTkImage(light_image=Image.open("resources/file_icon.png"), size=(40, 40))  
-        columns = 6  
+    def open_upload_menu(self):
+        """
+        This function opens the upload menu using the context_menue.
+        """ 
+        if self.context_menu_open:
+            self.context_menu_open = False
+            self.context_menu.hide_context_menu()
+        else:
+            self.context_menu_open = True
+            self.controller.button_clicked(self, [self.context_menu])
+            self.context_menu.show_context_menu(self.upload_button.winfo_x()+(120), self.upload_button.winfo_y())
+
+    def upload_file(self):
+        """
+        If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file.
+        Call the backend upload file to upload the file to the clouds. After a successful upload, refresh the frame so a the new file will be displayed
+        TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
+        """
+        file_path = filedialog.askopenfilename()
+        print(file_path)
+        if file_path:
+            self.controller.get_api().upload_file(os.path.normpath(file_path))
+        self.refresh()
+
+    def upload_folder(self):
+        """
+        If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder.
+        Call the backend upload folder to upload the folder to the clouds. After a successful upload, refresh the frame so a the new folder will be displayed
+        TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
+        """
+        folder_path = filedialog.askdirectory()
+        if folder_path:
+            self.controller.get_api().upload_folder(os.path.normpath(folder_path))
+        self.refresh()
+    
+    def refresh(self):
+        """
+        Refresh the frame and display all updates
+        """
+        file_list = self.controller.get_api().get_files()
+        self.buttons = []
+        columns = 6
         cell_size = 120
 
         for col in range(columns):
             self.main_frame.grid_columnconfigure(col, weight=1, uniform="file_grid")
 
-
-        for i, file_name in enumerate(file_list):
+        for i, file_data in enumerate(file_list):
             row = i // columns  
             col = i % columns   
 
-            file_frame = ctk.CTkFrame(self.main_frame, width=cell_size, height=cell_size)
+            file_frame = FileButton(self.main_frame, width=cell_size, height=cell_size, file_data=file_data, controller=self.controller)
             file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            self.buttons.append(file_frame)
 
-            icon_label = ctk.CTkLabel(file_frame, image=file_icon, text="")
-            icon_label.pack(pady=(5, 0))
+class FileButton(ctk.CTkFrame):
+    """
+    This class represents a "file button".
+    A file button is the frame surronding the file icon and name, so every mouse click in that area is considered as an action related to that specific file 
+    """
+    def __init__(self, master, width, height, file_data, controller):
 
-            name_label = ctk.CTkLabel(file_frame, text=file_name, font=("Arial", 9), wraplength=90, justify="center")
-            name_label.pack(pady=(0, 5))
+        ctk.CTkFrame.__init__(self, master, width=width, height=height)
 
-            file_frame.bind("<Button-1>", lambda e, fname=file_name: self.on_file_click(fname, e))
-            icon_label.bind("<Button-1>", lambda e, fname=file_name: self.on_file_click(fname, e))
-            name_label.bind("<Button-1>", lambda e, fname=file_name: self.on_file_click(fname, e))
-        
         self.controller = controller
+        self.master = master
+        self.file_data = file_data
 
-    def on_file_click(self, file_name, event=None):
-        print(f"File clicked: {file_name}")
+        self.file_icon = ctk.CTkImage(light_image=Image.open("resources/file_icon.png"), size=(40, 40))
 
-        # Remove any existing menu first
-        if hasattr(self, "context_menu"):
-            self.context_menu.destroy()
+        icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
+        icon_label.pack(pady=(5, 0))
+
+        name_label = ctk.CTkLabel(self, text=self.file_data["name"], font=("Arial", 9), wraplength=90, justify="center")
+        name_label.pack(pady=(0, 5))
+
+        # Connect all file related content to do the same action when clicked (open the context_menu)
+        self.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
+        icon_label.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
+        name_label.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
 
         # Create a context menu using CTkFrame
-        self.context_menu = ctk.CTkFrame(self, corner_radius=5, fg_color="gray25")
-        self.context_menu.place(x=event.x_root - self.winfo_rootx(), y=event.y_root - self.winfo_rooty())
+        self.context_menu = OptionMenu(master, self.controller, [
+            {
+                "label": "Download File",
+                "color": "blue",
+                "event": lambda: self.controller.get_api().download_file(self.file_data["id"])
+             },
+             {
+                 "label": "Delete File",
+                 "color": "red",
+                 "event": lambda: self.controller.get_api().delete_file(self.file_data["id"])
+             }
+        ])
 
-        # "Delete File" Button
-        delete_button = ctk.CTkButton(self.context_menu, text="Delete File",
-                                      command=lambda: self.controller.get_api().delete_file(file_name),
-                                      width=120, height=30, fg_color="red")
-        delete_button.pack(pady=5, padx=10)
+        # When clicking anywhere on the screen, close the context_menu
+        master.bind("<Button-1>", lambda event: self.context_menu.hide_context_menu(), add="+")
 
-        # "Download File" Button
-        download_button = ctk.CTkButton(self.context_menu, text="Download File",
-                                        command=lambda: self.controller.get_api().download_file(file_name),
-                                        width=120, height=30)
-        download_button.pack(pady=5, padx=10)
+    def on_file_click(self, file_id, event=None):
+        """
+        When clicking on a file, open the context menu for that file, double clicking means open-close the context menu.
+        Click on a file close any other open context menu.
+        """
+        print(f"File clicked: {file_id}")
+        self.controller.button_clicked(self, [self.context_menu])
+        if self.context_menu.context_hidden:
+            self.context_menu.lift()
+            self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.winfo_rooty())
+        else:
+           self.context_menu.hide_context_menu()
+              
+class OptionMenu(ctk.CTkFrame):
+    """
+    Class to create the context menue option bar
+    """
+    def __init__(self, master, controller, buttons):
+        """
+        @param buttons list of dictionaries as such: [{"label" : str, "color": str, "event": function}]
+        """
+        ctk.CTkFrame.__init__(self, master, corner_radius=5, fg_color="gray25")
+        
+        self.controller = controller
+        
+        self.context_hidden = True
 
-        # Auto-close menu when clicking elsewhere
-        self.bind("<Button-1>", lambda event: self.context_menu.destroy(), add="+")
+        self.buttons = []
+        
+        for button in buttons:
+            butt = ctk.CTkButton(self, text=button["label"],
+                                      command=button["event"],
+                                      width=120, height=30, fg_color=button["color"])
+            butt.pack(pady=5, padx=10)
+            butt.bind("<Button-1>", lambda event: self.hide_context_menu(), add="+")
+            self.buttons.append(butt)
 
+        self.controller.register_context_menu(self)
+
+    def hide_context_menu(self):
+        """
+        Hide the current context menu
+        """
+        if not self.context_hidden:
+            self.context_hidden = True
+            self.place_forget()
+        
+    def show_context_menu(self, x, y):
+        """
+        Display the current context menu on the selected location
+        """
+        self.context_hidden = False
+        self.place(x=x, y=y)
+
+    
