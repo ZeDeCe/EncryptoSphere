@@ -72,7 +72,7 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def share(self, folder : any, emails : list[str]) -> any:
+    def share_folder(self, folder : any, emails : list[str]) -> any:
         """
         Share a file or folder with a user (read/write permissions)
         @param folder the folder object returned from create_folder
@@ -80,11 +80,20 @@ class CloudService(ABC):
         @return the folder object of the now shared folder
         """
         pass
+
+    @abstractmethod
+    def create_shared_folder(self, path, emails : list[str]) -> any:
+        """
+        Creates and shares a folder with a specific list of emails
+        @param path the path the new folder should be created at
+        @param emails a list of emails to share with
+        @return a file object of the folder in the respective cloud service
+        """
  
     @abstractmethod
     def unshare_folder(self, folder_name):
         """
-        Unshare a file or folder from a user
+        Unshare a file completely
         """
         pass
 

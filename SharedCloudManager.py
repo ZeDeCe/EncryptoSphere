@@ -29,9 +29,8 @@ class SharedCloudManager(CloudManager):
         Create a first time share, generate a shared key and upload FEK
         """
         for cloud in self.clouds:
-            folder_obj = cloud.create_folder(self.root_folder)
-            shared_folder_obj = cloud.share(folder_obj)
-        shared_key = Fernet.generate_key()
+            cloud.create_shared_folder(self.root_folder, self.emails_by_cloud[cloud.get_name()])
+        shared_key = self.encrypt.generate_key()
         encrypted_sk = self._encrypt(shared_key) # encrypted with master key
         for cloud in self.clouds:
             cloud.upload_file(encrypted_sk, f"$FEK_{cloud.get_email()}", self.root_folder)
