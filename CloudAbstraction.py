@@ -83,9 +83,8 @@ class CloudAbstraction:
                 self.clouds[i].upload_file(f, f"{file_id}", self.root_folder)
             except Exception as e:
                 print(e)
-                print("Failed to upload one of the files")
                 self.fd.delete_file(file_id)
-                raise Exception()
+                raise Exception("Failed to upload one of the files")
 
     # TODO: error handling
     def upload_folder(self, os_folder, path="/"):
