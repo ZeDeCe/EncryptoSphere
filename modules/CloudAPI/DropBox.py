@@ -4,18 +4,17 @@ import dropbox
 import webbrowser
 import os 
 
-from dotenv import load_dotenv
 import dropbox.exceptions 
 from modules.CloudAPI.CloudService import CloudService
 from utils.DialogBox import input_dialog
-load_dotenv()
+
 
 DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
 DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 
 class DropBox(CloudService):
     def __init__(self, email):
-        super.__init__(self, email)
+        super().__init__(email)
         self.dbx = None
         self.userid = None
 
@@ -83,6 +82,10 @@ class DropBox(CloudService):
             else:
                 print(f"Error {e}")
                 return None
+
+    # TODO: Implement
+    def get_folder(self, folder_path : str) -> any:
+        pass
 
     # Function to list files in the root directory of Dropbox
     def list_files(self):
