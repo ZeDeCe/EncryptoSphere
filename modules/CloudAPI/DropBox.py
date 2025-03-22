@@ -14,14 +14,15 @@ DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
 DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 
 class DropBox(CloudService):
-    def __init__(self):
+    def __init__(self, email):
+        super.__init__(self, email)
         self.dbx = None
         self.userid = None
 
     # Function to authenticate the Dropbox account and get access token
     # The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
     # The function creates and save the root folder (if not already exsist)
-    def authenticate_cloud(self, email):
+    def authenticate_cloud(self):
         # Start the OAuth flow
         auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
         # Generate the authorization URL
@@ -31,12 +32,12 @@ class DropBox(CloudService):
         # Get the authorization code from the user
         auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code" )
         # Verify if the token is valid for the given email
-        auth_result = self.verify_dropbox_token_for_user(auth_flow, auth_code, email)
+        auth_result = self.verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
         if not auth_result:
             return False
         # Extract access token and user_id from the result object
         access_token = auth_result.access_token
-        self.user_id = auth_result.user_id   
+        self.user_id = auth_result.user_id
         return True
 
     # Function to verify if the token is valid for the given email
@@ -69,14 +70,16 @@ class DropBox(CloudService):
             raise Exception(f"DropBox: Failed to upload file: {e}")
 
     # Create folder on DropBox
-    def create_folder(self, folder_name):
+    def create_folder(self, folder_path):
         try:
-            result = self.dbx.files_create_folder_v2(folder_name)
-            return result.metadata.id
+            result = self.dbx.files_create_folder_v2(folder_path)
+            id = result.metadata.id
+            return folder_path
         except dropbox.exceptions.ApiError as e:
             # Folder already exists
             if e.error.is_path() and e.error.get_path().is_conflict():
-                return self.dbx.files_get_metadata(folder_name).id
+                id = self.dbx.files_get_metadata(folder_path).id
+                return folder_path
             else:
                 print(f"Error {e}")
                 return None
@@ -104,8 +107,8 @@ class DropBox(CloudService):
             print(f"Error {e}")
             return None
 
-    # Function to download a file from Dropbox to the local machine
-    def download_file(self, file_name):
+    # TODO: refactor this function to match cloudservice!
+    def download_file(self, file_name, path):
         try:
             metadata, res = self.dbx.files_download(file_name)
             dropbox_file_path = os.path.basename(file_name)
@@ -204,16 +207,17 @@ class DropBox(CloudService):
             print(f"Error sharing folder '{folder_id}' with {email}: {e}")
             return None
         
-    def share(self, folder, emails):
-        metadata = self.share_folder(folder)
+    def share(self, folder_path : str, emails : list[str]):
+        metadata = self.share_folder(folder_path)
         if not metadata:
-            print(f"Cannot share folder {folder}")
+            print(f"Cannot share folder {folder_path}")
             return
         for email in emails:
             if not self.add_member_to_share_folder(metadata.shared_folder_id, email):
                 print(f"Failed to share folder")
                 return
             print(f"Folder shared successfully with {email}!")
+        return folder_path
     
     def delete_file(self, file_name):
         try:
