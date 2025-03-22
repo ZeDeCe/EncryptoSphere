@@ -49,5 +49,31 @@ class SharedCloudManager(CloudManager):
             # for now raising exception, later can do error handling here
             raise Exception("FEK got corrupted!")
         self.encrypt.set_key(shared_key)
+    
+    # Since each session is with 1 user only right now, revoke_user will just call unshare_file
+    def revoke_user(self, user, file_id):
+        """
+        Revokes a specific user from a specific file in a shared session
+        @param user a dictionary in the format: {"cloudname": "email", ...}
+        """
+        self.unshare_file(file_id)
 
+    def revoke_user_from_share(self, user):
+        """
+        Completely revokes a user from a shared session
+        If it is the last user, converts to a normal session
+        """
+        pass
 
+    def unshare_file(self, file_id):
+        """
+        Moves a file from a shared session to the main session
+        """
+        pass
+
+    def unshare_folder(self):
+        """
+        Moves an entire folder from a shared session to the main session
+        This function might take a long time to run
+        """
+        pass
