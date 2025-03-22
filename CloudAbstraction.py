@@ -11,13 +11,21 @@ class CloudAbstraction:
     This class is the top application layer for handling actions that relate to files from OS to cloud services
     CloudAbstraction does not handle errors and throws any error to user classes to handle.
     """
-    def __init__(self, clouds, root : str, split : Split, encrypt : Encrypt, file_descriptor : FileDescriptor):
+    def __init__(self, clouds : list, root : str, split : Split, encrypt : Encrypt, file_descriptor : FileDescriptor):
         self.split = split
         self.encrypt = encrypt
         self.fd = file_descriptor
         self.clouds = clouds
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.root_folder = root
+
+    def __init__(self, clouds : list, root : str, split : Split, encrypt : Encrypt):
+        self.split = split
+        self.encrypt = encrypt
+        self.clouds = clouds
+        self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
+        self.root_folder = root
+        self.fd = self.sync_from_clouds()
 
     def __split(self, file, parts):
         return self.split.split(file, parts)
@@ -100,28 +108,43 @@ class CloudAbstraction:
         """
         Downloads a file from the various clouds
         file_id is a FileDescriptor ID of the file.
+        Make sure to check if the clouds of this object exist in the "parts" array
         """
         pass
 
     def download_folder(self, folder_name):
         """
         Using filedescriptor functions, gathers all files under the folder_name and then calls self.download
-        on all of those files. Constructs them as the hierarchy in the filedescriptor.
+        on all of those files. Constructs them as the hierarchy in the filedescriptor on the OS.
         """
         pass
 
     def delete_file(self, file_id):
+        """
+        Deletes a specific file from file ID using the filedescriptor
+        @param file_id the file id to delete
+        """
         pass
 
-    def delete_folder(self, folder):
+    def delete_folder(self, folder_path):
+        """
+        Given a path in EncryptoSphere (/EncryptoSphere/...), deletes all files with that path name
+        @param folder_path the path to the folder in the file descriptor
+        """
         pass
 
     def get_file_list(self):
         return self.fd.get_file_list()
 
-    def sync_filedescriptor(self):
+    def sync_to_clouds(self):
         """
-        When called, uploads the filedescriptor to the clouds
+        When called, uploads the filedescriptor to the clouds encrypted using self.encrypt
+        """
+        pass
+
+    def sync_from_clouds(self):
+        """
+        When called, downloads the filedescriptor from the clouds, decrypts it using self.encrypt, and sets it as this object's file descriptor
         """
         pass
 

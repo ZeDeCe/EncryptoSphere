@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 class Split(ABC):
     @abstractmethod
-    def split(self, data, num_parts : int) -> str:
+    def split(self, data : bytes, num_parts : int) -> str:
         """
         Splits the file into num_parts
         @return the folder path
@@ -10,7 +10,7 @@ class Split(ABC):
         pass
 
     @abstractmethod
-    def merge_parts(self, data) -> str:
+    def merge_parts(self, data : bytes) -> str:
         """
         Merges parts using the split algorithm
         @param data the parts of the data in an array
