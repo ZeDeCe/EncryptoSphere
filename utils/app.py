@@ -30,7 +30,7 @@ class App(ctk.CTk):
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
         
-        self.show_frame(MainPage)
+        self.show_frame(LoginPage)
     
     def show_frame(self, cont):
         frame = self.frames[cont]

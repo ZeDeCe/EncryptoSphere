@@ -20,14 +20,13 @@ class Gateway:
     """
 
     def __init__(self):
-        self.clouds = [DropBox("/EncryptoSphere")]
-        self.manager = CloudAbstraction(self.clouds, 
-                               NoSplit(), 
-                               NoEncrypt(), 
-                               FileDescriptor(os.path.join(os.getcwd(),"Test")))
+        self.clouds = [DropBox()]
+        self.manager = CloudAbstraction(self.clouds, "/EncryptoSphere", NoSplit(), NoEncrypt(), FileDescriptor(os.path.join(os.getcwd(),"Test")))
     
     def authenticate(self, email):
         self.manager.authenticate(email)
+        self.manager.upload_file(".\\Test\\uploadme.txt")
+        self.manager.fd.sync_to_file()
         return True
     
     def get_files(self):

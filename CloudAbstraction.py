@@ -1,5 +1,6 @@
 import os
 import tempfile
+import hashlib
 
 from modules import Split
 from modules import Encrypt
@@ -14,20 +15,12 @@ class CloudAbstraction:
     def __init__(self, clouds : list, root : str, split : Split, encrypt : Encrypt, file_descriptor : FileDescriptor):
         self.split = split
         self.encrypt = encrypt
-        self.fd = file_descriptor
         self.clouds = clouds
-        self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
-        self.lock_session()
         self.root_folder = root
-
-    def __init__(self, clouds : list, root : str, split : Split, encrypt : Encrypt):
-        self.split = split
-        self.encrypt = encrypt
-        self.clouds = clouds
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
-        self.root_folder = root
+        self.fd = file_descriptor if file_descriptor else self.sync_from_clouds()
         self.lock_session()
-        self.fd = self.sync_from_clouds()
+        
 
     def lock_session(self):
         """
@@ -74,7 +67,7 @@ class CloudAbstraction:
         data = None
         with open(os_filepath, 'rb') as file:
             data = file.read()
-
+        hash = hashlib.md5(data).hexdigest()
         data = self.__encrypt(data)
         data = self.__split(data, len(self.clouds))
         file_id = self.fd.add_file(
@@ -82,7 +75,8 @@ class CloudAbstraction:
             path,
             self.encrypt.get_name(),
             self.split.get_name(),
-            self.cloud_name_list
+            self.cloud_name_list,
+            hash
         )
         for i,f in enumerate(data):
             try:
