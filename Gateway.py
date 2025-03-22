@@ -3,11 +3,12 @@ This is the main file that runs the the entire program
 """
 import os
 
-from CloudAbstraction import CloudAbstraction
+from CloudManager import CloudManager
 from modules.Encrypt import *
 from modules.Split import *
 from modules.CloudAPI import *
 from FileDescriptor import FileDescriptor
+from SessionManager import SessionManager
 import customtkinter as ctk
 
 import utils.DialogBox as DialogBox
@@ -20,11 +21,20 @@ class Gateway:
     """
 
     def __init__(self):
-        self.clouds = [DropBox()]
-        self.manager = CloudAbstraction(self.clouds, "/EncryptoSphere", NoSplit(), NoEncrypt(), FileDescriptor(os.path.join(os.getcwd(),"Test")))
-    
+        self.manager = None
+        self.session_manager = None
+
+    # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
-        self.manager.authenticate(email)
+
+        # Everything here is for testing
+        self.manager = CloudManager([DropBox(email)],
+                                     "/EncryptoSphere", 
+                                     NoSplit(), 
+                                     NoEncrypt(), 
+                                     FileDescriptor(os.path.join(os.getcwd(),"Test")))
+        self.session_manager = SessionManager(self.manager)
+        self.manager.authenticate()
         self.manager.upload_file(".\\Test\\uploadme.txt")
         self.manager.fd.sync_to_file()
         return True
