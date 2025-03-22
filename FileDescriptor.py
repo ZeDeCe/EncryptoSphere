@@ -57,20 +57,20 @@ class FileDescriptor:
             raise OSError("Root of file descriptor isn't a valid file or folder")
         
         if os.path.isfile(fd_path) and os.path.getsize(fd_path)!=0:
-            self.file = open(fd_path, "r+")
             
-            try:
-                self.files = json.load(self.file)
-            except:
-                raise OSError("Failed to parse the filedescriptor from json, file descriptor corrupted")
+            with open(fd_path, "r+") as f:
+                try:
+                    self.files = json.load(f)
+                except:
+                    raise OSError("Failed to parse the filedescriptor from json, file descriptor corrupted")
         else:
-            self.file = open(fd_path, "w") # TODO: Error handling
             self.files = {}
             self.files["metadata"] = {}
             self.files["metadata"]["last_id"] = "0"
 
         self.metadata = self.files["metadata"]
-            
+        self.file_path = fd_path
+
     def __get_last_id(self):
         return self.metadata["last_id"]
 
@@ -78,10 +78,7 @@ class FileDescriptor:
         self.metadata["last_id"] = str(int(self.metadata["last_id"]) + 1)
         return self.metadata["last_id"]
 
-    def __del__(self):
-        self.file.close()
-
-    def add_file(self, name, path, encryption_alg_sig, splitting_alg_sig, clouds_order):
+    def add_file(self, name, path, encryption_alg_sig, splitting_alg_sig, clouds_order, hash):
         """
         Add a new file to the filedescriptor listing
         @return the file_id
@@ -101,7 +98,8 @@ class FileDescriptor:
             "edit_date" : now,
             "e_alg" : encryption_alg_sig,
             "s_alg" : splitting_alg_sig,
-            "parts" : clouds_order
+            "parts" : clouds_order,
+            "hash": hash
         }
         return new_id
 
@@ -143,9 +141,8 @@ class FileDescriptor:
         """
         Sync the filemapping to disk
         """
-        self.file.seek(0)
-        self.file.truncate()
-        json.dump(self.files, self.file)
+        with open(self.file_path, "w") as f:
+            json.dump(self.files, f)
 
     def __str__(self):
         return str(self.files)

@@ -2,11 +2,11 @@ from abc import ABC, abstractmethod
 
 class Encrypt(ABC):
     @abstractmethod
-    def encrypt_file(self, data):
+    def encrypt_file(self, data : bytes):
         pass
     
     @abstractmethod
-    def decrypt_file(self, data):
+    def decrypt_file(self, data : bytes):
         pass
 
     @abstractmethod
