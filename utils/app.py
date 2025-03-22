@@ -1,106 +1,154 @@
 import customtkinter as ctk
 import tkinter as tk
-from CTkListbox import CTkListbox  # Ensure CTkListbox is installed
-import Gateway
+from tkinter import messagebox
+from PIL import Image
 
-class App():
+class App(ctk.CTk):
     """
     This class creates the UI features and the program main window.
     """
     
     def __init__(self, gateway):
-        self.root = ctk.CTk()
-        self.root.title("EncryptoSphere")
-        self.root.geometry("400x300")
+        ctk.CTk.__init__(self)
+        self.title("EncryptoSphere")
+        self.geometry("650x400")
         self.api = gateway
         
-    def run(self):
-        self.login_window()
-        self.root.mainloop()
+        # creating a container for the frames
+        container = ctk.CTkFrame(self)
+        container.pack(side="top", fill="both", expand=True)
         
-    def login_window(self):
-        self.main_frame = ctk.CTkFrame(self.root)
-        self.main_frame.pack(fill="both", expand=True)
-        self.message = ctk.CTkLabel(self.main_frame, text="Enter your Email Address:")
-        self.message.pack(pady=20)
-        self.entry = ctk.CTkEntry(self.main_frame, placeholder_text="Example@gmail.com")
-        self.entry.pack(pady=10)
-        self.submit_button = ctk.CTkButton(self.main_frame, text="Submit", command=self.__handle_login)
-        self.submit_button.pack(pady=10)
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+        
+        # initializing frames to an empty dictionary
+        self.frames = {} 
+        
+        # creating the frames
+        for F in (LoginPage, MainPage):
+            frame = F(container, self)
+            self.frames[F] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+        
+        self.show_frame(MainPage)
+    
+    def show_frame(self, cont):
+        frame = self.frames[cont]
+        frame.tkraise()
+
+    def get_api(self):
+        return self.api
+
+
+# LoginPage: Where user enters email and authenticates
+class LoginPage(ctk.CTkFrame):
+    def __init__(self, parent, controller):
+        ctk.CTkFrame.__init__(self, parent)
+        
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
+        
+        label = ctk.CTkLabel(self, text="Login Page", font=("Verdana", 35))
+        label.grid(row=0, column=0, padx=10, pady=10, sticky="n")
+        
+        self.message = ctk.CTkLabel(self, text="Enter your Email Address:")
+        self.message.grid(row=1, column=0, padx=10, pady=10, sticky="n")
+        
+        self.entry = ctk.CTkEntry(self, placeholder_text="Example@gmail.com")
+        self.entry.grid(row=2, column=0, padx=10, pady=10, sticky="n")
+        
+        self.submit_button = ctk.CTkButton(self, text="Submit", command=self.__handle_login)
+        self.submit_button.grid(row=3, column=0, padx=10, pady=10, sticky="n")
+        
+        self.controller = controller
 
     def __handle_login(self):
         email = self.entry.get()
-        result = self.api.authenticate(email)
+        result = self.controller.get_api().authenticate(email)
         print(result)
+        
         if not result:
-            for widget in self.main_frame.winfo_children():
-                widget.destroy()
-            self.__show_error("Error While connecting to the Cloud", self.login_window)
+            self.__show_error("Error While connecting to the Cloud", self.controller.show_frame(LoginPage))
         else:
-            for widget in self.main_frame.winfo_children():
-                widget.destroy() 
-            self.main_window()
+            self.controller.show_frame(MainPage)
     
-
-    def main_window(self):
-        files_list = self.api.get_files()
-
     def __show_error(self, error_message, func):
-        self.error_label = ctk.CTkLabel(self.main_frame, text=error_message)
-        self.error_label.pack(pady=20)
-        # Add a button to go back and retry
-        self.retry_button = ctk.CTkButton(self.main_frame, text="Retry", command=func)
-        self.retry_button.pack(pady=10)
+        self.error_label = ctk.CTkLabel(self, text=error_message)
+        self.error_label.grid(row=4, column=0, pady=20, sticky="n")
+        
+        self.retry_button = ctk.CTkButton(self, text="Retry", command=func)
+        self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
 
 
-# Set up the main application window
-def run_app():
-    app = ctk.CTk()
-    app.geometry("400x300")
-    app.title("File Manager")
+# MainPage: The main page that shows files after successful login
+class MainPage(ctk.CTkFrame):
+    def __init__(self, parent, controller):
+        ctk.CTkFrame.__init__(self, parent)
+        
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        
+        label = ctk.CTkLabel(self, text="My Files", font=("Verdana", 25))
+        label.grid(row=0, column=0, padx=10, pady=10, sticky="n")
+        
+        self.main_frame = ctk.CTkFrame(self)
+        self.main_frame.grid(row=1, column=0, padx=10, pady=10)
+        self.main_frame.place(relx=0.5, rely=0.5, anchor=ctk.CENTER)
+        
+        # Simulating file list
+        file_list = ["My file.txt", "Very_Long_File_Name_Example.pdf", "Image.png", "Script.py",
+              "Another_Document.docx", "Notes.txt", "Report_2024.xlsx", "Presentation.pptx"]
+        
+        file_icon = ctk.CTkImage(light_image=Image.open("resources/file_icon.png"), size=(40, 40))  
+        columns = 6  
+        cell_size = 120
 
-    # Create a frame to hold the listbox and buttons
-    frame = ctk.CTkFrame(app)
-    frame.pack(pady=20, padx=20, fill="both", expand=True)
+        for col in range(columns):
+            self.main_frame.grid_columnconfigure(col, weight=1, uniform="file_grid")
 
-    # Create a listbox to display files
-    file_listbox = CTkListbox(frame, height=10)
-    file_listbox.pack(pady=10, padx=10, fill="both", expand=True)
 
-    # Populate the listbox with a static list of files
-    files = ["file1.txt", "file2.txt", "file3.txt"]  # Replace with your actual file list
-    for file in files:
-        file_listbox.insert(tk.END, file)
+        for i, file_name in enumerate(file_list):
+            row = i // columns  
+            col = i % columns   
 
-    # Function to handle file selection
-    def on_file_select(event):
-        selected_file = file_listbox.get(file_listbox.curselection())
-        print(f"Selected file: {selected_file}")
-        # Implement further actions based on the selected file
+            file_frame = ctk.CTkFrame(self.main_frame, width=cell_size, height=cell_size)
+            file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
-    # Bind the listbox selection event
-    file_listbox.bind("<<ListboxSelect>>", on_file_select)
+            icon_label = ctk.CTkLabel(file_frame, image=file_icon, text="")
+            icon_label.pack(pady=(5, 0))
 
-    
-    # Function to handle file download
-    def download_file():
-        selected_file = file_listbox.get(file_listbox.curselection())
-        print(f"Downloading file: {selected_file}")
-        # Implement the download functionality here
+            name_label = ctk.CTkLabel(file_frame, text=file_name, font=("Arial", 9), wraplength=90, justify="center")
+            name_label.pack(pady=(0, 5))
 
-    # Function to handle file upload
-    def upload_file():
-        print("Uploading file...")
-        # Implement the upload functionality here
-    
-    # Create and place the "Download" button
-    download_button = ctk.CTkButton(frame, text="Download", command=download_file)
-    download_button.pack(pady=5, padx=10, fill="x")
+            file_frame.bind("<Button-1>", lambda e, fname=file_name: self.on_file_click(fname, e))
+            icon_label.bind("<Button-1>", lambda e, fname=file_name: self.on_file_click(fname, e))
+            name_label.bind("<Button-1>", lambda e, fname=file_name: self.on_file_click(fname, e))
+        
+        self.controller = controller
 
-    # Create and place the "Upload" button
-    upload_button = ctk.CTkButton(frame, text="Upload", command=upload_file)
-    upload_button.pack(pady=5, padx=10, fill="x")
+    def on_file_click(self, file_name, event=None):
+        print(f"File clicked: {file_name}")
 
-    # Run the application
-    app.mainloop()
+        # Remove any existing menu first
+        if hasattr(self, "context_menu"):
+            self.context_menu.destroy()
+
+        # Create a context menu using CTkFrame
+        self.context_menu = ctk.CTkFrame(self, corner_radius=5, fg_color="gray25")
+        self.context_menu.place(x=event.x_root - self.winfo_rootx(), y=event.y_root - self.winfo_rooty())
+
+        # "Delete File" Button
+        delete_button = ctk.CTkButton(self.context_menu, text="Delete File",
+                                      command=lambda: self.controller.get_api().delete_file(file_name),
+                                      width=120, height=30, fg_color="red")
+        delete_button.pack(pady=5, padx=10)
+
+        # "Download File" Button
+        download_button = ctk.CTkButton(self.context_menu, text="Download File",
+                                        command=lambda: self.controller.get_api().download_file(file_name),
+                                        width=120, height=30)
+        download_button.pack(pady=5, padx=10)
+
+        # Auto-close menu when clicking elsewhere
+        self.bind("<Button-1>", lambda event: self.context_menu.destroy(), add="+")
 
