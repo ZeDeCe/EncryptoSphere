@@ -12,7 +12,7 @@ from SessionManager import SessionManager
 import customtkinter as ctk
 
 import utils.DialogBox as DialogBox
-import utils.app as app
+import app as app
 
 class Gateway:
     """
@@ -40,37 +40,41 @@ class Gateway:
         return True
     
     def get_files(self):
-        print(self.manager.get_file_list())
         return self.manager.get_file_list()
     
     def download_file(self, file_id):
         self.manager.download_file(file_id)
         print("Download file chosen")
-        return True #if download succedded else return false
+        return True # TODO: Handle correctly!!
     
     def download_folder(self, folder_id):
         self.manager.download_folder(folder_id)
-        return True #if download succedded else return false
+        return True # TODO: Handle correctly!!
     
     def upload_file(self, file_path):
+        print(f"Upload file selected: {file_path}")
         self.manager.upload_file(file_path)
-        return True #if upload succedded else return false
+        return True # TODO: Handle correctly!!
     
     def upload_folder(self, folder_path):
+        print(f"Upload folder selected {folder_path}")
         self.manager.upload_folder(folder_path)
-        return True #if upload succedded else return false
+        return True # TODO: Handle correctly!!
     
     def delete_file(self, file_id):
         self.manager.delete_file(file_id)
         print("Delete file chosen")
-        return True #if delete succedded else return false
+        return True # TODO: Handle correctly!!
     
     def delete_folder(self, folder_id):
         self.manager.delete_folder(folder_id)
-        return True #if delete succedded else return false
+        return True # TODO: Handle correctly!!
 
 
 def main():
+    """
+    Encryptosphere main program
+    """
     gateway = Gateway()
     gui = app.App(gateway)
     gui.mainloop()
