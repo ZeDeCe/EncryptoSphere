@@ -108,6 +108,7 @@ class CloudAbstraction:
         """
         Downloads a file from the various clouds
         file_id is a FileDescriptor ID of the file.
+        Make sure to check if the clouds of this object exist in the "parts" array
         """
         pass
 
