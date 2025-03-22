@@ -24,17 +24,19 @@ class Gateway:
         self.manager = CloudAbstraction(self.clouds, 
                                NoSplit(), 
                                NoEncrypt(), 
-                               FileDescriptor(os.path.join(os.getcwd(),"Test\\fd")))
+                               FileDescriptor(os.path.join(os.getcwd(),"Test")))
     
     def authenticate(self, email):
         self.manager.authenticate(email)
         return True
     
     def get_files(self):
+        print(self.manager.get_file_list())
         return self.manager.get_file_list()
     
     def download_file(self, file_id):
         self.manager.download_file(file_id)
+        print("Download file chosen")
         return True #if download succedded else return false
     
     def download_folder(self, folder_id):
@@ -51,6 +53,7 @@ class Gateway:
     
     def delete_file(self, file_id):
         self.manager.delete_file(file_id)
+        print("Delete file chosen")
         return True #if delete succedded else return false
     
     def delete_folder(self, folder_id):
@@ -61,7 +64,7 @@ class Gateway:
 def main():
     gateway = Gateway()
     gui = app.App(gateway)
-    gui.run()
+    gui.mainloop()
     
 if __name__=="__main__":
     main()
