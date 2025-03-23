@@ -12,14 +12,17 @@ class CloudService(ABC):
         if(single):
             return single
         cls.instances[email] = super(CloudService, cls).__new__(cls)
+        cls.instances[email].authenticated = False
+        cls.instances[email].email = email
         return cls.instances[email]
 
     def __init__(self, email : str):
         """
-        Set the email to be the email used for everything
+        Currently everything is setup in the __new__ function, individual classes can set
+        their variables in their __new__ functions as well.
+        Do not set up variables here that don't need to be overriden
         """
-        self.email = email
-        self.authenticated = False
+        pass
 
     def get_email(self) -> str:
         """
@@ -40,8 +43,7 @@ class CloudService(ABC):
         Make sure to set the self.authenticated flag to True after authentication has occured so that the platform
         won't need to go through authentication twice
         """
-        if self.authenticated:
-            return True
+        return self.authenticated
 
     @abstractmethod
     def list_files(self, folder=None) -> list:
@@ -58,12 +60,12 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def download_file(self, file_name : str, path : str) -> bytes:
+    def download_file(self, file_name : str, path : str) -> bytes | None:
         """
         Download a file from the cloud storage using
         @param file_name the name of the file
         @param path the path to the file
-        @return the data from the file (not a file object)
+        @return the data from the file (not a file object) or None if the file does not exist
         """
         pass
 
@@ -80,6 +82,7 @@ class CloudService(ABC):
     def get_folder(self, folder_path : str) -> any:
         """
         Get a folder object from the folder_path if it exists, if not returns None
+        Call this function to perform functions that take a folder object
         @param folder_path the path to the folder to get
         @return the folder object to be passed to other folder functions
         """
@@ -110,13 +113,15 @@ class CloudService(ABC):
         Creates and shares a folder with a specific list of emails
         @param path the path the new folder should be created at
         @param emails a list of emails to share with
-        @return a file object of the folder in the respective cloud service
+        @return a folder object
         """
+        pass
  
     @abstractmethod
-    def unshare_folder(self, folder_name):
+    def unshare_folder(self, folder):
         """
         Unshare a file completely
+        @param folder the folder object
         """
         pass
 
@@ -133,6 +138,14 @@ class CloudService(ABC):
     def list_shared_files(self):
         """
         List all shared files and folders in the cloud storage
+        """
+        pass
+    
+    @abstractmethod
+    def get_members_shared(self, folder : any) -> dict[str] | bool:
+        """
+        Returns a list of emails that the folder is shared with if shared, and false if not shared
+        @param folder the folder object
         """
         pass
 
