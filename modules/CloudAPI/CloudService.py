@@ -1,6 +1,19 @@
 from abc import ABC, abstractmethod
 
 class CloudService(ABC):
+
+    def __new__(cls, email : str):
+        """
+        Makes all child objects with the same email a singleton.
+        """
+        if not hasattr(cls, 'instances'):
+            cls.instances = {}
+        single = cls.instances.get(email)
+        if(single):
+            return single
+        cls.instances[email] = super(CloudService, cls).__new__(cls)
+        return cls.instances[email]
+
     def __init__(self, email : str):
         """
         Set the email to be the email used for everything
@@ -12,7 +25,10 @@ class CloudService(ABC):
         Return the registered email
         """
         return self.email
-
+    
+    def is_authenticated(self):
+        return self.authenticated
+    
     @abstractmethod
     def authenticate_cloud(self) -> bool:
         """
