@@ -22,6 +22,7 @@ class DropBox(CloudService):
     # The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
     # The function creates and save the root folder (if not already exsist)
     def authenticate_cloud(self):
+        super().authenticate_cloud()
         # Start the OAuth flow
         auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
         # Generate the authorization URL
@@ -37,6 +38,7 @@ class DropBox(CloudService):
         # Extract access token and user_id from the result object
         access_token = auth_result.access_token
         self.user_id = auth_result.user_id
+        self.authenticated = True
         return True
 
     # Function to verify if the token is valid for the given email

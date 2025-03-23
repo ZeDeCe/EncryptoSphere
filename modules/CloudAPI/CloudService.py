@@ -19,6 +19,7 @@ class CloudService(ABC):
         Set the email to be the email used for everything
         """
         self.email = email
+        self.authenticated = False
 
     def get_email(self) -> str:
         """
@@ -27,14 +28,20 @@ class CloudService(ABC):
         return self.email
     
     def is_authenticated(self):
+        """
+        Returns the self.authenticated flag if already authenticated
+        """
         return self.authenticated
     
-    @abstractmethod
     def authenticate_cloud(self) -> bool:
         """
         Authenticate with the cloud service
+        Make sure to call this function before overriding
+        Make sure to set the self.authenticated flag to True after authentication has occured so that the platform
+        won't need to go through authentication twice
         """
-        pass
+        if self.authenticated:
+            return True
 
     @abstractmethod
     def list_files(self, folder=None) -> list:
