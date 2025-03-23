@@ -6,15 +6,15 @@ from PIL import Image
 from customtkinter import filedialog
 import os
 from threading import Thread
+import tkinter.messagebox as messagebox
 
 """
-TODO: - Add correct actions to delete / dowload file
-      - Add all relevent error/info masseges
+TODO: - Add all relevent error/info masseges (Advanced UI)
       - Add settings button (template for advanced UI)
-      - Handle folders
+      - Handle folders (?)
       - Add shares button and share Class (frame)
-      - Add search bar
-      - OPTIONAL: Add rename option
+      - Add search bar (Advanced UI)
+      - OPTIONAL: Add rename option (Advanced UI)
 """
 class App(ctk.CTk):
     """
@@ -32,6 +32,8 @@ class App(ctk.CTk):
         # "Backend" functions
         self.api = gateway
         
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
         # Creating a container for the frames
         container = ctk.CTkFrame(self)
         container.pack(side="top", fill="both", expand=True)
@@ -45,9 +47,9 @@ class App(ctk.CTk):
         self.context_menus = []
         
         # Creating the frames
-        for F in (LoginPage, MainPage):
+        for F in (LoginPage, MainPage, SharePage):
             frame = F(container, self)
-            self.frames[F] = frame
+            self.frames[F] = frame  
             frame.grid(row=0, column=0, sticky="nsew")
         
         # Show the start page (as of this POC, login to the clouds)
@@ -66,6 +68,12 @@ class App(ctk.CTk):
         Get "backend" api's
         """
         return self.api
+    
+    def on_closing(self):
+        """Ensure proper cleanup before closing the application."""
+        if messagebox.askokcancel("Quit", "Are you sure you want to exit?"):
+            self.api.manager.fd.sync_to_file()  # Ensure file sync before exit
+            self.destroy()  # Close the window properly
     
     def register_context_menu(self, context_menu):
         """
@@ -95,17 +103,22 @@ class LoginPage(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
         
-        label = ctk.CTkLabel(self, text="Login Page", font=("Verdana", 35))
-        label.grid(row=0, column=0, padx=10, pady=10, sticky="n")
-        
-        self.message = ctk.CTkLabel(self, text="Enter your Email Address:")
-        self.message.grid(row=1, column=0, padx=10, pady=10, sticky="n")
-        
-        self.entry = ctk.CTkEntry(self, placeholder_text="Example@gmail.com")
-        self.entry.grid(row=2, column=0, padx=10, pady=10, sticky="n")
-        
-        self.submit_button = ctk.CTkButton(self, text="Submit", command=self.__handle_login)
-        self.submit_button.grid(row=3, column=0, padx=10, pady=10, sticky="n")
+        # Title Label
+        label = ctk.CTkLabel(self, text="Welcome to EncryptoSphere ☁︎⋅", 
+                             font=("Verdana", 28, "bold"), text_color="white")
+        label.grid(row=0, column=0, pady=(60, 20), padx=20, sticky="n")
+
+        # Email Label
+        self.message = ctk.CTkLabel(self, text="Enter your Email Address:", font=("Arial", 14), text_color="white")
+        self.message.grid(row=1, column=0, padx=20, sticky="w")
+
+        # Email Entry Field
+        self.entry = ctk.CTkEntry(self, placeholder_text="example@gmail.com", width=300)
+        self.entry.grid(row=2, column=0, padx=20, sticky="ew")
+
+        # Submit Button
+        self.submit_button = ctk.CTkButton(self, text="Submit", command=self.__handle_login, width=200, fg_color="#3A7EBF")
+        self.submit_button.grid(row=3, column=0, padx=20, pady=(20, 60), sticky="n")
     
     def refresh(self):
         """
@@ -158,7 +171,17 @@ class MainPage(ctk.CTkFrame):
                                       command=lambda: self.open_upload_menu(),
                                       width=120, height=30, fg_color="gray25", hover=False)
         self.upload_button.pack(anchor="nw", padx=10, pady=10, expand = False)
-        
+
+        self.shared_files_button = ctk.CTkButton(self.side_bar, text="Shared Files",
+                                                 command=lambda: self.controller.show_frame(SharePage),
+                                                 width=120, height=30, fg_color="gray25", hover=False)
+        self.shared_files_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+
+        self.upload_button.bind("<Enter>", lambda e: self.set_bold(self.upload_button))
+        self.upload_button.bind("<Leave>", lambda e: self.set_normal(self.upload_button))
+
+        self.shared_files_button.bind("<Enter>", lambda e: self.set_bold(self.shared_files_button))
+        self.shared_files_button.bind("<Leave>", lambda e: self.set_normal(self.shared_files_button))
         
         self.main_frame = ctk.CTkFrame(self, corner_radius=0)
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
@@ -178,6 +201,13 @@ class MainPage(ctk.CTkFrame):
              }
         ])
 
+    def set_bold(self, button):
+        """ Change the button text to bold on hover. """
+        button.configure(font=("Verdana", 13, "bold"))
+
+    def set_normal(self, button):
+        """ Revert the button text to normal when not hovered. """
+        button.configure(font=("Verdana", 13))
         
     def open_upload_menu(self):
         """
@@ -293,11 +323,11 @@ class FileButton(ctk.CTkFrame):
 
     def download_file_from_cloud(self, file_id):
         self.controller.get_api().download_file(file_id)
-        self.master.master.refersh()
+        self.master.master.refresh()
 
     def delete_file_from_cloud(self, file_id):
         self.controller.get_api().delete_file(file_id)
-        self.master.master.refersh()
+        self.master.master.refresh()
 
     def on_file_click(self, file_id, event=None):
         """
@@ -353,4 +383,13 @@ class OptionMenu(ctk.CTkFrame):
         self.context_hidden = False
         self.place(x=x, y=y)
 
-    
+class SharePage(ctk.CTkFrame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+    def refresh(self):
+        """
+        Share page refresh - as of now we donr need this functionality
+        """
+        pass
