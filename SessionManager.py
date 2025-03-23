@@ -1,13 +1,11 @@
-from cryptography.fernet import Fernet
-
 from CloudManager import CloudManager
 
 class SessionManager():
     """
     This class manages shared sessions using the main session and also holds the master key
     """
-    def __init__(self, main_session):
-        self.key = Fernet.generate_key() # THIS IS TEMPORARY, SWITCH THIS TO KEY FROM PASSWORD
+    def __init__(self, master_key, main_session):
+        self.key = master_key
         self.main_session = main_session
         self.sessions = []
 
