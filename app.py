@@ -192,7 +192,7 @@ class MainPage(ctk.CTkFrame):
     def upload_file(self):
         """
         If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file.
-        Call the backend upload file to upload the file to the clouds. After a successful upload, refresh the frame so a the new file will be displayed
+        In a new thread, call upload_file_to_cloud to upload the file to the clouds and. After a successful upload, refresh the frame so a the new file will be displayed
         TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
         """
         file_path = filedialog.askopenfilename()
@@ -201,8 +201,11 @@ class MainPage(ctk.CTkFrame):
         if file_path:
             Thread(target=self.upload_file_to_cloud, args=(file_path,), daemon=True).start()
             
-            
+
     def upload_file_to_cloud(self, file_path):
+        """
+        Upload file to the cloud and refresh the page
+        """
         self.controller.get_api().upload_file(os.path.normpath(file_path))
         self.refresh()
 
@@ -210,7 +213,7 @@ class MainPage(ctk.CTkFrame):
     def upload_folder(self):
         """
         If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder.
-        Call the backend upload folder to upload the folder to the clouds. After a successful upload, refresh the frame so a the new folder will be displayed
+        In a new thread, call upload_folder_to_cloud to upload the folder to the clouds. After a successful upload, refresh the frame so a the new folder will be displayed
         TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
         """
         folder_path = filedialog.askdirectory()
@@ -219,6 +222,9 @@ class MainPage(ctk.CTkFrame):
             Thread(target=self.upload_folder_to_cloud, args=(folder_path,), daemon=True).start()
         
     def upload_folder_to_cloud(self, folder_path):
+        """
+        Upload folder to the cloud and refresh the page
+        """
         self.controller.get_api().upload_folder(os.path.normpath(folder_path))
         self.refresh()
     
@@ -273,17 +279,25 @@ class FileButton(ctk.CTkFrame):
             {
                 "label": "Download File",
                 "color": "blue",
-                "event": lambda: self.controller.get_api().download_file(self.file_data["id"])
+                "event": lambda: Thread(target=self.download_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
              },
              {
                  "label": "Delete File",
                  "color": "red",
-                 "event": lambda: self.controller.get_api().delete_file(self.file_data["id"])
+                 "event": lambda: Thread(target=self.delete_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
              }
         ])
 
         # When clicking anywhere on the screen, close the context_menu
         master.bind("<Button-1>", lambda event: self.context_menu.hide_context_menu(), add="+")
+
+    def download_file_from_cloud(self, file_id):
+        self.controller.get_api().download_file(file_id)
+        self.master.master.refersh()
+
+    def delete_file_from_cloud(self, file_id):
+        self.controller.get_api().delete_file(file_id)
+        self.master.master.refersh()
 
     def on_file_click(self, file_id, event=None):
         """

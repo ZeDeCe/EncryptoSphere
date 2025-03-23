@@ -36,7 +36,6 @@ class Gateway:
                                      FileDescriptor(os.path.join(os.getcwd(),"Test")))
         self.session_manager = SessionManager(self.manager)
         self.manager.authenticate()
-        self.manager.upload_file(".\\Test\\uploadme.txt")
         self.manager.fd.sync_to_file()
         return True
     
@@ -79,6 +78,7 @@ def main():
     gateway = Gateway()
     gui = app.App(gateway)
     gui.mainloop()
+    gateway.manager.fd.sync_to_file()
     
 if __name__=="__main__":
     main()
