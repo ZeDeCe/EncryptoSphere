@@ -5,6 +5,7 @@ import customtkinter as ctk
 from PIL import Image
 from customtkinter import filedialog
 import os
+from threading import Thread
 
 """
 TODO: - Add correct actions to delete / dowload file
@@ -144,8 +145,6 @@ class MainPage(ctk.CTkFrame):
         
         self.controller = controller
 
-        self.context_menu_open = False
-
         ctk.CTkFrame.__init__(self, parent)
 
         
@@ -156,7 +155,7 @@ class MainPage(ctk.CTkFrame):
         encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand = False)
 
         self.upload_button = ctk.CTkButton(self.side_bar, text="Upload",
-                                      command=self.open_upload_menu,
+                                      command=lambda: self.open_upload_menu(),
                                       width=120, height=30, fg_color="gray25", hover=False)
         self.upload_button.pack(anchor="nw", padx=10, pady=10, expand = False)
         
@@ -184,13 +183,11 @@ class MainPage(ctk.CTkFrame):
         """
         This function opens the upload menu using the context_menue.
         """ 
-        if self.context_menu_open:
-            self.context_menu_open = False
-            self.context_menu.hide_context_menu()
-        else:
-            self.context_menu_open = True
+        if self.context_menu.context_hidden:
             self.controller.button_clicked(self, [self.context_menu])
             self.context_menu.show_context_menu(self.upload_button.winfo_x()+(120), self.upload_button.winfo_y())
+        else:
+            self.context_menu.hide_context_menu()
 
     def upload_file(self):
         """
@@ -199,10 +196,16 @@ class MainPage(ctk.CTkFrame):
         TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
         """
         file_path = filedialog.askopenfilename()
+        self.context_menu.hide_context_menu()
         print(file_path)
         if file_path:
-            self.controller.get_api().upload_file(os.path.normpath(file_path))
+            Thread(target=self.upload_file_to_cloud, args=(file_path,), daemon=True).start()
+            
+            
+    def upload_file_to_cloud(self, file_path):
+        self.controller.get_api().upload_file(os.path.normpath(file_path))
         self.refresh()
+
 
     def upload_folder(self):
         """
@@ -211,8 +214,12 @@ class MainPage(ctk.CTkFrame):
         TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
         """
         folder_path = filedialog.askdirectory()
+        self.context_menu.hide_context_menu()
         if folder_path:
-            self.controller.get_api().upload_folder(os.path.normpath(folder_path))
+            Thread(target=self.upload_folder_to_cloud, args=(folder_path,), daemon=True).start()
+        
+    def upload_folder_to_cloud(self, folder_path):
+        self.controller.get_api().upload_folder(os.path.normpath(folder_path))
         self.refresh()
     
     def refresh(self):
