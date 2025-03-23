@@ -4,19 +4,31 @@ import hashlib
 
 from modules import Split
 from modules import Encrypt
-import FileDescriptor
 from modules.CloudAPI import CloudService
+import FileDescriptor
 
-class CloudAbstraction:
+
+class CloudManager:
     """
     This class is the top application layer for handling actions that relate to files from OS to cloud services
-    CloudAbstraction does not handle errors and throws any error to user classes to handle.
+    CloudManager does not handle errors and throws any error to user classes to handle.
     """
-    def __init__(self, clouds : list, root : str, split : Split, encrypt : Encrypt, file_descriptor : FileDescriptor):
+    def __init__(self, clouds : list[CloudService], root : str, split : Split, encrypt : Encrypt, file_descriptor : FileDescriptor):
+        """
+        Initialize a cloudmanager and a session
+        @param clouds the cloud classes to use
+        @param root the root directory, must start with /
+        @param split the split class to use
+        @param encrypt the encrypt class to use
+        @param file_descriptor the filedescriptor to use. If none provided, will assume that the session already exists and try syncing it from the cloud
+        """
+        if root[0]!="/":
+            raise Exception("CloudManager: Root direcory must start with /")
         self.split = split
         self.encrypt = encrypt
         self.clouds = clouds
-        self.root_folder = root
+        mainroot = os.getenv("ENCRYPTO_ROOT")
+        self.root_folder = f"{mainroot}{root}"
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.fd = file_descriptor if file_descriptor else self.sync_from_clouds()
         self.lock_session()
@@ -37,11 +49,11 @@ class CloudAbstraction:
         # TODO: finish function
         return self.split.merge_parts()
     
-    def __encrypt(self, file):
+    def _encrypt(self, file):
         self.encrypt.encrypt_file(file)
         return file
     
-    def __decrypt(self, file):
+    def _decrypt(self, file):
         self.encrypt.decrypt_file(file)
         return file
 
@@ -51,15 +63,14 @@ class CloudAbstraction:
             file.write(osfile.read().encode('utf-8'))
         return file
 
-    def authenticate(self, email):
+    def authenticate(self):
         try:
             for cloud in self.clouds:
-                cloud.authenticate_cloud(email)
+                cloud.authenticate_cloud()
             return True
         except:
             return False
 
-    # TODO: async this
     def upload_file(self, os_filepath, path="/"):
         if not os.path.isfile(os_filepath):
             raise OSError()
@@ -68,7 +79,7 @@ class CloudAbstraction:
         with open(os_filepath, 'rb') as file:
             data = file.read()
         hash = hashlib.md5(data).hexdigest()
-        data = self.__encrypt(data)
+        data = self._encrypt(data)
         data = self.__split(data, len(self.clouds))
         file_id = self.fd.add_file(
             os.path.basename(os_filepath),
@@ -85,7 +96,37 @@ class CloudAbstraction:
                 print(e)
                 self.fd.delete_file(file_id)
                 raise Exception("Failed to upload one of the files")
+            
+    def _upload_replicated(self, file_name, data):
+        """
+        Encrypts and uploads the given file to all platforms without splitting.
+        This function is purposefully limited to only uploading from the root folder
+        """
+        data = self._encrypt(data)
+        for cloud in self.clouds:
+            cloud.upload_file(data, file_name, self.root_folder)
 
+    def _download_replicated(self, file_name):
+        """
+        Downloads and decrypts a the file from the path given if it exists in all clouds
+        This function is purposefully limited to only downloading from the root folder
+        """
+        replicated_files = []
+        for cloud in self.clouds:
+            replicated_files.append(cloud.download_file(f"{self.root_folder}/{file_name}"))
+        return self._check_replicated_integrity(replicated_files)
+    
+    def _check_replicated_integrity(self, replicated : list[bytes]):
+        """
+        Checks a list of data for integrity.
+        If one of the files does not match the rest, there was a corruption, will return an error status also
+        @return a tuple matching (status, data), status is the corruption status, True=Success, False=Corrupted. data is an array of the data if status=False and a single bytes object if status=True
+        """
+        for data in replicated:
+            if data!=replicated[0]:
+                return False, replicated
+        return True, replicated[0]
+        
     # TODO: error handling
     def upload_folder(self, os_folder, path="/"):
         """
@@ -141,13 +182,15 @@ class CloudAbstraction:
 
     def sync_to_clouds(self):
         """
-        When called, uploads the filedescriptor to the clouds encrypted using self.encrypt
+        Uploads the filedescriptor to the clouds encrypted using self.encrypt
+        This function should use upload_replicated
         """
         pass
 
     def sync_from_clouds(self):
         """
-        When called, downloads the filedescriptor from the clouds, decrypts it using self.encrypt, and sets it as this object's file descriptor
+        Downloads the filedescriptor from the clouds, decrypts it using self.encrypt, and sets it as this object's file descriptor
+        This function should use download_replicated
         """
         pass
 

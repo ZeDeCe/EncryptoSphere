@@ -2,16 +2,18 @@
 This is the main file that runs the the entire program
 """
 import os
-
-from CloudAbstraction import CloudAbstraction
+from dotenv import load_dotenv
+load_dotenv()
+from CloudManager import CloudManager
 from modules.Encrypt import *
 from modules.Split import *
 from modules.CloudAPI import *
 from FileDescriptor import FileDescriptor
+from SessionManager import SessionManager
 import customtkinter as ctk
 
 import utils.DialogBox as DialogBox
-import utils.app as app
+import app as app
 
 class Gateway:
     """
@@ -20,23 +22,23 @@ class Gateway:
     """
 
     def __init__(self):
-        self.clouds = [DropBox()]
-        self.manager = CloudAbstraction(self.clouds, "/EncryptoSphere", 
-                               NoSplit(), 
-                               NoEncrypt(), 
-                               FileDescriptor(os.path.join(os.getcwd(),"Test", "MyTest")))
-        
-    
+        self.manager = None
+        self.session_manager = None
+
+    # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
-        self.manager.authenticate(email)
-        
-        #self.manager.upload_file(r".\Test\test1.txt") #testing only!
-        #print(r".\Test\test1.txt") #testing only!
-        #self.manager.upload_file(r".\Test\test2.txt") #testing only!
-        #self.manager.upload_file(r".\Test\test3.txt") #testing only!
-        #self.manager.upload_file(r".\Test\test4.txt") #testing only!
-        #self.manager.fd.sync_to_file() #testing only!
-        return True # TODO: Handle correctly!!
+
+        # Everything here is for testing
+        self.manager = CloudManager([DropBox(email)],
+                                     "/EncryptoSphere", 
+                                     NoSplit(), 
+                                     NoEncrypt(), 
+                                     FileDescriptor(os.path.join(os.getcwd(),"Test")))
+        self.session_manager = SessionManager(self.manager)
+        self.manager.authenticate()
+        self.manager.upload_file(".\\Test\\uploadme.txt")
+        self.manager.fd.sync_to_file()
+        return True
     
     def get_files(self):
         return self.manager.get_file_list()

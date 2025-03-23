@@ -1,18 +1,45 @@
-import FileDescriptor as FileDescriptor
-import CloudAbstraction
+from cryptography.fernet import Fernet
 
-class SessionManager:
-    def __init__(self, key):
-        self.current_sessions = []
+from CloudManager import CloudManager
+
+class SessionManager():
+    """
+    This class manages shared sessions using the main session and also holds the master key
+    """
+    def __init__(self, main_session):
+        self.key = Fernet.generate_key() # THIS IS TEMPORARY, SWITCH THIS TO KEY FROM PASSWORD
+        self.main_session = main_session
+        self.sessions = []
+
+    def get_key(self):
+        """
+        Returns the master key from the login that was generated
+        """
+        return self.key
     
-    def add_session(self, key, cloud_manager):
-        self.current_sessions.append(Session(key, cloud_manager))
-    
-    def add_shared_session(self, key):
+    def add_session(self, session : CloudManager):
+        """
+        Adds a new shared session to the sessions list
+        """
         pass
 
-class Session:
-    def __init__(self, key : str, cloud_manager : CloudAbstraction):
-        self.key = key
-        self.manager = cloud_manager
-    
+    def end_session(self):
+        """
+        End a session from the session list
+        """
+        pass
+
+    def sync_new_sessions(self):
+        """
+        Looks in all clouds for newly shared sessions
+        If one is found, create private,public key pair and upload public key + TFEK to folder
+        """
+        pass
+
+    def sync_known_sessions(self):
+        """
+        Looks in known sessions for updates
+        1. If another user's public key is found and our FEK exists, use the public key to share the session key with the new user
+        2. If we shared a session key, look if we got the shared key and create a new session
+        """
+        pass
