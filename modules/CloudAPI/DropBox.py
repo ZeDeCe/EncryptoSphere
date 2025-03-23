@@ -181,6 +181,14 @@ class DropBox(CloudService):
         except dropbox.exceptions.ApiError as e:
             print(f"Error occurred: {e}")
 
+
+    def create_shared_folder(self, folder_path, emails):
+        try:
+            folder = self.create_folder(folder_path)
+            return self.share(folder, emails)
+        except dropbox.exceptions.ApiError as e:
+            print(f"Error occurred: {e}")
+
     def share_folder(self, folder_path):
         try:
             # Share the folder using the folder path
