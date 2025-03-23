@@ -97,23 +97,28 @@ class CloudManager:
                 self.fd.delete_file(file_id)
                 raise Exception("Failed to upload one of the files")
             
-    def _upload_replicated(self, file_name, data):
+    def _upload_replicated(self, file_name, data, suffix=False):
         """
         Encrypts and uploads the given file to all platforms without splitting.
         This function is purposefully limited to only uploading from the root folder
+        @param file_name the name of the file on the cloud
+        @param data the data to be written
+        @param suffix, optional if True will add the email of the user to the file name at the end
         """
         data = self._encrypt(data)
         for cloud in self.clouds:
-            cloud.upload_file(data, file_name, self.root_folder)
+            suffix = f"_{cloud.get_email()}" if suffix else ""
+            cloud.upload_file(data, f"{file_name}{suffix}", self.root_folder)
 
-    def _download_replicated(self, file_name):
+    def _download_replicated(self, file_name, suffix=False):
         """
         Downloads and decrypts a the file from the path given if it exists in all clouds
         This function is purposefully limited to only downloading from the root folder
         """
         replicated_files = []
         for cloud in self.clouds:
-            replicated_files.append(cloud.download_file(f"{self.root_folder}/{file_name}"))
+            suffix = f"_{cloud.get_email()}" if suffix else ""
+            replicated_files.append(cloud.download_file(f"{self.root_folder}/{file_name}{suffix}"))
         return self._check_replicated_integrity(replicated_files)
     
     def _check_replicated_integrity(self, replicated : list[bytes]):

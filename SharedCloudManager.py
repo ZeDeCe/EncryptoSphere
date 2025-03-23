@@ -1,4 +1,5 @@
 from CloudManager import CloudManager
+from modules.CloudAPI.CloudService import CloudService
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric import rsa,padding
 from cryptography.hazmat.primitives import hashes,serialization
@@ -7,47 +8,149 @@ class SharedCloudManager(CloudManager):
     """
     This class holds a shared session using a list of clouds, encryption method, split method, and a filedescriptor
     """
-    def __init__(self, new_session, shared_with : list[dict], *args, **kwargs):
+    def __init__(self, shared_with : list[dict] | None, *args, **kwargs):
         """
         Initialize sharedcloudmanager
-        @param new_session True if to start a completely new session, False if the session already exists
-        @param shared_with a list of dictionaries as such: [{"Cloud1Name":"email", "Cloud2Name":"email", ...}, ...]
+        @param shared_with a list of dictionaries as such: [{"Cloud1Name":"email", "Cloud2Name":"email", ...}, ...] or None for an existing session
         """
-        super().__init__(self, *args, **kwargs)
-        self.users = shared_with
-        self.emails_by_cloud = {}
-        for user in self.users:
-            for cloud,email in user.items():
-                self.emails_by_cloud[cloud] = email
-        if(new_session):
-            self.create_session()
-        else:
-            self.pull_fek()
+        super().__init__(*args, **kwargs)
+        if shared_with:
+            self.users = shared_with
+            self.emails_by_cloud = {}
+            for user in self.users:
+                for cloud,email in user.items():
+                    if self.emails_by_cloud.get(cloud):
+                        self.emails_by_cloud[cloud].append(email) 
+                    else:
+                         self.emails_by_cloud[cloud] = [email]
 
-    def create_session(self):
+    def authenticate(self):
+        if(not super().authenticate()):
+            return False
+        if self.users:
+            # This is a new session to be created
+            self.create_new_session()
+        else:
+            # This session already exists (and might not be ours)
+            self.load_session()
+        return True
+    
+    def create_new_session(self):
         """
         Create a first time share, generate a shared key and upload FEK
         """
         for cloud in self.clouds:
-            cloud.create_shared_folder(self.root_folder, self.emails_by_cloud[cloud.get_name()])
+            folder = cloud.get_folder(self.root_folder)
+            if not folder:
+                # A complete new session
+                cloud.create_shared_folder(self.root_folder, self.emails_by_cloud[cloud.get_name()])
+                continue
+
+            # The folder exists, it must not have shared members or be shared
+            members = cloud.get_members_shared(folder)
+            if members == False: # even if members is empty, the FEK should be there if we made the session
+                # The folder exists but is not shared, we are transforming a regular session or folder
+                # to a shared session.
+                cloud.share_folder(self.root_folder, self.emails_by_cloud[cloud.get_name()])
+            else:
+                # The folder is already shared, this is already a shared session
+                raise Exception("Attempting to create a shared session from an already existing shared root folder")
+        
         shared_key = self.encrypt.generate_key()
         encrypted_sk = self._encrypt(shared_key) # encrypted with master key
-        for cloud in self.clouds:
-            cloud.upload_file(encrypted_sk, f"$FEK_{cloud.get_email()}", self.root_folder)
+        self._upload_replicated("$FEK",encrypted_sk,True)
         self.encrypt.set_key(shared_key)
+
+    def load_session(self) -> bool:
+        """
+        Attempts to load an already existing shared session
+        @return status, if failed to get the key for the session returns False otherwise True.
+        """
+        my_key = None
+        
+        # Try finding the 
+        for cloud in self.clouds:
+            folder = cloud.get_folder(self.root_folder)
+            if folder and cloud.get_members_shared(folder) != False:
+                # This might have FEK
+                key = self.check_key_status(cloud)
+                if key:
+                    my_key = key
+                    break
+            else:
+                print(f"Cloud {cloud.get_name()} does not have the shared folder {self.root_folder}. Ignoring cloud for session.")
+                self.clouds.pop(self.clouds.index(cloud)) # pop cloud from clouds list
+        if my_key:
+            # We have at least a single FEK
+            real_key = self._decrypt(my_key)
+            self.encrypt.set_key(real_key)
+
+            # We can send this to it's own thread:
+            self.sync_fek(my_key)
+            return True
+        return False
+
+            
+    def sync_fek(self, encrypted_key : bytes) -> None:
+        self._upload_replicated("$FEK_", encrypted_key, True)
+
+
+    def check_key_status(self, cloud : CloudService) -> bytes | bool:
+        """
+        This function checks the status of the key transaction in the cloud given
+        If it finds the shared key encrypted with the public key we already put, open it, encrypt the key with master to make FEK, upload FEK to folder, return encrypted key
+        If it finds an FEK, return encrypted key
+        If it finds TFEK but no response, return False
+        If it finds nothing, upload a TFEK pair.
+        @param cloud the cloud to use
+        @return the encrypted key if found, if not then False
+        """
+        fek = cloud.download_file(f"$FEK_{cloud.get_email()}")
+        if fek:
+            return fek
+        shared_secret = cloud.download_file(f"$SHARED_{cloud.get_email()}")
+        enc_private_tfek = cloud.download_file(f"$TFEK_{cloud.get_email()}")
+        public = cloud.download_file(f"$PUBLIC_{cloud.get_email()}")
+        if shared_secret and enc_private_tfek:
+            private = self._decrypt(enc_private_tfek)
+            private = serialization.load_pem_private_key(
+                private,
+                password=None
+            )
+            shared_secret = private.decrypt(
+                shared_secret,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            )
+            shared_secret = self._encrypt(shared_secret)
+            self.sync_fek(shared_secret)
+            return shared_secret
+        if enc_private_tfek and public:
+            return False
+        self.upload_TFEK(cloud)
+        
+    def upload_TFEK(self, cloud : CloudService):
+        """
+        Uploads the TFEK and public key files to the shared folder to await answer
+        @param cloud the cloud to use
+        """
+        pass
     
-    def pull_fek(self):
-        """
-        Assuming we already have a ready FEK, pull it from all clouds and sync it
-        """
-        fek_list = []
-        for cloud in self.clouds:
-            fek_list.append(self._decrypt(cloud.download_file(f"$FEK_{cloud.get_email()}", self.root_folder)))
-        status, shared_key = self._check_replicated_integrity(fek_list)
-        if not status:
-            # for now raising exception, later can do error handling here
-            raise Exception("FEK got corrupted!")
-        self.encrypt.set_key(shared_key)
+    # def pull_fek(self):
+    #     """
+    #     Assuming we already have a ready FEK, pull it from all clouds and sync it
+    #     """
+    #     fek_list = []
+    #     for cloud in self.clouds:
+    #         fek_list.append(self._decrypt(cloud.download_file(f"$FEK_{cloud.get_email()}", self.root_folder)))
+    #     status, shared_key = self._check_replicated_integrity(fek_list)
+    #     if not status:
+    #         # for now raising exception, later can do error handling here
+    #         raise Exception("FEK got corrupted!")
+    #     self.encrypt.set_key(shared_key)
     
     # Since each session is with 1 user only right now, revoke_user will just call unshare_file
     def revoke_user(self, user, file_id):
