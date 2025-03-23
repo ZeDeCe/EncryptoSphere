@@ -12,7 +12,7 @@ class Encrypt(ABC):
         self.key = key
 
     @abstractmethod
-    def generate_key() -> any:
+    def generate_key() -> bytes:
         pass
 
     @abstractmethod
