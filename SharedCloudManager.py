@@ -14,6 +14,10 @@ class SharedCloudManager(CloudManager):
         @param shared_with a list of dictionaries as such: [{"Cloud1Name":"email", "Cloud2Name":"email", ...}, ...] or None for an existing session
         """
         super().__init__(*args, **kwargs)
+        self.tfek = None
+        self.public_key = None
+        self.users = None
+        self.loaded = False
         if shared_with:
             self.users = shared_with
             self.emails_by_cloud = {}
@@ -24,16 +28,20 @@ class SharedCloudManager(CloudManager):
                     else:
                          self.emails_by_cloud[cloud] = [email]
 
+
     def authenticate(self):
         if(not super().authenticate()):
             return False
         if self.users:
             # This is a new session to be created
-            self.create_new_session()
+            try:
+                self.create_new_session()
+            except:
+                return False
         else:
             # This session already exists (and might not be ours)
-            self.load_session()
-        return True
+            self.loaded = self.load_session()
+        return self.loaded
     
     def create_new_session(self):
         """
@@ -64,14 +72,20 @@ class SharedCloudManager(CloudManager):
     def load_session(self) -> bool:
         """
         Attempts to load an already existing shared session
+        If returns false, the session is not ready for use since we have no encryption key
+        If returns true, the session is ready for use and _encrypt() will now use the shared key.
         @return status, if failed to get the key for the session returns False otherwise True.
         """
         my_key = None
         
-        # Try finding the 
+        # Try finding the key
         for cloud in self.clouds:
             folder = cloud.get_folder(self.root_folder)
-            if folder and cloud.get_members_shared(folder) != False:
+            if folder:
+                try: # check it is shared with people
+                    cloud.get_members_shared(folder)
+                except:
+                    continue
                 # This might have FEK
                 key = self.check_key_status(cloud)
                 if key:
@@ -92,7 +106,18 @@ class SharedCloudManager(CloudManager):
 
             
     def sync_fek(self, encrypted_key : bytes) -> None:
-        self._upload_replicated("$FEK_", encrypted_key, True)
+        self._upload_replicated("$FEK", encrypted_key, True)
+
+        # Try deleting excess files
+        for cloud in self.clouds:
+            try:
+                cloud.delete_file(f"$TFEK_{cloud.get_email()}")
+            except:
+                pass
+            try:
+                cloud.delete_file(f"$PUBLIC_{cloud.get_email()}")
+            except:
+                pass
 
 
     def check_key_status(self, cloud : CloudService) -> bytes | bool:
@@ -105,14 +130,29 @@ class SharedCloudManager(CloudManager):
         @param cloud the cloud to use
         @return the encrypted key if found, if not then False
         """
-        fek = cloud.download_file(f"$FEK_{cloud.get_email()}")
+        fek = cloud.download_file(f"$FEK_{cloud.get_email()}", self.root_folder)
         if fek:
             return fek
-        shared_secret = cloud.download_file(f"$SHARED_{cloud.get_email()}")
-        enc_private_tfek = cloud.download_file(f"$TFEK_{cloud.get_email()}")
-        public = cloud.download_file(f"$PUBLIC_{cloud.get_email()}")
-        if shared_secret and enc_private_tfek:
-            private = self._decrypt(enc_private_tfek)
+        shared_secret = None
+        tfek = None
+        public_key = None
+
+        # download_file raises errors if it fails
+        try:
+            shared_secret = cloud.download_file(f"$SHARED_{cloud.get_email()}", self.root_folder)
+        except:
+            pass
+        try:
+            tfek = cloud.download_file(f"$TFEK_{cloud.get_email()}", self.root_folder)
+        except:
+            pass
+        try:
+            public_key = cloud.download_file(f"$PUBLIC_{cloud.get_email()}", self.root_folder)
+        except:
+            pass
+
+        if shared_secret and tfek:
+            private = self._decrypt(tfek)
             private = serialization.load_pem_private_key(
                 private,
                 password=None
@@ -128,8 +168,9 @@ class SharedCloudManager(CloudManager):
             shared_secret = self._encrypt(shared_secret)
             self.sync_fek(shared_secret)
             return shared_secret
-        if enc_private_tfek and public:
+        if tfek and public_key:
             return False
+        
         self.upload_TFEK(cloud)
         
     def upload_TFEK(self, cloud : CloudService):
@@ -137,7 +178,72 @@ class SharedCloudManager(CloudManager):
         Uploads the TFEK and public key files to the shared folder to await answer
         @param cloud the cloud to use
         """
-        pass
+        if not self.tfek:
+            private_key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=2048,
+            )
+            private_pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+            self.tfek = self._encrypt(private_pem)
+        
+        if not self.public_key:
+            public_key = private_key.public_key()
+            self.public_key = public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+        
+        cloud.upload_file(self.tfek, f"$TFEK_{cloud.get_email()}", self.root_folder)
+        cloud.upload_file(self.public_key, f"$PUBLIC_{cloud.get_email()}", self.root_folder)
+    
+    def share_keys(self):
+        """
+        Look if there is a temporary public key file uploaded by a valid user
+        share the shared key with that user by creating a temporary shared key
+        """
+        if self.loaded == False:
+            return
+        shared_key = self.encrypt.get_key()
+        for cloud in self.clouds:
+            public_keynames = filter(lambda name: name.startswith("$PUBLIC_"), cloud.list_files(self.root_folder))
+            for keyname in public_keynames:
+                username = ""
+                try:
+                    username = keyname[8:]
+                except:
+                    continue
+                pem = cloud.download_file(keyname, self.root_folder)
+                public = serialization.load_pem_public_key(
+                    pem
+                )
+                response = public.encrypt(
+                    shared_key,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    )
+                )
+                cloud.upload_file(response, "$SHARED_{username}", self.root_folder)
+
+    def test_access(self) -> bool:
+        """
+        Tests if there is still access to the session root folder and it is still a shared folder
+        @return True if at least 1 folder is still shared and active on one of the clouds, False if none
+        """
+        for cloud in self.clouds:
+            folder = cloud.get_folder(self.root_folder)
+            if folder:
+                try: # check it is shared with people
+                    cloud.get_members_shared(folder)
+                except:
+                    continue
+                return True
+        return False
     
     # def pull_fek(self):
     #     """
@@ -153,29 +259,18 @@ class SharedCloudManager(CloudManager):
     #     self.encrypt.set_key(shared_key)
     
     # Since each session is with 1 user only right now, revoke_user will just call unshare_file
-    def revoke_user(self, user, file_id):
-        """
-        Revokes a specific user from a specific file in a shared session
-        @param user a dictionary in the format: {"cloudname": "email", ...}
-        """
-        self.unshare_file(file_id)
 
-    def revoke_user_from_share(self, user):
+    def revoke_user_from_share(self, users):
         """
         Completely revokes a user from a shared session
+        Will delete their FEK and unshare them from the folder
         If it is the last user, converts to a normal session
+        @param users a dictionary in the format: {"cloudname": "email", ...}
         """
         pass
-
-    def unshare_file(self, file_id):
+    
+    def add_user_to_share(self, users):
         """
-        Moves a file from a shared session to the main session
+        Adds a new user to the shared session
+        @param users a dictionary in the format: {"cloudname": "email", ...}
         """
-        pass
-
-    def unshare_folder(self):
-        """
-        Moves an entire folder from a shared session to the main session
-        This function might take a long time to run
-        """
-        pass

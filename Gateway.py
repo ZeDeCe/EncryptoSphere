@@ -44,9 +44,10 @@ class Gateway:
         self.manager.authenticate()
 
         # dropbox2 = DropBox(email)
-        # Testing shared sessions
+        # #Testing shared sessions
         # self.shared_session = SharedCloudManager(
-        #     [{"D":"demek14150@sfxeur.com"}],
+        #     #[{"D":"demek14150@sfxeur.com"}],
+        #     None,
         #     [dropbox2],
         #     "/SharedSession", 
         #     NoSplit(), 
@@ -91,6 +92,29 @@ class Gateway:
     def delete_folder(self, folder_id):
         self.manager.delete_folder(folder_id)
         return True # TODO: Handle correctly!!
+    
+    # TODO: shared session functions
+    def create_shared_session(self):
+        pass
+
+    def share_file(self):
+        pass
+
+    def share_folder(self):
+        pass
+
+    def unshare_folder(self):
+        pass
+
+    def unshare_file(self):
+        pass
+
+    def revoke_user_from_share(self):
+        pass
+
+    def add_user_to_share(self):
+        pass
+
 
 
 def main():
