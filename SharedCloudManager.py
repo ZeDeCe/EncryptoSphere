@@ -28,6 +28,7 @@ class SharedCloudManager(CloudManager):
                     else:
                          self.emails_by_cloud[cloud] = [email]
 
+
     def authenticate(self):
         if(not super().authenticate()):
             return False
@@ -229,7 +230,20 @@ class SharedCloudManager(CloudManager):
                 )
                 cloud.upload_file(response, "$SHARED_{username}", self.root_folder)
 
-
+    def test_access(self) -> bool:
+        """
+        Tests if there is still access to the session root folder and it is still a shared folder
+        @return True if at least 1 folder is still shared and active on one of the clouds, False if none
+        """
+        for cloud in self.clouds:
+            folder = cloud.get_folder(self.root_folder)
+            if folder:
+                try: # check it is shared with people
+                    cloud.get_members_shared(folder)
+                except:
+                    continue
+                return True
+        return False
     
     # def pull_fek(self):
     #     """
