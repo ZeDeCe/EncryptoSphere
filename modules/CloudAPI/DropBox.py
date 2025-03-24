@@ -103,7 +103,8 @@ class DropBox(CloudService):
         Download file from Dropbox and return the file's data
         """
         try:
-            metadata, res = self.dbx.files_download(file_name)
+            path = f"{path}/{file_name}"
+            metadata, res = self.dbx.files_download(path)
             file_data = res.content
             print(f"File data downloaded successfully.")
             return file_data
