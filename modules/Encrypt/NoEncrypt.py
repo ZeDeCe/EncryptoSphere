@@ -4,10 +4,10 @@ class NoEncrypt(Encrypt):
     def __init__(self, key=None):
         super().__init__(key)
 
-    def encrypt_file(self, data):
+    def encrypt(self, data):
         return data
     
-    def decrypt_file(self, data):
+    def decrypt(self, data):
         return data
     
     def get_name(self):
