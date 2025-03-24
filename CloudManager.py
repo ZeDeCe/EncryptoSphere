@@ -32,7 +32,6 @@ class CloudManager:
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.fd = file_descriptor if file_descriptor else self.sync_from_clouds()
         self.lock_session()
-        
 
     def lock_session(self):
         """
@@ -42,22 +41,22 @@ class CloudManager:
         """
         pass
 
-    def __split(self, file, parts):
-        return self.split.split(file, parts)
+    def _split(self, data : bytes, clouds : int):
+        return self.split.split(data, clouds)
     
-    def __merge(self, folder):
+    def _merge(self, data: list[bytes]):
         # TODO: finish function
-        return self.split.merge_parts()
+        return self.split.merge_parts(data)
     
-    def _encrypt(self, file):
-        self.encrypt.encrypt_file(file)
-        return file
+    def _encrypt(self, data : bytes):
+        data = self.encrypt.encrypt(data)
+        return data
     
-    def _decrypt(self, file):
-        self.encrypt.decrypt_file(file)
-        return file
+    def _decrypt(self, data : bytes):
+        data = self.encrypt.decrypt(data)
+        return data
 
-    def __tempfile_from_path(self, os_filepath):
+    def _tempfile_from_path(self, os_filepath):
         file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
         with open(os_filepath, "r") as osfile:
             file.write(osfile.read().encode('utf-8'))
