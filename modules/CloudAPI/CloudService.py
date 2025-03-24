@@ -82,14 +82,14 @@ class CloudService(ABC):
         pass
  
     @abstractmethod
-    def unshare_folder(self, folder_name):
+    def unshare_folder(self, folder_name) -> bool:
         """
         Unshare a file or folder from a user
         """
         pass
 
     @abstractmethod
-    def unshare_by_email(self, folder : any, emails : list[str]):
+    def unshare_by_email(self, folder : any, emails : list[str]) -> bool:
         """
         Unshare a folder from a specific emails list
         @param folder the folder object to unshare
@@ -98,7 +98,7 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def list_shared_files(self):
+    def list_shared_folders(self) -> list:
         """
         List all shared files and folders in the cloud storage
         """
