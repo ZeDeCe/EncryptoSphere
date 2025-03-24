@@ -245,21 +245,6 @@ class SharedCloudManager(CloudManager):
                 return True
         return False
     
-    # def pull_fek(self):
-    #     """
-    #     Assuming we already have a ready FEK, pull it from all clouds and sync it
-    #     """
-    #     fek_list = []
-    #     for cloud in self.clouds:
-    #         fek_list.append(self._decrypt(cloud.download_file(f"$FEK_{cloud.get_email()}", self.root_folder)))
-    #     status, shared_key = self._check_replicated_integrity(fek_list)
-    #     if not status:
-    #         # for now raising exception, later can do error handling here
-    #         raise Exception("FEK got corrupted!")
-    #     self.encrypt.set_key(shared_key)
-    
-    # Since each session is with 1 user only right now, revoke_user will just call unshare_file
-
     def revoke_user_from_share(self, users):
         """
         Completely revokes a user from a shared session
@@ -274,3 +259,16 @@ class SharedCloudManager(CloudManager):
         Adds a new user to the shared session
         @param users a dictionary in the format: {"cloudname": "email", ...}
         """
+
+    @staticmethod
+    def is_valid_session_root(cloud, root) -> True:
+        """
+        Checks if the folder root given in the cloud is a valid session root for SharedCloudManager
+        Checks the following:
+        1. The name of the folder is [name]_ENCRYPTOSPHERE_SHARE
+        2. The folder is a shared folder
+        3. The folder contains at least 1 file with the name $FEK_[SOMETHING]@[SOMETHING]
+        4. The folder has at least 2 members shared
+        @return if it is valid, True, otherwise False
+        """
+        pass

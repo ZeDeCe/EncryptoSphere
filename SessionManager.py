@@ -29,7 +29,7 @@ class SessionManager():
 
     def sync_new_sessions(self):
         """
-        Looks in all clouds for newly shared sessions
+        Looks in all clouds for shared sessions
         If one is found, create a SharedCloudManager for the folder and add it to self.sessions using add_session
         """
         pass
