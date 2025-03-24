@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from CloudManager import CloudManager
+from SharedCloudManager import SharedCloudManager
 from modules.Encrypt import *
 from modules.Split import *
 from modules.CloudAPI import *
@@ -15,6 +16,9 @@ import customtkinter as ctk
 import utils.DialogBox as DialogBox
 import app as app
 import time #Testing bc no real download or upload
+
+# This is temporary:
+from cryptography.fernet import Fernet
 
 class Gateway:
     """
@@ -28,15 +32,28 @@ class Gateway:
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
-
+        dropbox1 = DropBox(email)
         # Everything here is for testing
-        self.manager = CloudManager([DropBox(email)],
-                                     "/EncryptoSphere", 
-                                     NoSplit(), 
-                                     NoEncrypt(), 
-                                     FileDescriptor(os.path.join(os.getcwd(),"Test")))
-        self.session_manager = SessionManager(self.manager)
+        self.manager = CloudManager(
+            [dropbox1],
+            "/EncryptoSphere", 
+            NoSplit(), 
+            NoEncrypt(), 
+            FileDescriptor(os.path.join(os.getcwd(),"Test")))
+        self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         self.manager.authenticate()
+
+        # dropbox2 = DropBox(email)
+        # Testing shared sessions
+        # self.shared_session = SharedCloudManager(
+        #     [{"D":"demek14150@sfxeur.com"}],
+        #     [dropbox2],
+        #     "/SharedSession", 
+        #     NoSplit(), 
+        #     NoEncrypt(), 
+        #     FileDescriptor(os.path.join(os.getcwd(),"Test\\SharedSession"))
+        # )
+        # self.shared_session.authenticate()
         self.manager.fd.sync_to_file()
         return True
     

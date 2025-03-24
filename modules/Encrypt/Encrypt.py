@@ -12,15 +12,15 @@ class Encrypt(ABC):
         self.key = key
 
     @abstractmethod
-    def generate_key() -> any:
+    def generate_key() -> bytes:
         pass
 
     @abstractmethod
-    def encrypt_file(self, data : bytes) -> bytes:
+    def encrypt(self, data : bytes) -> bytes:
         pass
     
     @abstractmethod
-    def decrypt_file(self, data : bytes) -> bytes:
+    def decrypt(self, data : bytes) -> bytes:
         pass
 
     @abstractmethod

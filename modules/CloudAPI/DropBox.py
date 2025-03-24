@@ -13,17 +13,17 @@ DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
 DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 
 class DropBox(CloudService):
-    def __init__(self, email):
-        super().__init__(email)
-        self.dbx = None
-        self.userid = None
-
+    # Function to authenticate the Dropbox account and get access token
+    # The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
+    # The function creates and save the root folder (if not already exsist)
     def authenticate_cloud(self):
         """
         Function to authenticate the Dropbox account and get access token
         The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
         The function creates and save the root folder (if not already exsist)
         """
+        if super().authenticate_cloud():
+            return True
         # Start the OAuth flow
         auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
         # Generate the authorization URL
@@ -40,6 +40,7 @@ class DropBox(CloudService):
         # Extract access token and user_id from the result object
         access_token = auth_result.access_token
         self.user_id = auth_result.user_id
+        self.authenticated = True
         return True
 
     def verify_dropbox_token_for_user(self, auth_flow, auth_code, expected_email):
@@ -161,6 +162,14 @@ class DropBox(CloudService):
                 return self.dbx.files_get_metadata(folder_path)
             else:
                 raise Exception(f"Error: {e}")
+
+
+    def create_shared_folder(self, folder_path, emails):
+        try:
+            folder = self.create_folder(folder_path)
+            return self.share(folder, emails)
+        except dropbox.exceptions.ApiError as e:
+            print(f"Error occurred: {e}")
 
     def _share_folder(self, folder_path):
         """
