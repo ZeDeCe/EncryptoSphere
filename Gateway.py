@@ -15,6 +15,7 @@ import customtkinter as ctk
 
 import utils.DialogBox as DialogBox
 import app as app
+import time #Testing bc no real download or upload
 
 # This is temporary:
 from cryptography.fernet import Fernet
@@ -62,6 +63,8 @@ class Gateway:
     def download_file(self, file_id):
         self.manager.download_file(file_id)
         print("Download file chosen")
+        time.sleep(10)
+        print("Download end")
         return True # TODO: Handle correctly!!
     
     def download_folder(self, folder_id):
@@ -81,6 +84,8 @@ class Gateway:
     def delete_file(self, file_id):
         self.manager.delete_file(file_id)
         print("Delete file chosen")
+        time.sleep(10)
+        print("Delete end")
         return True # TODO: Handle correctly!!
     
     def delete_folder(self, folder_id):
@@ -94,7 +99,10 @@ def main():
     """
     gateway = Gateway()
     gui = app.App(gateway)
-    gui.mainloop()
+    try:
+        gui.mainloop()
+    finally:    
+        gateway.manager.fd.sync_to_file()
     
 if __name__=="__main__":
     main()
