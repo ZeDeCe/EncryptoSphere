@@ -259,29 +259,18 @@ class SharedCloudManager(CloudManager):
     #     self.encrypt.set_key(shared_key)
     
     # Since each session is with 1 user only right now, revoke_user will just call unshare_file
-    def revoke_user(self, user, file_id):
-        """
-        Revokes a specific user from a specific file in a shared session
-        @param user a dictionary in the format: {"cloudname": "email", ...}
-        """
-        self.unshare_file(file_id)
 
-    def revoke_user_from_share(self, user):
+    def revoke_user_from_share(self, users):
         """
         Completely revokes a user from a shared session
+        Will delete their FEK and unshare them from the folder
         If it is the last user, converts to a normal session
+        @param users a dictionary in the format: {"cloudname": "email", ...}
         """
         pass
-
-    def unshare_file(self, file_id):
+    
+    def add_user_to_share(self, users):
         """
-        Moves a file from a shared session to the main session
+        Adds a new user to the shared session
+        @param users a dictionary in the format: {"cloudname": "email", ...}
         """
-        pass
-
-    def unshare_folder(self):
-        """
-        Moves an entire folder from a shared session to the main session
-        This function might take a long time to run
-        """
-        pass
