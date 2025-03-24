@@ -16,6 +16,8 @@ class SharedCloudManager(CloudManager):
         super().__init__(*args, **kwargs)
         self.tfek = None
         self.public_key = None
+        self.users = None
+        self.loaded = False
         if shared_with:
             self.users = shared_with
             self.emails_by_cloud = {}
@@ -31,11 +33,14 @@ class SharedCloudManager(CloudManager):
             return False
         if self.users:
             # This is a new session to be created
-            self.create_new_session()
+            try:
+                self.create_new_session()
+            except:
+                return False
         else:
             # This session already exists (and might not be ours)
-            self.load_session()
-        return True
+            self.loaded = self.load_session()
+        return self.loaded
     
     def create_new_session(self):
         """
@@ -75,7 +80,11 @@ class SharedCloudManager(CloudManager):
         # Try finding the key
         for cloud in self.clouds:
             folder = cloud.get_folder(self.root_folder)
-            if folder and cloud.get_members_shared(folder) != False:
+            if folder:
+                try: # check it is shared with people
+                    cloud.get_members_shared(folder)
+                except:
+                    continue
                 # This might have FEK
                 key = self.check_key_status(cloud)
                 if key:
@@ -189,6 +198,38 @@ class SharedCloudManager(CloudManager):
         
         cloud.upload_file(self.tfek, f"$TFEK_{cloud.get_email()}", self.root_folder)
         cloud.upload_file(self.public_key, f"$PUBLIC_{cloud.get_email()}", self.root_folder)
+    
+    def share_keys(self):
+        """
+        Look if there is a temporary public key file uploaded by a valid user
+        share the shared key with that user by creating a temporary shared key
+        """
+        if self.loaded == False:
+            return
+        shared_key = self.encrypt.get_key()
+        for cloud in self.clouds:
+            public_keynames = filter(lambda name: name.startswith("$PUBLIC_"), cloud.list_files(self.root_folder))
+            for keyname in public_keynames:
+                username = ""
+                try:
+                    username = keyname[8:]
+                except:
+                    continue
+                pem = cloud.download_file(keyname, self.root_folder)
+                public = serialization.load_pem_public_key(
+                    pem
+                )
+                response = public.encrypt(
+                    shared_key,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    )
+                )
+                cloud.upload_file(response, "$SHARED_{username}", self.root_folder)
+
+
     
     # def pull_fek(self):
     #     """

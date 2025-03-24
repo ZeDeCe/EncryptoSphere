@@ -52,7 +52,7 @@ class CloudService(ABC):
         """
         List files in the cloud storage, optionally in a specific folder object
         @param folder the folder object, if not specified uses root folder
-        @return a list of all the files in the folder
+        @return a list of all the file names in the folder
         """
         pass
 
@@ -155,7 +155,7 @@ class CloudService(ABC):
         """
         List all shared files and folders in the cloud storage
         @param folder, optional, the folder object to look into
-        @return a list of shared file objects
+        @return a list of shared file names
         """
         pass
     
