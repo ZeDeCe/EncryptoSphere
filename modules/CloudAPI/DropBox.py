@@ -278,6 +278,12 @@ class DropBox(CloudService):
                 return None
         return True
     
+    def get_folder_path(self, folder):
+        pass
+
+    def list_shared_folders(self):
+        pass
+
     def get_name(self):
         return "D"
 

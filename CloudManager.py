@@ -79,7 +79,7 @@ class CloudManager:
             data = file.read()
         hash = hashlib.md5(data).hexdigest()
         data = self._encrypt(data)
-        data = self.__split(data, len(self.clouds))
+        data = self._split(data, len(self.clouds))
         file_id = self.fd.add_file(
             os.path.basename(os_filepath),
             path,
