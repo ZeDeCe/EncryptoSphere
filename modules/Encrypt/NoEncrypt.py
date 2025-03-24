@@ -13,5 +13,5 @@ class NoEncrypt(Encrypt):
     def get_name(self):
         return "No"
     
-    def generate_key(self) -> any:
-        return ""
+    def generate_key(self) -> bytes:
+        return b"NOKEY"

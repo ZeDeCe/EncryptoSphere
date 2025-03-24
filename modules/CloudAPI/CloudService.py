@@ -1,11 +1,28 @@
 from abc import ABC, abstractmethod
 
 class CloudService(ABC):
+
+    def __new__(cls, email : str):
+        """
+        Makes all child objects with the same email a singleton.
+        """
+        if not hasattr(cls, 'instances'):
+            cls.instances = {}
+        single = cls.instances.get(email)
+        if(single):
+            return single
+        cls.instances[email] = super(CloudService, cls).__new__(cls)
+        cls.instances[email].authenticated = False
+        cls.instances[email].email = email
+        return cls.instances[email]
+
     def __init__(self, email : str):
         """
-        Set the email to be the email used for everything
+        Currently everything is setup in the __new__ function, individual classes can set
+        their variables in their __new__ functions as well.
+        Do not set up variables here that don't need to be overriden
         """
-        self.email = email
+        pass
 
     def get_email(self) -> str:
         """
@@ -13,14 +30,22 @@ class CloudService(ABC):
         @return the email
         """
         return self.email
-
-    @abstractmethod
+    
+    def is_authenticated(self):
+        """
+        Returns the self.authenticated flag if already authenticated
+        """
+        return self.authenticated
+    
     def authenticate_cloud(self) -> bool:
         """
         Authenticate with the cloud service
+        Make sure to call this function before overriding
+        Make sure to set the self.authenticated flag to True after authentication has occured so that the platform
+        won't need to go through authentication twice
         @return success, if fails throws an error
         """
-        pass
+        return self.authenticated
 
     @abstractmethod
     def list_files(self, folder='/') -> list:
@@ -43,7 +68,7 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def download_file(self, file_name : str, path : str) -> bytes:
+    def download_file(self, file_name : str, path : str) -> bytes | None:
         """
         Download a file from the cloud storage using
         @param file_name the name of the file
@@ -87,7 +112,7 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def share(self, folder : any, emails : list[str]) -> any:
+    def share_folder(self, folder : any, emails : list[str]) -> any:
         """
         Share a file or folder with a user (read/write permissions)
         @param folder the folder object returned from create_folder (or get_folder)
@@ -95,9 +120,19 @@ class CloudService(ABC):
         @return the folder object of the now shared folder
         """
         pass
+
+    @abstractmethod
+    def create_shared_folder(self, path, emails : list[str]) -> any:
+        """
+        Creates and shares a folder with a specific list of emails
+        @param path the path the new folder should be created at
+        @param emails a list of emails to share with
+        @return a folder object
+        """
+        pass
  
     @abstractmethod
-    def unshare_folder(self, folder : any) -> bool:
+    def unshare_folder(self, folder):
         """
         Unshares a folder - makes the folder "unshared", removes anyone shared with it
         @param folder, the folder object
@@ -130,6 +165,14 @@ class CloudService(ABC):
         List all shared folders in all of the cloud
         @return a list of folder objects that represent the shared folders
         """
+    
+    @abstractmethod
+    def get_members_shared(self, folder : any) -> dict[str] | bool:
+        """
+        Returns a list of emails that the folder is shared with if shared, and false if not shared
+        @param folder the folder object
+        """
+        pass
 
     @abstractmethod
     def get_name(self) -> str:

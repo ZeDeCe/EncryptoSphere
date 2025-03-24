@@ -1,13 +1,11 @@
-from cryptography.fernet import Fernet
-
 from CloudManager import CloudManager
 
 class SessionManager():
     """
     This class manages shared sessions using the main session and also holds the master key
     """
-    def __init__(self, main_session):
-        self.key = Fernet.generate_key() # THIS IS TEMPORARY, SWITCH THIS TO KEY FROM PASSWORD
+    def __init__(self, master_key, main_session):
+        self.key = master_key
         self.main_session = main_session
         self.sessions = []
 
@@ -32,14 +30,13 @@ class SessionManager():
     def sync_new_sessions(self):
         """
         Looks in all clouds for newly shared sessions
-        If one is found, create private,public key pair and upload public key + TFEK to folder
+        If one is found, create a SharedCloudManager for the folder
         """
         pass
 
     def sync_known_sessions(self):
         """
         Looks in known sessions for updates
-        1. If another user's public key is found and our FEK exists, use the public key to share the session key with the new user
-        2. If we shared a session key, look if we got the shared key and create a new session
+        1. If another user's public key is found in a shared session, use the public key to share the session key with the new user
         """
         pass
