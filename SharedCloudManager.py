@@ -66,11 +66,13 @@ class SharedCloudManager(CloudManager):
     def load_session(self) -> bool:
         """
         Attempts to load an already existing shared session
+        If returns false, the session is not ready for use since we have no encryption key
+        If returns true, the session is ready for use and _encrypt() will now use the shared key.
         @return status, if failed to get the key for the session returns False otherwise True.
         """
         my_key = None
         
-        # Try finding the 
+        # Try finding the key
         for cloud in self.clouds:
             folder = cloud.get_folder(self.root_folder)
             if folder and cloud.get_members_shared(folder) != False:
@@ -96,6 +98,17 @@ class SharedCloudManager(CloudManager):
     def sync_fek(self, encrypted_key : bytes) -> None:
         self._upload_replicated("$FEK", encrypted_key, True)
 
+        # Try deleting excess files
+        for cloud in self.clouds:
+            try:
+                cloud.delete_file(f"$TFEK_{cloud.get_email()}")
+            except:
+                pass
+            try:
+                cloud.delete_file(f"$PUBLIC_{cloud.get_email()}")
+            except:
+                pass
+
 
     def check_key_status(self, cloud : CloudService) -> bytes | bool:
         """
@@ -113,10 +126,17 @@ class SharedCloudManager(CloudManager):
         shared_secret = None
         tfek = None
         public_key = None
+
+        # download_file raises errors if it fails
         try:
-            # download_file raises errors if it fails
             shared_secret = cloud.download_file(f"$SHARED_{cloud.get_email()}", self.root_folder)
+        except:
+            pass
+        try:
             tfek = cloud.download_file(f"$TFEK_{cloud.get_email()}", self.root_folder)
+        except:
+            pass
+        try:
             public_key = cloud.download_file(f"$PUBLIC_{cloud.get_email()}", self.root_folder)
         except:
             pass
