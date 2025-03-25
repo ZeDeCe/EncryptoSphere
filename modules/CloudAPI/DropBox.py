@@ -279,6 +279,7 @@ class DropBox(CloudService):
             except dropbox.exceptions.ApiError as e:
                 raise Exception(f"Error removing member '{email}' from folder '{folder}': {e}")
         return True
+<<<<<<< HEAD
 
     # Need to change the return value instead of prints
     def list_shared_folders(self):
@@ -336,6 +337,15 @@ class DropBox(CloudService):
         except dropbox.exceptions.ApiError as e:
             raise Exception(f"Error occurred: {e}")
    
+=======
+    
+    def get_folder_path(self, folder):
+        pass
+
+    def list_shared_folders(self):
+        pass
+
+>>>>>>> main
     def get_name(self):
         return "D"
 
