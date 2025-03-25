@@ -7,6 +7,8 @@ from modules import Encrypt
 from modules.CloudAPI import CloudService
 import FileDescriptor
 
+import threading
+import time
 
 class CloudManager:
     """
@@ -31,6 +33,8 @@ class CloudManager:
         self.root_folder = f"{mainroot}{root}"
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.fd = file_descriptor if file_descriptor else self.sync_from_clouds()
+        self.sync_thread = None
+        self.stop_event = threading.Event()  # Event to signal
         self.lock_session()
 
     def lock_session(self):
@@ -106,6 +110,7 @@ class CloudManager:
                 hash,
                 file_id
                 )
+        
         self.fd.sync_to_file()
             
     def _upload_replicated(self, file_name, data, suffix=False):
@@ -174,6 +179,7 @@ class CloudManager:
         file_data = self.fd.get_file_data(file_id)
         parts = file_data['parts']
         print(parts)
+        data = []
         for cloud_name, part_count in parts.items():  # Iterate over clouds
             for part_number in range(1, part_count + 1):  # Generate file parts
                 file_name = f"{file_id}_{part_number}"
@@ -182,8 +188,11 @@ class CloudManager:
                     if cloud.get_name() == cloud_name:
                         print("cloud: ", cloud_name)
                         print(f"Downloading {file_name} from {cloud_name}...")
-                        data = cloud.download_file(file_name, self.root_folder)
-                        print("data: ", data)
+                        file_content = cloud.download_file(file_name, self.root_folder)
+                        data.append(file_content)
+        print("data: ", data)
+        #self._merge(data)
+
         
 
     def download_folder(self, folder_name):
@@ -206,9 +215,11 @@ class CloudManager:
             for part_number in range(1, part_count + 1):  # Generate file parts
                 file_name = f"{file_id}_{part_number}"
                 for cloud in self.clouds:
-                    if cloud.get_name() == cloud_name:
-                        cloud.delete_file(file_name, self.root_folder)
+                    if cloud.get_name() == cloud_name:                        
                         print(f"deleting {file_name} from {cloud_name}...")
+                        cloud.delete_file(file_name, self.root_folder)
+        self.fd.delete_file(file_id)    
+        self.fd.sync_to_file()
 
     def delete_folder(self, folder_path):
         """
@@ -225,7 +236,37 @@ class CloudManager:
         Uploads the filedescriptor to the clouds encrypted using self.encrypt
         This function should use upload_replicated
         """
-        pass
+        self.fd.sync_to_file()
+        fd_file_path = os.path.join(os.getcwd(), "Test", "$FD")
+
+        # Read the contents of the $FD file
+        if os.path.exists(fd_file_path):
+            with open(fd_file_path, 'rb') as fd_file:
+                fd_content = fd_file.read()
+                self._upload_replicated("FD", fd_content)
+        else:
+            print(f"$FD file not found at {fd_file_path}")
+
+    def start_sync_thread(self):
+        """
+        Starts a background thread to run sync_to_clouds every 5 minutes.
+        """
+        def sync_task():
+            while not self.stop_event.is_set():  # Check if stop_event is set
+                self.sync_to_clouds()
+                time.sleep(300)  # Wait for 5 minutes (300 seconds)
+
+        # Start the sync task in a separate thread
+        self.sync_thread = threading.Thread(target=sync_task, daemon=True)
+        self.sync_thread.start()
+    
+    def stop_sync_thread(self):
+        """
+        Stops the background sync thread.
+        """
+        if self.sync_thread and self.sync_thread.is_alive():
+            self.stop_event.set()  # Signal the thread to stop
+            self.sync_thread.join()  # Wait for the thread to finish
 
     def sync_from_clouds(self):
         """

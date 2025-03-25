@@ -15,7 +15,7 @@ import customtkinter as ctk
 
 import utils.DialogBox as DialogBox
 import app as app
-import time #Testing bc no real download or upload
+
 
 # This is temporary:
 from cryptography.fernet import Fernet
@@ -32,14 +32,14 @@ class Gateway:
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
-        #dropbox1 = DropBox(email)
-        drive1 = GoogleDrive(email)
+        dropbox1 = DropBox(email)
+        #drive1 = GoogleDrive(email)
 
         # Everything here is for testing
         self.manager = CloudManager(
-            [drive1],
+            [dropbox1],
             "/EncryptoSphere", 
-            ShamirSplit(), 
+            NoSplit(), 
             NoEncrypt(), 
             FileDescriptor(os.path.join(os.getcwd(),"Test")))
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
@@ -58,6 +58,7 @@ class Gateway:
         # )
         # self.shared_session.authenticate()
         self.manager.fd.sync_to_file()
+        self.manager.start_sync_thread()
         return True
     
     def get_files(self):
@@ -65,9 +66,6 @@ class Gateway:
     
     def download_file(self, file_id):
         self.manager.download_file(file_id)
-        print("Download file chosen")
-        time.sleep(10)
-        print("Download end")
         return True # TODO: Handle correctly!!
     
     def download_folder(self, folder_id):
@@ -85,10 +83,8 @@ class Gateway:
         return True # TODO: Handle correctly!!
     
     def delete_file(self, file_id):
+        print(f"Delete file selected {file_id}")
         self.manager.delete_file(file_id)
-        print("Delete file chosen")
-        time.sleep(10)
-        print("Delete end")
         return True # TODO: Handle correctly!!
     
     def delete_folder(self, folder_id):
