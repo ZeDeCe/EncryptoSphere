@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from CloudManager import CloudManager
+from SharedCloudManager import SharedCloudManager
 from modules.Encrypt import *
 from modules.Split import *
 from modules.CloudAPI import *
@@ -14,6 +15,10 @@ import customtkinter as ctk
 
 import utils.DialogBox as DialogBox
 import app as app
+import time #Testing bc no real download or upload
+
+# This is temporary:
+from cryptography.fernet import Fernet
 
 class Gateway:
     """
@@ -27,16 +32,29 @@ class Gateway:
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
-
+        dropbox1 = DropBox(email)
         # Everything here is for testing
-        self.manager = CloudManager([DropBox(email)],
-                                     "/EncryptoSphere", 
-                                     NoSplit(), 
-                                     NoEncrypt(), 
-                                     FileDescriptor(os.path.join(os.getcwd(),"Test")))
-        self.session_manager = SessionManager(self.manager)
+        self.manager = CloudManager(
+            [dropbox1],
+            "/EncryptoSphere", 
+            NoSplit(), 
+            NoEncrypt(), 
+            FileDescriptor(os.path.join(os.getcwd(),"Test")))
+        self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         self.manager.authenticate()
-        self.manager.upload_file(".\\Test\\uploadme.txt")
+
+        # dropbox2 = DropBox(email)
+        # #Testing shared sessions
+        # self.shared_session = SharedCloudManager(
+        #     #[{"D":"demek14150@sfxeur.com"}],
+        #     None,
+        #     [dropbox2],
+        #     "/SharedSession", 
+        #     NoSplit(), 
+        #     NoEncrypt(), 
+        #     FileDescriptor(os.path.join(os.getcwd(),"Test\\SharedSession"))
+        # )
+        # self.shared_session.authenticate()
         self.manager.fd.sync_to_file()
         return True
     
@@ -46,6 +64,8 @@ class Gateway:
     def download_file(self, file_id):
         self.manager.download_file(file_id)
         print("Download file chosen")
+        time.sleep(10)
+        print("Download end")
         return True # TODO: Handle correctly!!
     
     def download_folder(self, folder_id):
@@ -65,11 +85,36 @@ class Gateway:
     def delete_file(self, file_id):
         self.manager.delete_file(file_id)
         print("Delete file chosen")
+        time.sleep(10)
+        print("Delete end")
         return True # TODO: Handle correctly!!
     
     def delete_folder(self, folder_id):
         self.manager.delete_folder(folder_id)
         return True # TODO: Handle correctly!!
+    
+    # TODO: shared session functions
+    def create_shared_session(self):
+        pass
+
+    def share_file(self):
+        pass
+
+    def share_folder(self):
+        pass
+
+    def unshare_folder(self):
+        pass
+
+    def unshare_file(self):
+        pass
+
+    def revoke_user_from_share(self):
+        pass
+
+    def add_user_to_share(self):
+        pass
+
 
 
 def main():
@@ -78,7 +123,10 @@ def main():
     """
     gateway = Gateway()
     gui = app.App(gateway)
-    gui.mainloop()
+    try:
+        gui.mainloop()
+    finally:    
+        gateway.manager.fd.sync_to_file()
     
 if __name__=="__main__":
     main()

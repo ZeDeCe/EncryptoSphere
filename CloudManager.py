@@ -32,7 +32,6 @@ class CloudManager:
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.fd = file_descriptor if file_descriptor else self.sync_from_clouds()
         self.lock_session()
-        
 
     def lock_session(self):
         """
@@ -42,22 +41,22 @@ class CloudManager:
         """
         pass
 
-    def __split(self, file, parts):
-        return self.split.split(file, parts)
+    def _split(self, data : bytes, clouds : int):
+        return self.split.split(data, clouds)
     
-    def __merge(self, folder):
+    def _merge(self, data: list[bytes]):
         # TODO: finish function
-        return self.split.merge_parts()
+        return self.split.merge_parts(data)
     
-    def _encrypt(self, file):
-        self.encrypt.encrypt_file(file)
-        return file
+    def _encrypt(self, data : bytes):
+        data = self.encrypt.encrypt(data)
+        return data
     
-    def _decrypt(self, file):
-        self.encrypt.decrypt_file(file)
-        return file
+    def _decrypt(self, data : bytes):
+        data = self.encrypt.decrypt(data)
+        return data
 
-    def __tempfile_from_path(self, os_filepath):
+    def _tempfile_from_path(self, os_filepath):
         file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
         with open(os_filepath, "r") as osfile:
             file.write(osfile.read().encode('utf-8'))
@@ -97,6 +96,7 @@ class CloudManager:
                     print(e)
                     self.fd.delete_file(file_id)
                     raise Exception("Failed to upload one of the files")
+        data = self._split(data, len(self.clouds))
         file_id = self.fd.add_file(
                 os.path.basename(os_filepath),
                 path,
@@ -108,23 +108,28 @@ class CloudManager:
                 )
         self.fd.sync_to_file()
             
-    def _upload_replicated(self, file_name, data):
+    def _upload_replicated(self, file_name, data, suffix=False):
         """
         Encrypts and uploads the given file to all platforms without splitting.
         This function is purposefully limited to only uploading from the root folder
+        @param file_name the name of the file on the cloud
+        @param data the data to be written
+        @param suffix, optional if True will add the email of the user to the file name at the end
         """
         data = self._encrypt(data)
         for cloud in self.clouds:
-            cloud.upload_file(data, file_name, self.root_folder)
+            suffix = f"_{cloud.get_email()}" if suffix else ""
+            cloud.upload_file(data, f"{file_name}{suffix}", self.root_folder)
 
-    def _download_replicated(self, file_name):
+    def _download_replicated(self, file_name, suffix=False):
         """
         Downloads and decrypts a the file from the path given if it exists in all clouds
         This function is purposefully limited to only downloading from the root folder
         """
         replicated_files = []
         for cloud in self.clouds:
-            replicated_files.append(cloud.download_file(f"{self.root_folder}/{file_name}"))
+            suffix = f"_{cloud.get_email()}" if suffix else ""
+            replicated_files.append(cloud.download_file(f"{self.root_folder}/{file_name}{suffix}"))
         return self._check_replicated_integrity(replicated_files)
     
     def _check_replicated_integrity(self, replicated : list[bytes]):

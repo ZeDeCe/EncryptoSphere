@@ -13,15 +13,12 @@ DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
 DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 
 class DropBox(CloudService):
-    def __init__(self, email):
-        super().__init__(email)
-        self.dbx = None
-        self.userid = None
-
     # Function to authenticate the Dropbox account and get access token
     # The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
     # The function creates and save the root folder (if not already exsist)
     def authenticate_cloud(self):
+        if super().authenticate_cloud():
+            return True
         # Start the OAuth flow
         auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
         # Generate the authorization URL
@@ -37,6 +34,7 @@ class DropBox(CloudService):
         # Extract access token and user_id from the result object
         access_token = auth_result.access_token
         self.user_id = auth_result.user_id
+        self.authenticated = True
         return True
 
     # Function to verify if the token is valid for the given email
@@ -86,6 +84,10 @@ class DropBox(CloudService):
     # TODO: Implement
     def get_folder(self, folder_path : str) -> any:
         pass
+
+    # TODO implement
+    def get_members_shared(self, folder_path : str) -> dict[str] | bool:
+        return False
 
     # Function to list files in the root directory of Dropbox
     def list_files(self):
@@ -181,6 +183,14 @@ class DropBox(CloudService):
         except dropbox.exceptions.ApiError as e:
             print(f"Error occurred: {e}")
 
+
+    def create_shared_folder(self, folder_path, emails):
+        try:
+            folder = self.create_folder(folder_path)
+            return self.share(folder, emails)
+        except dropbox.exceptions.ApiError as e:
+            print(f"Error occurred: {e}")
+
     def share_folder(self, folder_path):
         try:
             # Share the folder using the folder path
@@ -268,6 +278,12 @@ class DropBox(CloudService):
                 return None
         return True
     
+    def get_folder_path(self, folder):
+        pass
+
+    def list_shared_folders(self):
+        pass
+
     def get_name(self):
         return "D"
 

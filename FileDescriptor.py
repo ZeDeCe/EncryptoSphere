@@ -162,3 +162,14 @@ class FileDescriptor:
 
     def __str__(self):
         return str(self.files)
+    
+    def get_files_in_folder(self, folder_name):
+        """
+        Returns a recursive list of all the entrees for files in a specific folder based on their path 
+        """
+        file_list = []
+        for file in self.files:
+            if file.path.startswith(folder_name):
+                file_list.append(file)
+        
+        return file_list
