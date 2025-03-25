@@ -195,7 +195,7 @@ class DropBox(CloudService):
             # If successful, print the shared folder ID and share information
             print(f"Folder '{folder_path}' is now shared.")
             print(f"Shared Folder ID: {shared_folder_metadata.shared_folder_id}")
-            return shared_folder_metadata.path_display
+            return shared_folder_metadata
         except dropbox.exceptions.ApiError as e:
             print(f"Error sharing folder: {e}")
             return None
@@ -319,12 +319,21 @@ class DropBox(CloudService):
                     "files": []
                 }
 
-                # List files in the shared folder using the shared folder path
+                # Check if the folder has a valid path or is already mounted
                 if not folder.path_lower:
-                    print("Folder isn't joined. Joining folder")
-                    self.dbx.sharing_mount_folder(folder.shared_folder_id)
+                    print(f"Folder {folder.name} isn't joined. Attempting to join folder...")
+                    try:
+                        self.dbx.sharing_mount_folder(folder.shared_folder_id)
+                    except dropbox.exceptions.ApiError as e:
+                        print(f"Failed to mount folder {folder.name}: {e}")
+                        continue  # Skip this folder if we can't mount it
 
-                folder_files = self.dbx.files_list_folder(f"/{folder.name}")  # Adjust path for root folders
+                # List files in the shared folder using the folder path
+                try:
+                    folder_files = self.dbx.files_list_folder(f"/{folder.name}")  # Adjust path for root folders
+                except dropbox.exceptions.ApiError as e:
+                    print(f"Error listing files in folder {folder.name}: {e}")
+                    continue  # Skip to the next folder if listing files fails
 
                 for entry in folder_files.entries:
                     if isinstance(entry, dropbox.files.FileMetadata):
@@ -335,23 +344,26 @@ class DropBox(CloudService):
                             "collaborators": []
                         }
                         # Get file collaborators (who it's shared with)
-                        file_members = self.dbx.sharing_list_file_members(entry.id)
+                        try:
+                            file_members = self.dbx.sharing_list_file_members(entry.id)
 
-                        if file_members.users:
-                            for member in file_members.users:
-                                file_info["collaborators"].append(member.user.email)
-                        else:
-                            file_info["collaborators"].append("No specific collaborators")
+                            if file_members.users:
+                                for member in file_members.users:
+                                    file_info["collaborators"].append(member.user.email)
+                            else:
+                                file_info["collaborators"].append("No specific collaborators")
+                        except dropbox.exceptions.ApiError as e:
+                            print(f"Error fetching collaborators for {entry.name}: {e}")
 
                         folder_info["files"].append(file_info)
-                    
-                    shared_folders_info.append(folder_info)
 
-                return shared_folders_info
+                shared_folders_info.append(folder_info)
+
+            return shared_folders_info
 
         except dropbox.exceptions.ApiError as e:
-            raise Exception(f"Error occurred: {e}")
-
+            print(f"Error occurred: {e}")
+    
     def get_members_shared(self, folder : any):
         """
         Returns a list of emails that the folder is shared with if shared, and false if not shared
