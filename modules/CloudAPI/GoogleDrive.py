@@ -1,13 +1,13 @@
-#TODO: Integrate as a CloudService!
-
 import os
+import io
 from dotenv import load_dotenv
 import webbrowser
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from google.auth.transport.requests import Request
+from modules.CloudAPI.CloudService import CloudService
 
 load_dotenv()
 # Set up Google Drive API
@@ -15,27 +15,75 @@ CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 API_KEY = os.getenv("GOOGLE_API_KEY")
 SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
 
+class GoogleDrive(CloudService):
+    def __new__(cls, email: str):
+        """
+        Makes all child objects with the same email a singleton.
+        """
+        if not hasattr(cls, 'instances'):
+            cls.instances = {}
 
-class GoogleDrive:
-    def __init__(self):
-        self.drive_service = None
+        # Check if an instance already exists
+        if email in cls.instances:
+            return cls.instances[email]
 
-    # Authenticate with Google Drive
-    def authenticate_google_drive(self):
-        creds = None
-        # Let the user log in and obtain new credentials every time
-        flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
-        creds = flow.run_local_server(port=0)
+        # Correct super().__new__() call without extra parameters
+        single = super().__new__(cls)
         
+        # Initialize instance variables
+        single.authenticated = False
+        single.email = email
+        single.drive_service = None
+
+        # Store instance
+        cls.instances[email] = single
+
+        return single
+
+
+    def __init__(self, email: str):
+        """
+        Initialization method 
+        """
+        super().__init__(email)  # Call parent __init__
+        
+        # If not authenticated, try to authenticate
+        if not self.authenticated:
+            self.authenticate_cloud()
+
+    def authenticate_cloud(self):
+        """
+        Authenticate with Google Drive
+        """
+        # First check if already authenticated
+        if self.authenticated:
+            return True
+
         try:
+            # Let the user log in and obtain new credentials every time
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
+            creds = flow.run_local_server(port=0)
+            
             self.drive_service = build('drive', 'v3', credentials=creds)
-            print("Google Drive Authentication successful.")
+            
+            # Verify the email matches
+            user_info = self.drive_service.about().get(fields="user").execute()
+            if user_info['user']['emailAddress'] == self.email:
+                self.authenticated = True
+                return True
+            else:
+                print("Email mismatch during authentication")
+                return False
         
         except HttpError as error:
             print(f"An error occurred: {error}")
+            return False
 
-    # List files
-    def list_files(self):
+
+    def list_files(self, folder='/'):
+        """
+        List files in Google Drive
+        """
         try:
             all_files = []
             page_token = None
@@ -44,74 +92,59 @@ class GoogleDrive:
             while True:
                 results = self.drive_service.files().list(
                     pageSize=100,
-                    fields="nextPageToken, files(id, name, mimeType, owners)",
+                    fields="nextPageToken, files(id, name, mimeType)",
                     pageToken=page_token
                 ).execute()
                 
                 items = results.get('files', [])
-                all_files.extend(items)
+                all_files.extend([item['name'] for item in items])
                 page_token = results.get('nextPageToken')
                 
                 if not page_token:
                     break
             
-            if not all_files:
-                print("No files found.")
-            else:
-                print("\nFiles in your Google Drive:")
-                print("-" * 50)
-                # Print all files
-                for index, item in enumerate(all_files, 1):
-                    print(f"{index}. {item}")
-                print(f"\nTotal files found: {len(all_files)}")
+            return all_files
         
         except HttpError as error:
-            print(f"Error: {error}")
+            raise Exception(f"Error listing files: {error}")
 
-    # Upload a file
-    def upload_file(self, file_path, mime_type='application/octet-stream'):
+    def upload_file(self, data: bytes, file_name: str, path: str):
         try:
-            # Check if file exists
-            if not os.path.exists(file_path):
-                print(f"Error: File not found at path: {file_path}")
-                return
+            if not data:
+                raise ValueError("Error: File data is empty")
 
-            # Check if file is readable
-            if not os.access(file_path, os.R_OK):
-                print(f"Error: No permission to read file: {file_path}")
-                return
+            if not path.startswith("/"):
+                raise ValueError("Google Drive: Path is invalid, must start with '/'")
 
-            # Get file size
-            file_size = os.path.getsize(file_path)
-            if file_size == 0:
-                print(f"Error: File is empty: {file_path}")
-                return
+            file_metadata = {
+                'name': file_name,
+                'parents': [path] if path != "/" else []  
+            }
 
-            # Proceed with upload
-            file_metadata = {'name': os.path.basename(file_path)}
-            media = MediaFileUpload(file_path, mimetype=mime_type)
-            
+            media = MediaIoBaseUpload(io.BytesIO(data), mimetype='application/octet-stream')
+
             file = self.drive_service.files().create(
                 body=file_metadata,
                 media_body=media,
                 fields='id'
             ).execute()
-            
-            print(f"File uploaded successfully: {file.get('id')}")
-        
-        except FileNotFoundError:
-            print(f"Error: File not found at path: {file_path}")
-        except PermissionError:
-            print(f"Error: Permission denied accessing file: {file_path}")
-        except HttpError as error:
-            print(f"Error during upload: {error}")
-        except Exception as error:
-            print(f"Unexpected error during upload: {error}")
 
-    # Download a file
-    def download_file(self, file_name):
+            print(f"File uploaded successfully to {path}/{file_name}")
+            return True
+        
+        except HttpError as error:
+            raise Exception(f"Google Drive: Upload failed - {error}")
+        except Exception as error:
+            raise Exception(f"Unexpected error during upload: {error}")
+
+    def download_file(self, file_name: str, path: str):
+        """
+        Download a file from Google Drive
+        @param file_name: the name of the file to download
+        @param path: the path where the file will be saved (for Dropbox compatibility, not used here)
+        @return: file content (bytes)
+        """
         try:
-            # Search file by name
             results = self.drive_service.files().list(
                 q=f"name = '{file_name}'",
                 fields="files(id, name, mimeType)"
@@ -120,201 +153,308 @@ class GoogleDrive:
             files = results.get('files', [])
             
             if not files:
-                print(f"הקובץ {file_name} לא נמצא ב-Drive")
-                return
+                raise Exception(f"File {file_name} not found in Google Drive")
             
-            # Catch the first one (if some files share the same name)
             file_id = files[0]['id']
             mime_type = files[0].get('mimeType', '')
             
-            # File path - might change later
-            desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            destination_path = os.path.join(desktop_path, file_name)
-            
-            # Handle Google Workspace files
             if mime_type.startswith('application/vnd.google-apps'):
-                destination_path += '.pdf'
                 request = self.drive_service.files().export_media(
                     fileId=file_id,
-                    mimeType='application/pdf'
+                    mimeType='application/pdf'  
                 )
             else:
                 request = self.drive_service.files().get_media(fileId=file_id)
             
-            with open(destination_path, 'wb') as f:
-                downloader = MediaIoBaseDownload(f, request)
+            return request.execute()  
+        except HttpError as error:
+            raise Exception(f"Error downloading file from Google Drive: {error}")
+
+    
+    def delete_file(self, file_name: str, path: str = '') -> bool:
+        """
+        Delete a file from Google Drive
+        """
+        try:
+            # Search file by name
+            results = self.drive_service.files().list(
+                q=f"name = '{file_name}'",
+                fields="files(id)"
+            ).execute()
             
-            print(f"Download succesfuly to: {destination_path}")
+            files = results.get('files', [])
+            
+            if not files:
+                raise Exception(f"File {file_name} not found in Drive")
+            
+            # Delete the first matching file
+            file_id = files[0]['id']
+            self.drive_service.files().delete(fileId=file_id).execute()
+            
+            return True
         
         except HttpError as error:
-            print(f"Error: {error}")
+            raise Exception(f"Error deleting file: {error}")
 
-    # Create a folder
-    def create_folder(self, folder_name):
-        folder_metadata = {
-            'name': folder_name,
-            'mimeType': 'application/vnd.google-apps.folder'
-        }
+    def get_folder(self, path: str) -> any:
+        """
+        Get a folder object from Google Drive
+        """
         try:
-            folder = self.drive_service.files().create(body=folder_metadata, fields='id').execute()
-            print(f"Folder '{folder_name}' created with ID: {folder.get('id')}")
-        except HttpError as error:
-            print(f"An error occurred: {error}")
-
-    def share(self, f_id, email):
-        try:
-            permission = {
-                'type': 'user',       # 'user' to share with specific people; 'anyone' for public sharing
-                'role': 'writer',     # 'writer' or 'reader' depending on the permission level
-                'emailAddress': email  # Email of the person you want to share with
-            }
-
-            # Share the folder by creating a permission for the folder ID
-            result = self.drive_service.permissions().create(
-                fileId=f_id,     # Folder ID to share
-                body=permission,
-                fields='id'           # Fields to return in the result (e.g., permission ID)
+            # Search for the folder
+            results = self.drive_service.files().list(
+                q=f"name = '{path.strip('/')}' and mimeType = 'application/vnd.google-apps.folder'",
+                fields="files(id, name)"
             ).execute()
-
-            print(f"Folder shared successfully with {email}. Permission ID: {result['id']}")
-            return result
-
+            
+            folders = results.get('files', [])
+            
+            if not folders:
+                raise Exception(f"Folder {path} not found")
+            
+            return folders[0]
+        
         except HttpError as error:
-            print(f"An error occurred: {error}")
-            return None
-    
-    def unshare(self, file_id, email):
+            raise Exception(f"Error getting folder: {error}")
+
+    def get_folder_path(self, folder: any) -> str:
+        """
+        Get the path of a folder object
+        """
+        return folder['name']
+
+    def create_folder(self, path: str) -> any:
+        """
+        Create a folder in Google Drive
+        """
+        try:
+            folder_metadata = {
+                'name': path.strip('/'),
+                'mimeType': 'application/vnd.google-apps.folder'
+            }
+            folder = self.drive_service.files().create(body=folder_metadata, fields='id, name').execute()
+            return folder
+        
+        except HttpError as error:
+            raise Exception(f"Error creating folder: {error}")
+
+    def share_folder(self, folder: any, emails: list[str]) -> any:
+        """
+        Share a folder with specific emails
+        """
+        try:
+            for email in emails:
+                permission = {
+                    'type': 'user',
+                    'role': 'writer',
+                    'emailAddress': email
+                }
+
+                # Share the folder
+                self.drive_service.permissions().create(
+                    fileId=folder['id'],
+                    body=permission,
+                    fields='id'
+                ).execute()
+            
+            return folder
+        
+        except HttpError as error:
+            raise Exception(f"Error sharing folder: {error}")
+
+    def create_shared_folder(self, path: str, emails: list[str]) -> any:
+        """
+        Create and share a folder
+        """
+        try:
+            # Create the folder
+            folder = self.create_folder(path)
+            
+            # Share the folder
+            return self.share_folder(folder, emails)
+        
+        except Exception as error:
+            raise Exception(f"Error creating and sharing folder: {error}")
+
+    def unshare_folder(self, folder):
+        """
+        Unshare a folder completely
+        """
         try:
             # Get the list of permissions for the file or folder
-            permissions = self.drive_service.permissions().list(fileId=file_id, fields="permissions(id, emailAddress, role, type)").execute()
+            permissions = self.drive_service.permissions().list(fileId=folder['id'], fields="permissions(id, type, role)").execute()
             
             permission_list = permissions.get('permissions', [])
 
-            if not permission_list:
-                print(f"No permissions found for file/folder with ID: {file_id}.")
-                return
-
-            # Loop through the permissions and delete all except for the owner
+            # Delete all permissions except for the owner
             for permission in permission_list:
                 # Skip the owner's permission
                 if permission['type'] == 'user' and permission['role'] == 'owner':
                     continue
                 
                 # Delete the permission
-                if permission['emailAddress'] == email:
-                    self.drive_service.permissions().delete(fileId=file_id, permissionId=permission['id']).execute()
-                    print(f"Deleted permission for: {permission.get('emailAddress', permission['type'])} (Role: {permission['role']})")
-                    break
+                self.drive_service.permissions().delete(fileId=folder['id'], permissionId=permission['id']).execute()
 
-            print(f"File or folder with ID: {file_id} has been unshared successfully.")
-
-        except HttpError as error:
-            print(f"An error occurred: {error}")
-            return None
-    def list_shared_files(self):
-        try:
-            # Query to list all files that are shared
-            query = "sharedWithMe"  # 'sharedWithMe' returns files/folders shared with the authenticated user
-            
-            # Execute the query to get shared files/folders
-            results = self.drive_service.files().list(
-                q=query,               # Query to list shared files
-                spaces='drive',         # Look into the 'drive' space
-                fields='nextPageToken, files(id, name, mimeType, owners)',  # Specify the fields to return
-                pageSize=100            # Number of files to return in one request (adjust as needed)
-            ).execute()
-
-            items = results.get('files', [])
-
-            if not items:
-                print('No shared files or folders found.')
-                return []
-
-            print('Shared Files and Folders:')
-            for item in items:
-                # Distinguish between files and folders by MIME type
-                file_type = 'Folder' if item['mimeType'] == 'application/vnd.google-apps.folder' else 'File'
-                print(f"{file_type}: {item['name']} (ID: {item['id']}) - Owned by: {item['owners'][0]['displayName']}")
-            query_shared_by_user = "'me' in owners and trashed = false"
+            return True
         
-            # Execute the query to get files owned by the user
-            shared_by_user_results = self.drive_service.files().list(
-                q=query_shared_by_user,         # Files owned by the user
+        except HttpError as error:
+            raise Exception(f"Error unsharing folder: {error}")
+
+    def unshare_by_email(self, folder: any, emails: list[str]) -> bool:
+        """
+        Unshare a folder from specific emails
+        """
+        try:
+            # Get the list of permissions for the file or folder
+            permissions = self.drive_service.permissions().list(fileId=folder['id'], fields="permissions(id, emailAddress, type, role)").execute()
+            
+            permission_list = permissions.get('permissions', [])
+
+            for email in emails:
+                # Find and delete permission for the specific email
+                for permission in permission_list:
+                    if permission.get('emailAddress') == email and permission['type'] == 'user':
+                        self.drive_service.permissions().delete(fileId=folder['id'], permissionId=permission['id']).execute()
+                        break
+
+            return True
+        
+        except HttpError as error:
+            raise Exception(f"Error unsharing by email: {error}")
+
+    def list_shared_files(self, folder=None):
+        """
+        List shared files
+        """
+        try:
+            # If no specific folder is provided, list all shared files
+            query = "sharedWithMe" if folder is None else f"'{folder['id']}' in parents"
+            
+            results = self.drive_service.files().list(
+                q=query,
                 spaces='drive',
-                fields='nextPageToken, files(id, name, mimeType)',  # Specify fields
+                fields='nextPageToken, files(id, name)',
                 pageSize=100
             ).execute()
 
-            owned_files = shared_by_user_results.get('files', [])
-
-            print("\nFiles and Folders shared by the authenticated user:")
-            for item in owned_files:
-                file_id = item['id']
-                file_name = item['name']
-                mime_type = item['mimeType']
-
-                # Check if the file or folder has been shared with others (permissions other than owner)
-                permissions = self.drive_service.permissions().list(fileId=file_id, fields="permissions(id, role, type)").execute()
-                permission_list = permissions.get('permissions', [])
-                
-                # Skip files/folders with only owner permissions
-                if len(permission_list) > 1:
-                    file_type = 'Folder' if mime_type == 'application/vnd.google-apps.folder' else 'File'
-                    print(f"{file_type}: {file_name} (ID: {file_id})")
-
-            return items + owned_files
-
+            items = results.get('files', [])
+            return [item['name'] for item in items]
+        
         except HttpError as error:
-            print(f"An error occurred: {error}")
-            return []
+            raise Exception(f"Error listing shared files: {error}")
 
+    def list_shared_folders(self):
+        """
+        List all shared folders
+        """
+        try:
+            query = "mimeType = 'application/vnd.google-apps.folder' and sharedWithMe"
+            
+            results = self.drive_service.files().list(
+                q=query,
+                spaces='drive',
+                fields='nextPageToken, files(id, name)',
+                pageSize=100
+            ).execute()
 
+            items = results.get('files', [])
+            return items
+        
+        except HttpError as error:
+            raise Exception(f"Error listing shared folders: {error}")
 
-    # Main function to interact with Google Drive
+    def get_members_shared(self, folder: any) -> dict[str] | bool:
+        """
+        Get members a folder is shared with
+        """
+        try:
+            # Get the list of permissions for the folder
+            permissions = self.drive_service.permissions().list(fileId=folder['id'], fields="permissions(id, emailAddress, role)").execute()
+            
+            permission_list = permissions.get('permissions', [])
+
+            # If no shared permissions exist beyond owner
+            if len(permission_list) <= 1:
+                return False
+
+            # Collect shared emails
+            shared_members = {}
+            for permission in permission_list:
+                if permission.get('emailAddress') and permission['role'] != 'owner':
+                    shared_members[permission['emailAddress']] = permission['role']
+
+            return shared_members if shared_members else False
+        
+        except HttpError as error:
+            raise Exception(f"Error getting shared members: {error}")
+
+    def get_name(self):
+        """
+        Return the name of the cloud service
+        """
+        return "G"  #G for Google Drive
+
+    def share(self, folder_path : str, emails : list[str]):
+        pass
+
+# Main function to interact with the user
 def main():
-    print("Google Drive POC")
-
-    drive_service = GoogleDrive()
-    drive_service.authenticate_google_drive()
-    if not drive_service:
+    print("Google POC")
+    email = input("Enter your Google Drive email address: ")
+    print(f"Authenticating {email}'s Google Drive account...")
+    google = GoogleDrive(email)
+    
+    if not google.is_authenticated():
         print("Authentication failed.")
         return
 
     while True:
         print("\nSelect an action:")
-        print("1. List files in Google Drive")
-        print("2. Upload a file to Google Drive")
-        print("3. Download a file from Google Drive")
-        print("4. Create a folder in Google Drive")
-        print("5. Share file/folder")
-        print("6. Unshare folder")
-        print("7. List all shared folders and files")
-        print("8. Exit")
+        print("1. List files")
+        print("2. Upload a file")
+        print("3. Download a file")
+        print("5. List shared files")
+        print("6. Create new folder")
+        print("7. Share folder")
+        print("8. Delete file")
+        print("9. Unshare folder")
+        print("10. Exit")
 
         choice = input("Enter your choice: ")
 
         if choice == '1':
-            drive_service.list_files()
+            files = google.list_files()
+            print("Files:", files)
         elif choice == '2':
             file_path = input("Enter the file path to upload: ")
-            drive_service.upload_file(file_path)
+            with open(file_path, 'rb') as f:
+                data = f.read()
+            dropbox_dest_path = input("Enter the destination path in Google Drive: ")
+            google.upload_file(data, os.path.basename(file_path), dropbox_dest_path)
         elif choice == '3':
-            file_name = input("Enter the file name to download: ")
-            drive_service.download_file(file_name)
-        elif choice == '4':
-            folder_name = input("Enter the folder name to create: ")
-            drive_service.create_folder(folder_name)
+            dropbox_file_path = input("Enter the file name to download: ")
+            downloaded_data = google.download_file(dropbox_file_path, '/')
+            with open(dropbox_file_path, 'wb') as f:
+                f.write(downloaded_data)
         elif choice == '5':
-            f_name = input("Enter the file/folder ID to share: ")
-            email = input("Enter email to share with: ")
-            drive_service.share(f_name, email)
+            shared_files = google.list_shared_files()
+            print("Shared files:", shared_files)
         elif choice == '6':
-            f_name = input("Enter the file/folder ID to unshare: ")
-            email = input("Enter email to unshare with: ")
-            drive_service.unshare(f_name, email)
+            folder_path = input("Enter folder name to create: ")
+            google.create_folder(folder_path)
         elif choice == '7':
-            drive_service.list_shared_files()
+            folder_path = input("Enter the folder path to share: ")
+            recipient_email = input("Enter email to share with: ")
+            folder = google.get_folder(folder_path)
+            google.share_folder(folder, [recipient_email])
         elif choice == '8':
+            delete_file = input("Enter the file name to delete: ")
+            google.delete_file(delete_file, '/')
+        elif choice == '9':
+            unshare_folder = input("Enter the folder path to unshare: ")
+            folder = google.get_folder(unshare_folder)
+            google.unshare_folder(folder)
+        elif choice == '10':
             print("Exiting...")
             break
         else:

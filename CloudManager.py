@@ -106,6 +106,7 @@ class CloudManager:
                 hash,
                 file_id
                 )
+        self.fd.sync_to_file()
             
     def _upload_replicated(self, file_name, data):
         """
@@ -165,7 +166,15 @@ class CloudManager:
         Make sure to check if the clouds of this object exist in the "parts" array
         """
         file_data = self.fd.get_file_data(file_id)
+        parts = file_data['parts']
         print(file_data)
+        for cloud_name, part_count in parts.items():  # Iterate over clouds
+            for part_number in range(1, part_count + 1):  # Generate file parts
+                file_name = f"{file_id}_{part_number}"
+                for cloud in self.clouds:
+                    if cloud.get_name() == cloud_name:
+                        cloud.download_file(file_name, self.root_folder)
+                        print(f"Downloading {file_name} from {cloud_name}...")
         
 
     def download_folder(self, folder_name):
@@ -181,7 +190,16 @@ class CloudManager:
         Deletes a specific file from file ID using the filedescriptor
         @param file_id the file id to delete
         """
-        pass
+        file_data = self.fd.get_file_data(file_id)
+        parts = file_data['parts']
+        print(file_data)
+        for cloud_name, part_count in parts.items():  # Iterate over clouds
+            for part_number in range(1, part_count + 1):  # Generate file parts
+                file_name = f"{file_id}_{part_number}"
+                for cloud in self.clouds:
+                    if cloud.get_name() == cloud_name:
+                        cloud.delete_file(file_name, self.root_folder)
+                        print(f"deleting {file_name} from {cloud_name}...")
 
     def delete_folder(self, folder_path):
         """
