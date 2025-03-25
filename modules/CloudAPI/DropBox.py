@@ -24,6 +24,7 @@ class DropBox(CloudService):
         """
         if super().authenticate_cloud():
             return True
+        
         # Start the OAuth flow
         auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
         # Generate the authorization URL
@@ -33,7 +34,7 @@ class DropBox(CloudService):
         # Get the authorization code from the user
         auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code" )
         # Verify if the token is valid for the given email
-        auth_result = self.verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
+        auth_result = self._verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
         if not auth_result:
             return False
         
@@ -43,7 +44,7 @@ class DropBox(CloudService):
         self.authenticated = True
         return True
 
-    def verify_dropbox_token_for_user(self, auth_flow, auth_code, expected_email):
+    def _verify_dropbox_token_for_user(self, auth_flow, auth_code, expected_email):
         """
         Function to verify if the token is valid for the given email
         """
@@ -62,22 +63,18 @@ class DropBox(CloudService):
         except dropbox.exceptions.AuthError as e:
             raise Exception(f"Error {e}")
 
-    def list_files(self):
+    def list_files(self, folder='/'):
         """
         Function to list files in the root directory of Dropbox
         """
-        file_names = []
         try:
-            result = self.dbx.files_list_folder('')
-            files = result.entries
+            result = self.dbx.files_list_folder(folder)
+            file_names = [entry.name for entry in result.entries]
             # No files found
-            if not files:
-                return file_names
+            if not file_names:
+                return None
             
-            else:
-                for file in files:
-                    file_names.append(file.name)
-                
+            else: 
                 return file_names
         
         except dropbox.exceptions.ApiError as e:
@@ -99,7 +96,7 @@ class DropBox(CloudService):
             raise Exception(f"DropBox: Failed to upload file: {e}")
         
     
-    def download_file(self, file_name, path):
+    def download_file(self, file_name: str, path="/"):
         """
         Download file from Dropbox and return the file's data
         """
@@ -118,12 +115,13 @@ class DropBox(CloudService):
             raise Exception(f"Error: {e}")
 
 
-    def delete_file(self, file_name):
+    def delete_file(self, file_name: str, path: str):
         """
         Delete file from DropBox by name
         """
         try:
-            self.dbx.files_delete_v2(file_name)
+            path = f"{path}/{file_name}"
+            self.dbx.files_delete_v2(path)
             print(f"File '{file_name}' has been deleted successfully.")
             return True
         except dropbox.exceptions.ApiError as e:
@@ -139,7 +137,7 @@ class DropBox(CloudService):
             
             # Ensure it's a folder, not a file
             if isinstance(metadata, dropbox.files.FolderMetadata):
-                return metadata
+                return metadata.path_display
             
             else:
                 print(f"Error: {folder_path} is not a folder.")
@@ -148,18 +146,29 @@ class DropBox(CloudService):
         except dropbox.exceptions.ApiError as e:
             raise Exception(f"Error: {e}")
 
+    def get_folder_path(self, folder):
+        """
+        Returns the folder path of a given folder object (as recived from get_folder())
+        """
+        folder_path = self.get_folder(folder)
+        if folder_path:
+            return folder_path
+        else: 
+            return None
 
     def create_folder(self, folder_path):
         """
-        Create folder on DropBox
+        Create folder on DropBox and return its path
         """
         try:
-            return self.dbx.files_create_folder_v2(folder_path)
+            new_folder = self.dbx.files_create_folder_v2(folder_path)
+            return new_folder.metadata.path_display
 
         except dropbox.exceptions.ApiError as e:
             # Folder already exists
             if e.error.is_path() and e.error.get_path().is_conflict():
-                return self.dbx.files_get_metadata(folder_path)
+                exsist_folder = self.dbx.files_get_metadata(folder_path)
+                return exsist_folder.path_display
             else:
                 raise Exception(f"Error: {e}")
 
@@ -167,7 +176,7 @@ class DropBox(CloudService):
     def create_shared_folder(self, folder_path, emails):
         try:
             folder = self.create_folder(folder_path)
-            return self.share(folder, emails)
+            return self.share_folder(folder, emails)
         except dropbox.exceptions.ApiError as e:
             print(f"Error occurred: {e}")
 
@@ -186,7 +195,7 @@ class DropBox(CloudService):
             # If successful, print the shared folder ID and share information
             print(f"Folder '{folder_path}' is now shared.")
             print(f"Shared Folder ID: {shared_folder_metadata.shared_folder_id}")
-            return shared_folder_metadata
+            return shared_folder_metadata.path_display
         except dropbox.exceptions.ApiError as e:
             print(f"Error sharing folder: {e}")
             return None
@@ -206,7 +215,7 @@ class DropBox(CloudService):
             print(f"Error sharing folder '{folder_id}' with {email}: {e}")
             return None
         
-    def share(self, folder_path : str, emails : list[str]):
+    def share_folder(self, folder_path : str, emails : list[str]):
         """
         Share a folder on DropBox
         """
@@ -221,7 +230,7 @@ class DropBox(CloudService):
                     print(f"Failed to share folder")
                     return None
                 print(f"Folder shared successfully with {email}!")
-            return metadata
+            return metadata #file path
         
         except dropbox.exceptions.ApiError as e:
             raise Exception(f"Error: {e}")
@@ -279,9 +288,15 @@ class DropBox(CloudService):
             except dropbox.exceptions.ApiError as e:
                 raise Exception(f"Error removing member '{email}' from folder '{folder}': {e}")
         return True
-<<<<<<< HEAD
+    
+    def list_shared_files(self, folder=None):
+        """
+        List all shared files and folders in the cloud storage
+        @param folder, optional, the folder object to look into
+        @return a list of shared file names
+        """
+        pass
 
-    # Need to change the return value instead of prints
     def list_shared_folders(self):
         """
         Function to list all shared folders
@@ -336,16 +351,14 @@ class DropBox(CloudService):
 
         except dropbox.exceptions.ApiError as e:
             raise Exception(f"Error occurred: {e}")
-   
-=======
-    
-    def get_folder_path(self, folder):
+
+    def get_members_shared(self, folder : any):
+        """
+        Returns a list of emails that the folder is shared with if shared, and false if not shared
+        @param folder the folder object
+        """
         pass
 
-    def list_shared_folders(self):
-        pass
-
->>>>>>> main
     def get_name(self):
         return "D"
 
