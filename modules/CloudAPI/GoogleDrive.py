@@ -17,29 +17,23 @@ SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.
 
 class GoogleDrive(CloudService):
     def __new__(cls, email: str):
-        """
-        Makes all child objects with the same email a singleton.
-        """
-        if not hasattr(cls, 'instances'):
-            cls.instances = {}
-
-        # Check if an instance already exists
-        if email in cls.instances:
+            """
+            Makes all child objects with the same email a singleton.
+            """
+            if not hasattr(cls, 'instances'):
+                cls.instances = {}
+            
+            # Use super().__new__ with the email parameter
+            single = cls.instances.get(email)
+            if single:
+                return single
+            
+            # Pass the email when creating a new instance
+            cls.instances[email] = super().__new__(cls, email)
+            cls.instances[email].authenticated = False
+            cls.instances[email].email = email
+            cls.instances[email].drive_service = None
             return cls.instances[email]
-
-        # Correct super().__new__() call without extra parameters
-        single = super().__new__(cls)
-        
-        # Initialize instance variables
-        single.authenticated = False
-        single.email = email
-        single.drive_service = None
-
-        # Store instance
-        cls.instances[email] = single
-
-        return single
-
 
     def __init__(self, email: str):
         """

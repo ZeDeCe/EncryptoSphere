@@ -79,7 +79,7 @@ class CloudManager:
             data = file.read()
         hash = hashlib.md5(data).hexdigest()
         data = self._encrypt(data)
-        data = self.__split(data, len(self.clouds))
+        data = self._split(data, len(self.clouds))  # Fixed typo: __split -> _split
 
         file_id = self.fd.get_next_id()
         cloud_file_count = {}
@@ -170,16 +170,20 @@ class CloudManager:
         file_id is a FileDescriptor ID of the file.
         Make sure to check if the clouds of this object exist in the "parts" array
         """
+        print("in Downloading file: ", file_id)
         file_data = self.fd.get_file_data(file_id)
         parts = file_data['parts']
-        print(file_data)
+        print(parts)
         for cloud_name, part_count in parts.items():  # Iterate over clouds
             for part_number in range(1, part_count + 1):  # Generate file parts
                 file_name = f"{file_id}_{part_number}"
+                print("file: ", file_name)
                 for cloud in self.clouds:
                     if cloud.get_name() == cloud_name:
-                        cloud.download_file(file_name, self.root_folder)
+                        print("cloud: ", cloud_name)
                         print(f"Downloading {file_name} from {cloud_name}...")
+                        data = cloud.download_file(file_name, self.root_folder)
+                        print("data: ", data)
         
 
     def download_folder(self, folder_name):
