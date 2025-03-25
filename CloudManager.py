@@ -81,21 +81,31 @@ class CloudManager:
         hash = hashlib.md5(data).hexdigest()
         data = self._encrypt(data)
         data = self.__split(data, len(self.clouds))
+
+        file_id = self.fd.get_next_id()
+        cloud_file_count = {}
+
+        # data is in the len of 2 clouds, if we want to change it - in ShamoirSplit
+        for cloud_index,f in enumerate(data):
+            cloud_name = self.clouds[cloud_index].get_name()  # Assuming each cloud object has a `name` attribute
+            cloud_file_count[cloud_name] = len(f)
+            for file_index, file_content in enumerate(f):  # Iterate over inner list
+                try:
+                    file_name = f"{file_id}_{file_index+1}"
+                    self.clouds[cloud_index].upload_file(file_content, file_name, self.root_folder)
+                except Exception as e:
+                    print(e)
+                    self.fd.delete_file(file_id)
+                    raise Exception("Failed to upload one of the files")
         file_id = self.fd.add_file(
-            os.path.basename(os_filepath),
-            path,
-            self.encrypt.get_name(),
-            self.split.get_name(),
-            self.cloud_name_list,
-            hash
-        )
-        for i,f in enumerate(data):
-            try:
-                self.clouds[i].upload_file(f, f"{file_id}", self.root_folder)
-            except Exception as e:
-                print(e)
-                self.fd.delete_file(file_id)
-                raise Exception("Failed to upload one of the files")
+                os.path.basename(os_filepath),
+                path,
+                self.encrypt.get_name(),
+                self.split.get_name(),
+                cloud_file_count,
+                hash,
+                file_id
+                )
             
     def _upload_replicated(self, file_name, data):
         """
@@ -154,13 +164,16 @@ class CloudManager:
         file_id is a FileDescriptor ID of the file.
         Make sure to check if the clouds of this object exist in the "parts" array
         """
-        pass
+        file_data = self.fd.get_file_data(file_id)
+        print(file_data)
+        
 
     def download_folder(self, folder_name):
         """
         Using filedescriptor functions, gathers all files under the folder_name and then calls self.download
         on all of those files. Constructs them as the hierarchy in the filedescriptor on the OS.
         """
+
         pass
 
     def delete_file(self, file_id):
