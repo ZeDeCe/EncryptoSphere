@@ -19,7 +19,7 @@ class SessionManager():
         """
         Adds a new shared session to the sessions list
         """
-        pass
+        self.sessions.append(session)
 
     def end_session(self):
         """
