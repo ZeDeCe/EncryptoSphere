@@ -44,7 +44,7 @@ class Gateway:
             FileDescriptor(os.path.join(os.getcwd(),"Test")))
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         self.manager.authenticate()
-
+        
         # dropbox2 = DropBox(email)
         # #Testing shared sessions
         # self.shared_session = SharedCloudManager(
