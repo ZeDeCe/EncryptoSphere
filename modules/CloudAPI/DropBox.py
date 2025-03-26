@@ -103,6 +103,7 @@ class DropBox(CloudService):
         """
         try:
             path = f"{path}/{file_name}"
+            print('Downloading file...', path)
             metadata, res = self.dbx.files_download(path)
             file_data = res.content
             print(f"File data downloaded successfully.")
@@ -122,6 +123,7 @@ class DropBox(CloudService):
         """
         try:
             path = f"{path}/{file_name}"
+            print('Delete file...', path)
             self.dbx.files_delete_v2(path)
             print(f"File '{file_name}' has been deleted successfully.")
             return True

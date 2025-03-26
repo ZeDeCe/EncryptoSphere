@@ -57,8 +57,6 @@ class Gateway:
         #     FileDescriptor(os.path.join(os.getcwd(),"Test\\SharedSession"))
         # )
         # self.shared_session.authenticate()
-        self.manager.fd.sync_to_file()
-        self.manager.start_sync_thread()
         return True
     
     def get_files(self):

@@ -72,6 +72,7 @@ class CloudManager:
         try:
             for cloud in self.clouds:
                 cloud.authenticate_cloud()
+            self.manager.start_sync_thread()
             return True
         except:
             return False
@@ -243,7 +244,7 @@ class CloudManager:
         if os.path.exists(fd_file_path):
             with open(fd_file_path, 'rb') as fd_file:
                 fd_content = fd_file.read()
-                self._upload_replicated("$FD", fd_content, suffix=True)
+                self._upload_replicated("FD", fd_content, suffix=True)
         else:
             print(f"$FD file not found at {fd_file_path}")
 
