@@ -316,9 +316,9 @@ class DropBox(CloudService):
             # Iterate through each shared folder
             for folder in shared_folders.entries:
                 folder_info = {
-                    "folder_name": folder.name,
-                    "folder_id": folder.shared_folder_id,
-                    "folder_path": folder.path_display if folder.path_display else "No Path",
+                    "name": folder.name,
+                    "id": folder.shared_folder_id,
+                    "path": folder.path_display if folder.path_display else "No Path",
                     "files": []
                 }
 
