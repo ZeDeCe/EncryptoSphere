@@ -78,13 +78,20 @@ class FileDescriptor:
         self.metadata["last_id"] = str(int(self.metadata["last_id"]) + 1)
         return self.metadata["last_id"]
 
-    def add_file(self, name, path, encryption_alg_sig, splitting_alg_sig, clouds_order, hash):
+    def add_file(self, name, path, encryption_alg_sig, splitting_alg_sig, clouds_order, hash, file_id=None):
         """
         Add a new file to the filedescriptor listing
         @return the file_id
         """
         # TODO: check if data is valid
-        new_id = self.__inc_last_id()
+        if file_id is not None and file_id in self.files:
+            raise ValueError(f"File ID {file_id} is already in use.")
+
+        # If no file_id provided, generate a new one
+        if file_id is None:
+            new_id = self.__inc_last_id()
+        else:
+            new_id = file_id
         now = str(datetime.now(timezone.utc).timestamp())
 
         # split = file_path.split("/")
@@ -102,7 +109,14 @@ class FileDescriptor:
             "hash": hash
         }
         return new_id
-
+    
+    def get_next_id(self):
+        """
+        returns the next id that will be used for a file
+        updates the last_id in the metadata
+        """
+        return self.__inc_last_id() 
+    
     def delete_file(self, file_id):
         """
         Delete a file listing for a file that does not exist anymore
