@@ -392,11 +392,203 @@ class OptionMenu(ctk.CTkFrame):
 
 class SharePage(ctk.CTkFrame):
     def __init__(self, parent, controller):
-        super().__init__(parent)
+        
         self.controller = controller
 
+        ctk.CTkFrame.__init__(self, parent)
+
+        
+        self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
+        self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
+
+        encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
+        encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand = False)
+
+        self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
+                                                 command=lambda: self.controller.show_frame(MainPage),
+                                                 width=120, height=30, fg_color="gray25", hover=False)
+        self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+
+        self.back_button.bind("<Enter>", lambda e: self.set_bold(self.back_button))
+        self.back_button.bind("<Leave>", lambda e: self.set_normal(self.back_button))
+
+        self.share_folder_button = ctk.CTkButton(self.side_bar, text="New Share",
+                                      command=lambda: self.open_upload_menu(),
+                                      width=120, height=30, fg_color="gray25", hover=False)
+        self.share_folder_button.pack(anchor="nw", padx=10, pady=10, expand = False)
+
+        self.share_folder_button.bind("<Enter>", lambda e: self.set_bold(self.share_folder_button))
+        self.share_folder_button.bind("<Leave>", lambda e: self.set_normal(self.share_folder_button))
+
+        
+        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
+        self.main_frame.pack(fill = ctk.BOTH, expand = True)
+
+        # Context_menu object for the upload button (offers 2 options - upload file or upload folder)
+        # This is because windows os filesystem cannot open the explorer to select file and folder at the same time.
+        self.context_menu = OptionMenu(self, self.controller, [
+            {
+                "label": "Upload File",
+                "color": "gray25",
+                "event": lambda: self.upload_file()
+             },
+             {
+                 "label": "Upload Folder",
+                 "color": "gray25",
+                 "event": lambda: self.upload_folder()
+             }
+        ])
+
+    def set_bold(self, button):
+        """ Change the button text to bold on hover. """
+        button.configure(font=("Verdana", 13, "bold"))
+
+    def set_normal(self, button):
+        """ Revert the button text to normal when not hovered. """
+        button.configure(font=("Verdana", 13))
+        
+    def open_upload_menu(self):
+        """
+        This function opens the upload menu using the context_menue.
+        """ 
+        if self.context_menu.context_hidden:
+            self.controller.button_clicked(self, [self.context_menu])
+            self.context_menu.show_context_menu(self.share_folder_button.winfo_x()+(120), self.share_folder_button.winfo_y())
+        else:
+            self.context_menu.hide_context_menu()
+
+    def upload_file(self):
+        """
+        If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file.
+        In a new thread, call upload_file_to_cloud to upload the file to the clouds and. After a successful upload, refresh the frame so a the new file will be displayed
+        TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
+        """
+        file_path = filedialog.askopenfilename()
+        self.context_menu.hide_context_menu()
+        print(file_path)
+        if file_path:
+            Thread(target=self.upload_file_to_cloud, args=(file_path,), daemon=True).start()
+            
+
+    def upload_file_to_cloud(self, file_path):
+        """
+        Upload file to the cloud and refresh the page
+        """
+        self.controller.get_api().upload_file(os.path.normpath(file_path))
+        self.refresh()
+
+
+    def upload_folder(self):
+        """
+        If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder.
+        In a new thread, call upload_folder_to_cloud to upload the folder to the clouds. After a successful upload, refresh the frame so a the new folder will be displayed
+        TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
+        """
+        folder_path = filedialog.askdirectory()
+        self.context_menu.hide_context_menu()
+        if folder_path:
+            Thread(target=self.upload_folder_to_cloud, args=(folder_path,), daemon=True).start()
+        
+    def upload_folder_to_cloud(self, folder_path):
+        """
+        Upload folder to the cloud and refresh the page
+        """
+        self.controller.get_api().upload_folder(os.path.normpath(folder_path))
+        self.refresh()
+    
     def refresh(self):
         """
-        Share page refresh - as of now we donr need this functionality
+        Refresh the frame and display all updates
         """
-        pass
+        file_list = self.controller.get_api().get_files()
+        for widget in self.main_frame.winfo_children():
+            widget.after(0, widget.destroy)
+        self.buttons = []
+        columns = 6
+        cell_size = 120
+
+        for col in range(columns):
+            self.main_frame.grid_columnconfigure(col, weight=1, uniform="file_grid")
+
+        for i, file_data in enumerate(file_list):
+            row = i // columns  
+            col = i % columns   
+
+            file_frame = FolderButton(self.main_frame, width=cell_size, height=cell_size, file_data=file_data, controller=self.controller)
+            file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            self.buttons.append(file_frame)
+
+
+class FolderButton(ctk.CTkFrame):
+    """
+    This class represents a "file button".
+    A file button is the frame surronding the file icon and name, so every mouse click in that area is considered as an action related to that specific file 
+    """
+    def __init__(self, master, width, height, file_data, controller):
+
+        ctk.CTkFrame.__init__(self, master, width=width, height=height)
+
+        self.controller = controller
+        self.master = master
+        self.file_data = file_data
+
+        self.file_icon = ctk.CTkImage(light_image=Image.open("resources/folder_icon.png"), size=(40, 40))
+
+        icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
+        icon_label.pack(pady=(5, 0))
+
+        name_label = ctk.CTkLabel(self, text=self.file_data["name"], font=("Arial", 9), wraplength=90, justify="center")
+        name_label.pack(pady=(0, 5))
+
+        # Connect all file related content to do the same action when clicked (open the context_menu)
+        self.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
+        icon_label.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
+        name_label.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
+
+        # Create a context menu using CTkFrame
+        self.context_menu = OptionMenu(master, self.controller, [
+            {
+                "label": "Add Member",
+                "color": "green4",
+                "event": lambda: Thread(target=self.download_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
+             },
+             {
+                 "label": "Remove member",
+                 "color": "green4",
+                 "event": lambda: Thread(target=self.delete_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
+             },
+                         {
+                "label": "Leave Share",
+                "color": "red",
+                "event": lambda: Thread(target=self.download_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
+             },
+             {
+                 "label": "Delete Share",
+                 "color": "red",
+                 "event": lambda: Thread(target=self.delete_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
+             }
+        ])
+
+        # When clicking anywhere on the screen, close the context_menu
+        master.bind("<Button-1>", lambda event: self.context_menu.hide_context_menu(), add="+")
+
+    def download_file_from_cloud(self, file_id):
+        self.controller.get_api().download_file(file_id)
+        self.master.master.refresh()
+
+    def delete_file_from_cloud(self, file_id):
+        self.controller.get_api().delete_file(file_id)
+        self.master.master.refresh()
+
+    def on_file_click(self, file_id, event=None):
+        """
+        When clicking on a file, open the context menu for that file, double clicking means open-close the context menu.
+        Click on a file close any other open context menu.
+        """
+        print(f"File clicked: {file_id}")
+        self.controller.button_clicked(self, [self.context_menu])
+        if self.context_menu.context_hidden:
+            self.context_menu.lift()
+            self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.winfo_rooty())
+        else:
+           self.context_menu.hide_context_menu()
