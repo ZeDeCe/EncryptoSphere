@@ -1,15 +1,12 @@
 import os
 import io
-import io
 from dotenv import load_dotenv
 import webbrowser
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
-from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from google.auth.transport.requests import Request
-from modules.CloudAPI.CloudService import CloudService
 from modules.CloudAPI.CloudService import CloudService
 
 load_dotenv()
@@ -71,25 +68,9 @@ class GoogleDrive(CloudService):
             else:
                 print("Email mismatch during authentication")
                 return False
-            
-            # Verify the email matches
-            user_info = self.drive_service.about().get(fields="user").execute()
-            if user_info['user']['emailAddress'] == self.email:
-                self.authenticated = True
-                return True
-            else:
-                print("Email mismatch during authentication")
-                return False
         
         except HttpError as error:
             print(f"An error occurred: {error}")
-            return False
-
-
-    def list_files(self, folder='/'):
-        """
-        List files in Google Drive
-        """
             return False
 
 
@@ -106,19 +87,16 @@ class GoogleDrive(CloudService):
                 results = self.drive_service.files().list(
                     pageSize=100,
                     fields="nextPageToken, files(id, name, mimeType)",
-                    fields="nextPageToken, files(id, name, mimeType)",
                     pageToken=page_token
                 ).execute()
                 
                 items = results.get('files', [])
-                all_files.extend([item['name'] for item in items])
                 all_files.extend([item['name'] for item in items])
                 page_token = results.get('nextPageToken')
                 
                 if not page_token:
                     break
             
-            return all_files
             return all_files
         
         except HttpError as error:
@@ -173,9 +151,7 @@ class GoogleDrive(CloudService):
 
         except HttpError as error:
             raise Exception(f"Google Drive: Upload failed - {error}")
-            raise Exception(f"Google Drive: Upload failed - {error}")
         except Exception as error:
-            raise Exception(f"Unexpected error during upload: {error}")
             raise Exception(f"Unexpected error during upload: {error}")
 
     def download_file(self, file_name: str, path: str):
@@ -196,7 +172,6 @@ class GoogleDrive(CloudService):
             
             if not files:
                 raise Exception(f"File {file_name} not found in Google Drive")
-                raise Exception(f"File {file_name} not found in Google Drive")
             
             # get file's id
             file_id = files[0]['id']
@@ -206,7 +181,6 @@ class GoogleDrive(CloudService):
             if mime_type.startswith('application/vnd.google-apps'):
                 request = self.drive_service.files().export_media(
                     fileId=file_id,
-                    mimeType='application/pdf'  
                     mimeType='application/pdf'  
                 )
             else:
@@ -350,11 +324,9 @@ class GoogleDrive(CloudService):
         try:
             # Get the list of permissions for the file or folder
             permissions = self.drive_service.permissions().list(fileId=folder['id'], fields="permissions(id, type, role)").execute()
-            permissions = self.drive_service.permissions().list(fileId=folder['id'], fields="permissions(id, type, role)").execute()
             
             permission_list = permissions.get('permissions', [])
 
-            # Delete all permissions except for the owner
             # Delete all permissions except for the owner
             for permission in permission_list:
                 # Skip the owner's permission
@@ -385,32 +357,7 @@ class GoogleDrive(CloudService):
                     if permission.get('emailAddress') == email and permission['type'] == 'user':
                         self.drive_service.permissions().delete(fileId=folder['id'], permissionId=permission['id']).execute()
                         break
-                self.drive_service.permissions().delete(fileId=folder['id'], permissionId=permission['id']).execute()
 
-            return True
-        
-        except HttpError as error:
-            raise Exception(f"Error unsharing folder: {error}")
-
-    def unshare_by_email(self, folder: any, emails: list[str]) -> bool:
-        """
-        Unshare a folder from specific emails
-        """
-        try:
-            # Get the list of permissions for the file or folder
-            permissions = self.drive_service.permissions().list(fileId=folder['id'], fields="permissions(id, emailAddress, type, role)").execute()
-            
-            permission_list = permissions.get('permissions', [])
-
-            for email in emails:
-                # Find and delete permission for the specific email
-                for permission in permission_list:
-                    if permission.get('emailAddress') == email and permission['type'] == 'user':
-                        self.drive_service.permissions().delete(fileId=folder['id'], permissionId=permission['id']).execute()
-                        break
-
-            return True
-        
             return True
         
         except HttpError as error:
@@ -420,23 +367,11 @@ class GoogleDrive(CloudService):
         """
         List shared files
         """
-            raise Exception(f"Error unsharing by email: {error}")
-
-    def list_shared_files(self, folder=None):
-        """
-        List shared files
-        """
         try:
-            # If no specific folder is provided, list all shared files
-            query = "sharedWithMe" if folder is None else f"'{folder['id']}' in parents"
             # If no specific folder is provided, list all shared files
             query = "sharedWithMe" if folder is None else f"'{folder['id']}' in parents"
             
             results = self.drive_service.files().list(
-                q=query,
-                spaces='drive',
-                fields='nextPageToken, files(id, name)',
-                pageSize=100
                 q=query,
                 spaces='drive',
                 fields='nextPageToken, files(id, name)',
@@ -458,22 +393,7 @@ class GoogleDrive(CloudService):
             
             results = self.drive_service.files().list(
                 q=query,
-            return [item['name'] for item in items]
-        
-        except HttpError as error:
-            raise Exception(f"Error listing shared files: {error}")
-
-    def list_shared_folders(self):
-        """
-        List all shared folders
-        """
-        try:
-            query = "mimeType = 'application/vnd.google-apps.folder' and sharedWithMe"
-            
-            results = self.drive_service.files().list(
-                q=query,
                 spaces='drive',
-                fields='nextPageToken, files(id, name)',
                 fields='nextPageToken, files(id, name)',
                 pageSize=100
             ).execute()
@@ -506,36 +426,7 @@ class GoogleDrive(CloudService):
 
             return shared_members if shared_members else False
         
-            items = results.get('files', [])
-            return items
-        
         except HttpError as error:
-            raise Exception(f"Error listing shared folders: {error}")
-
-    def get_members_shared(self, folder: any) -> dict[str] | bool:
-        """
-        Get members a folder is shared with
-        """
-        try:
-            # Get the list of permissions for the folder
-            permissions = self.drive_service.permissions().list(fileId=folder['id'], fields="permissions(id, emailAddress, role)").execute()
-            
-            permission_list = permissions.get('permissions', [])
-
-            # If no shared permissions exist beyond owner
-            if len(permission_list) <= 1:
-                return False
-
-            # Collect shared emails
-            shared_members = {}
-            for permission in permission_list:
-                if permission.get('emailAddress') and permission['role'] != 'owner':
-                    shared_members[permission['emailAddress']] = permission['role']
-
-            return shared_members if shared_members else False
-        
-        except HttpError as error:
-            raise Exception(f"Error getting shared members: {error}")
             raise Exception(f"Error getting shared members: {error}")
 
     def get_name(self):
@@ -543,24 +434,10 @@ class GoogleDrive(CloudService):
         Return the name of the cloud service
         """
         return "G"  #G for Google Drive
-    def get_name(self):
-        """
-        Return the name of the cloud service
-        """
-        return "G"  #G for Google Drive
 
-    def share(self, folder_path : str, emails : list[str]):
-        pass
 
-# Main function to interact with the user
 # Main function to interact with the user
 def main():
-    print("Google POC")
-    email = input("Enter your Google Drive email address: ")
-    print(f"Authenticating {email}'s Google Drive account...")
-    google = GoogleDrive(email)
-    
-    if not google.is_authenticated():
     print("Google POC")
     email = input("Enter your Google Drive email address: ")
     print(f"Authenticating {email}'s Google Drive account...")
@@ -588,14 +465,8 @@ def main():
         if choice == '1':
             files = google.list_files()
             print("Files:", files)
-            files = google.list_files()
-            print("Files:", files)
         elif choice == '2':
             file_path = input("Enter the file path to upload: ")
-            with open(file_path, 'rb') as f:
-                data = f.read()
-            dropbox_dest_path = input("Enter the destination path in Google Drive: ")
-            google.upload_file(data, os.path.basename(file_path), dropbox_dest_path)
             with open(file_path, 'rb') as f:
                 data = f.read()
             dropbox_dest_path = input("Enter the destination path in Google Drive: ")
@@ -605,18 +476,10 @@ def main():
             downloaded_data = google.download_file(dropbox_file_path, '/')
             with open(dropbox_file_path, 'wb') as f:
                 f.write(downloaded_data)
-            dropbox_file_path = input("Enter the file name to download: ")
-            downloaded_data = google.download_file(dropbox_file_path, '/')
-            with open(dropbox_file_path, 'wb') as f:
-                f.write(downloaded_data)
         elif choice == '5':
             shared_files = google.list_shared_files()
             print("Shared files:", shared_files)
-            shared_files = google.list_shared_files()
-            print("Shared files:", shared_files)
         elif choice == '6':
-            folder_path = input("Enter folder name to create: ")
-            google.create_folder(folder_path)
             folder_path = input("Enter folder name to create: ")
             google.create_folder(folder_path)
         elif choice == '7':
@@ -624,18 +487,7 @@ def main():
             recipient_email = input("Enter email to share with: ")
             folder = google.get_folder(folder_path)
             google.share_folder(folder, [recipient_email])
-            folder_path = input("Enter the folder path to share: ")
-            recipient_email = input("Enter email to share with: ")
-            folder = google.get_folder(folder_path)
-            google.share_folder(folder, [recipient_email])
         elif choice == '8':
-            delete_file = input("Enter the file name to delete: ")
-            google.delete_file(delete_file, '/')
-        elif choice == '9':
-            unshare_folder = input("Enter the folder path to unshare: ")
-            folder = google.get_folder(unshare_folder)
-            google.unshare_folder(folder)
-        elif choice == '10':
             delete_file = input("Enter the file name to delete: ")
             google.delete_file(delete_file, '/')
         elif choice == '9':
