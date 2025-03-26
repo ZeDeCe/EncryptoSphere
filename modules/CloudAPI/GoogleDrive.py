@@ -16,24 +16,6 @@ API_KEY = os.getenv("GOOGLE_API_KEY")
 SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
 
 class GoogleDrive(CloudService):
-    def __new__(cls, email: str):
-        """
-        Makes all child objects with the same email a singleton.
-        """
-        if not hasattr(cls, 'instances'):
-            cls.instances = {}
-        
-        # Use super().__new__ with the email parameter
-        single = cls.instances.get(email)
-        if single:
-            return single
-        
-        # Pass the email when creating a new instance
-        cls.instances[email] = super().__new__(cls, email)
-        cls.instances[email].authenticated = False
-        cls.instances[email].email = email
-        cls.instances[email].drive_service = None
-        return cls.instances[email]
 
     def __init__(self, email: str):
         """
@@ -76,33 +58,47 @@ class GoogleDrive(CloudService):
 
     def list_files(self, folder='/'):
         """
-        List files in Google Drive
+        List files in a specific folder on Google Drive.
+
+        :param folder: (Optional) The name or ID of the folder. Defaults to root ('/').
+        :return: List of file names within the folder.
         """
         try:
             all_files = []
             page_token = None
-            
-            # Get all files with pagination
+            query = ""
+
+            # If folder is specified, get its ID
+            if folder != '/':
+                folder_id = self.get_folder(folder)  # Get folder ID based on folder name
+                if not folder_id:  # If folder not found, raise an error
+                    raise Exception(f"Error: Folder '{folder}' not found.")
+                query = f"'{folder_id}' in parents"
+
+            # Fetch files from Google Drive
             while True:
                 results = self.drive_service.files().list(
+                    q=query,
                     pageSize=100,
-                    fields="nextPageToken, files(id, name, mimeType)",
+                    fields="nextPageToken, files(id, name, mimeType, parents)",
                     pageToken=page_token
                 ).execute()
-                
+
                 items = results.get('files', [])
-                all_files.extend([item['name'] for item in items])
+                if items:
+                    all_files.extend([item['name'] for item in items])
                 page_token = results.get('nextPageToken')
-                
+
                 if not page_token:
                     break
-            
-            return all_files
-        
-        except HttpError as error:
-            raise Exception(f"Error listing files: {error}")
 
-    def upload_file(self, data: bytes, file_name: str, path: str) -> bool:
+            return all_files
+
+        except Exception as e:
+            print(f"Error: {e}") 
+            raise
+
+    def upload_file(self, data: bytes, file_name: str, path: str):
         """
         Upload a file to Google Drive
         @param data: The file data to upload
@@ -217,26 +213,31 @@ class GoogleDrive(CloudService):
         except HttpError as error:
             raise Exception(f"Error deleting file: {error}")
 
-    def get_folder(self, path: str) -> any:
+    def get_folder(self, path : str):
         """
-        Get a folder object from Google Drive
+        Get the ID of a folder in Google Drive by its name.
+        
+        :param folder_name: The name of the folder to search for.
+        :return: The ID of the folder if found, otherwise None.
         """
         try:
-            # Search for the folder
+            # Search for the folder by name
             results = self.drive_service.files().list(
-                q=f"name = '{path.strip('/')}' and mimeType = 'application/vnd.google-apps.folder'",
+                q=f"name = '{path}' and mimeType = 'application/vnd.google-apps.folder'",
                 fields="files(id, name)"
             ).execute()
             
             folders = results.get('files', [])
             
-            if not folders:
-                raise Exception(f"Folder {path} not found")
-            
-            return folders[0]
+            if folders:
+                # If folder found, return the ID of the first result (assuming no duplicates)
+                return folders[0]['id']
+            else:
+                raise Exception(f"Error: Folder '{path}' not found.")
         
-        except HttpError as error:
-            raise Exception(f"Error getting folder: {error}")
+        except Exception as e:
+            print(f"Error while fetching folder ID: {e}")
+            raise
 
     def get_folder_path(self, folder: any) -> str:
         """
@@ -449,7 +450,7 @@ def main():
 
     while True:
         print("\nSelect an action:")
-        print("1. List files")
+        print("1. List all files")
         print("2. Upload a file")
         print("3. Download a file")
         print("5. List shared files")
@@ -458,7 +459,8 @@ def main():
         print("8. Delete file")
         print("9. Unshare folder")
         print("10. Exit")
-        print(11,"create shared folder")
+        print("11. create shared folder")
+        print("12. list all files in specific folder")
 
         choice = input("Enter your choice: ")
 
@@ -502,6 +504,11 @@ def main():
             recipient_email = input("Enter email to share with: ")
             folder = google.get_folder(folder_path)
             google.share_folder(folder, [recipient_email])
+        elif choice == '12':
+            folder = input("Enter the folder to list: ")
+            files = google.list_files(folder)
+            print("Files:", files)
+        
         else:
             print("Invalid choice, please try again.")
 
