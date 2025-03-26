@@ -38,10 +38,12 @@ class Gateway:
             [dropbox1],
             "/EncryptoSphere", 
             NoSplit(), 
-            NoEncrypt(), 
-            FileDescriptor(os.path.join(os.getcwd(),"Test")))
+            NoEncrypt()
+            #FileDescriptor(os.path.join(os.getcwd(),"Test"))
+        )
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         self.manager.authenticate()
+        status = self.manager.sync_from_clouds()
 
         # dropbox2 = DropBox(email)
         # #Testing shared sessions
@@ -55,8 +57,7 @@ class Gateway:
         #     FileDescriptor(os.path.join(os.getcwd(),"Test\\SharedSession"))
         # )
         # self.shared_session.authenticate()
-        self.manager.fd.sync_to_file()
-        return True
+        return status
     
     def get_files(self):
         return self.manager.get_file_list()
@@ -126,7 +127,10 @@ def main():
     try:
         gui.mainloop()
     finally:    
-        gateway.manager.fd.sync_to_file()
+        try:
+            gateway.manager.fd.sync_to_file()
+        except:
+            pass
     
 if __name__=="__main__":
     main()
