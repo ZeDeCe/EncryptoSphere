@@ -267,7 +267,6 @@ class CloudManager:
         """
         if self.sync_thread and self.sync_thread.is_alive():
             self.stop_event.set()  # Signal the thread to stop
-            self.sync_thread.join()  # Wait for the thread to finish
 
     def sync_from_clouds(self):
         """

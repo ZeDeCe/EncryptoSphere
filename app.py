@@ -75,7 +75,6 @@ class App(ctk.CTk):
         self.api.manager.sync_to_clouds()
         if messagebox.askokcancel("Quit", "Are you sure you want to exit?"):
             self.api.manager.stop_sync_thread()
-            time.sleep(1)
             self.destroy()  # Close the window properly
     
     def register_context_menu(self, context_menu):
