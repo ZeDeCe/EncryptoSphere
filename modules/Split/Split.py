@@ -10,7 +10,7 @@ class Split(ABC):
         pass
 
     @abstractmethod
-    def merge_parts(self, data : bytes) -> bytes:
+    def merge_parts(self, data : bytes, clouds_num : int) -> bytes:
         """
         Merges parts using the split algorithm
         @param data the parts of the data in an array

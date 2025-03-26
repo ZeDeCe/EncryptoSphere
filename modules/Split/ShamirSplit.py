@@ -10,7 +10,7 @@ class ShamirSplit(Split):
         return "Shamir"
 
     def split(self, data, clouds_num):
-        num_parts=4
+        num_parts= clouds_num * 2
         min_parts=3
         encoder = Encoder(k=min_parts, m=num_parts)
         try:
@@ -21,8 +21,8 @@ class ShamirSplit(Split):
             raise Exception("Shamir: Error during split")
 
 
-    def merge_parts(self, data):
-        num_parts=4 
+    def merge_parts(self, data, clouds_num):
+        num_parts= clouds_num * 2
         min_parts=3
         sharenums = []
         if (len(data) != num_parts):

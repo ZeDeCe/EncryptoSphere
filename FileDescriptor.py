@@ -115,10 +115,8 @@ class FileDescriptor:
         returns the next id that will be used for a file
         updates the last_id in the metadata
         """
-        last_id = self.__get_last_id()
-        self.__inc_last_id() 
-        return int(last_id) + 1
-
+        return self.__inc_last_id() 
+    
     def delete_file(self, file_id):
         """
         Delete a file listing for a file that does not exist anymore

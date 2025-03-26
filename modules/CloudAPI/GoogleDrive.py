@@ -16,25 +16,6 @@ API_KEY = os.getenv("GOOGLE_API_KEY")
 SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
 
 class GoogleDrive(CloudService):
-    def __new__(cls, email: str):
-            """
-            Makes all child objects with the same email a singleton.
-            """
-            if not hasattr(cls, 'instances'):
-                cls.instances = {}
-            
-            # Use super().__new__ with the email parameter
-            single = cls.instances.get(email)
-            if single:
-                return single
-            
-            # Pass the email when creating a new instance
-            cls.instances[email] = super().__new__(cls, email)
-            cls.instances[email].authenticated = False
-            cls.instances[email].email = email
-            cls.instances[email].drive_service = None
-            return cls.instances[email]
-
     def __init__(self, email: str):
         """
         Initialization method 

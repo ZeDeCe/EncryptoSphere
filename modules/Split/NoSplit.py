@@ -10,7 +10,7 @@ class NoSplit(Split):
             ret.append([data])  # Wrap data inside a list
         return ret
 
-    def merge_parts(self, data) -> str:
+    def merge_parts(self, data, clouds_num) -> str:
         return data[0]
     
     def get_name(self):

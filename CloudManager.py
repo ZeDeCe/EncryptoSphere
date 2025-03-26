@@ -10,6 +10,8 @@ import FileDescriptor
 import threading
 import time
 
+SYNC_TIME = 300  # Sync time in seconds
+
 class CloudManager:
     """
     This class is the top application layer for handling actions that relate to files from OS to cloud services
@@ -48,9 +50,9 @@ class CloudManager:
     def _split(self, data : bytes, clouds : int):
         return self.split.split(data, clouds)
     
-    def _merge(self, data: list[bytes]):
+    def _merge(self, data: list[bytes], clouds: int):
         # TODO: finish function
-        return self.split.merge_parts(data)
+        return self.split.merge_parts(data, clouds)
     
     def _encrypt(self, data : bytes):
         data = self.encrypt.encrypt(data)
@@ -191,9 +193,7 @@ class CloudManager:
                         file_content = cloud.download_file(file_name, self.root_folder)
                         data.append(file_content)
         print("data: ", data)
-        #self._merge(data)
-
-        
+        #self._merge(data, len(self.clouds))
 
     def download_folder(self, folder_name):
         """
@@ -243,7 +243,7 @@ class CloudManager:
         if os.path.exists(fd_file_path):
             with open(fd_file_path, 'rb') as fd_file:
                 fd_content = fd_file.read()
-                self._upload_replicated("FD", fd_content)
+                self._upload_replicated("$FD", fd_content, suffix=True)
         else:
             print(f"$FD file not found at {fd_file_path}")
 
@@ -254,7 +254,7 @@ class CloudManager:
         def sync_task():
             while not self.stop_event.is_set():  # Check if stop_event is set
                 self.sync_to_clouds()
-                time.sleep(300)  # Wait for 5 minutes (300 seconds)
+                time.sleep(SYNC_TIME)  
 
         # Start the sync task in a separate thread
         self.sync_thread = threading.Thread(target=sync_task, daemon=True)
