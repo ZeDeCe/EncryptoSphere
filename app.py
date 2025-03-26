@@ -72,11 +72,10 @@ class App(ctk.CTk):
     
     def on_closing(self):
         """Ensure proper cleanup before closing the application."""
+        self.api.manager.sync_to_clouds()
         if messagebox.askokcancel("Quit", "Are you sure you want to exit?"):
-            self.api.manager.sync_to_clouds()
-            time.sleep(4)
             self.api.manager.stop_sync_thread()
-            
+            time.sleep(1)
             self.destroy()  # Close the window properly
     
     def register_context_menu(self, context_menu):
