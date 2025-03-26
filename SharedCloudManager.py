@@ -48,8 +48,10 @@ class SharedCloudManager(CloudManager):
         Create a first time share, generate a shared key and upload FEK
         """
         for cloud in self.clouds:
-            folder = cloud.get_folder(self.root_folder)
-            if not folder:
+            folder = None
+            try:
+                folder = cloud.get_folder(self.root_folder)
+            except:
                 # A complete new session
                 cloud.create_shared_folder(self.root_folder, self.emails_by_cloud[cloud.get_name()])
                 continue
@@ -245,6 +247,14 @@ class SharedCloudManager(CloudManager):
                 return True
         return False
     
+    # Override start sync thread, we do not sync FD to cloud on a timer
+    # We sync every operation
+    def start_sync_thread(self):
+        pass
+
+    def stop_sync_thread(self):
+        pass
+    
     def revoke_user_from_share(self, users):
         """
         Completely revokes a user from a shared session
@@ -261,7 +271,7 @@ class SharedCloudManager(CloudManager):
         """
 
     @staticmethod
-    def is_valid_session_root(cloud, root) -> True:
+    def is_valid_session_root(cloud, root) -> bool:
         """
         Checks if the folder root given in the cloud is a valid session root for SharedCloudManager
         Checks the following:
