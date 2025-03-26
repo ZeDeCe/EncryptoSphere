@@ -7,6 +7,10 @@ from modules import Encrypt
 from modules.CloudAPI import CloudService
 import FileDescriptor
 
+import threading
+import time
+
+SYNC_TIME = 300  # Sync time in seconds
 
 class CloudManager:
     """
@@ -31,6 +35,8 @@ class CloudManager:
         self.root_folder = f"{mainroot}{root}"
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.fd = file_descriptor if file_descriptor else self.sync_from_clouds()
+        self.sync_thread = None
+        self.stop_event = threading.Event()  # Event to signal
         self.lock_session()
 
     def lock_session(self):
@@ -44,9 +50,9 @@ class CloudManager:
     def _split(self, data : bytes, clouds : int):
         return self.split.split(data, clouds)
     
-    def _merge(self, data: list[bytes]):
+    def _merge(self, data: list[bytes], clouds: int):
         # TODO: finish function
-        return self.split.merge_parts(data)
+        return self.split.merge_parts(data, clouds)
     
     def _encrypt(self, data : bytes):
         data = self.encrypt.encrypt(data)
@@ -66,6 +72,7 @@ class CloudManager:
         try:
             for cloud in self.clouds:
                 cloud.authenticate_cloud()
+            self.start_sync_thread()
             return True
         except:
             return False
@@ -79,22 +86,35 @@ class CloudManager:
             data = file.read()
         hash = hashlib.md5(data).hexdigest()
         data = self._encrypt(data)
+        data = self._split(data, len(self.clouds))  # Fixed typo: __split -> _split
+
+        file_id = self.fd.get_next_id()
+        cloud_file_count = {}
+
+        # data is in the len of 2 clouds, if we want to change it - in ShamoirSplit
+        for cloud_index,f in enumerate(data):
+            cloud_name = self.clouds[cloud_index].get_name()  # Assuming each cloud object has a `name` attribute
+            cloud_file_count[cloud_name] = len(f)
+            for file_index, file_content in enumerate(f):  # Iterate over inner list
+                try:
+                    file_name = f"{file_id}_{file_index+1}"
+                    self.clouds[cloud_index].upload_file(file_content, file_name, self.root_folder)
+                except Exception as e:
+                    print(e)
+                    self.fd.delete_file(file_id)
+                    raise Exception("Failed to upload one of the files")
         data = self._split(data, len(self.clouds))
         file_id = self.fd.add_file(
-            os.path.basename(os_filepath),
-            path,
-            self.encrypt.get_name(),
-            self.split.get_name(),
-            self.cloud_name_list,
-            hash
-        )
-        for i,f in enumerate(data):
-            try:
-                self.clouds[i].upload_file(f, f"{file_id}", self.root_folder)
-            except Exception as e:
-                print(e)
-                self.fd.delete_file(file_id)
-                raise Exception("Failed to upload one of the files")
+                os.path.basename(os_filepath),
+                path,
+                self.encrypt.get_name(),
+                self.split.get_name(),
+                cloud_file_count,
+                hash,
+                file_id
+                )
+        
+        self.fd.sync_to_file()
             
     def _upload_replicated(self, file_name, data, suffix=False):
         """
@@ -158,13 +178,30 @@ class CloudManager:
         file_id is a FileDescriptor ID of the file.
         Make sure to check if the clouds of this object exist in the "parts" array
         """
-        pass
+        print("in Downloading file: ", file_id)
+        file_data = self.fd.get_file_data(file_id)
+        parts = file_data['parts']
+        print(parts)
+        data = []
+        for cloud_name, part_count in parts.items():  # Iterate over clouds
+            for part_number in range(1, part_count + 1):  # Generate file parts
+                file_name = f"{file_id}_{part_number}"
+                print("file: ", file_name)
+                for cloud in self.clouds:
+                    if cloud.get_name() == cloud_name:
+                        print("cloud: ", cloud_name)
+                        print(f"Downloading {file_name} from {cloud_name}...")
+                        file_content = cloud.download_file(file_name, self.root_folder)
+                        data.append(file_content)
+        print("data: ", data)
+        #self._merge(data, len(self.clouds))
 
     def download_folder(self, folder_name):
         """
         Using filedescriptor functions, gathers all files under the folder_name and then calls self.download
         on all of those files. Constructs them as the hierarchy in the filedescriptor on the OS.
         """
+
         pass
 
     def delete_file(self, file_id):
@@ -172,7 +209,18 @@ class CloudManager:
         Deletes a specific file from file ID using the filedescriptor
         @param file_id the file id to delete
         """
-        pass
+        file_data = self.fd.get_file_data(file_id)
+        parts = file_data['parts']
+        print(file_data)
+        for cloud_name, part_count in parts.items():  # Iterate over clouds
+            for part_number in range(1, part_count + 1):  # Generate file parts
+                file_name = f"{file_id}_{part_number}"
+                for cloud in self.clouds:
+                    if cloud.get_name() == cloud_name:                        
+                        print(f"deleting {file_name} from {cloud_name}...")
+                        cloud.delete_file(file_name, self.root_folder)
+        self.fd.delete_file(file_id)    
+        self.fd.sync_to_file()
 
     def delete_folder(self, folder_path):
         """
@@ -189,7 +237,36 @@ class CloudManager:
         Uploads the filedescriptor to the clouds encrypted using self.encrypt
         This function should use upload_replicated
         """
-        pass
+        self.fd.sync_to_file()
+        fd_file_path = os.path.join(os.getcwd(), "Test", "$FD")
+
+        # Read the contents of the $FD file
+        if os.path.exists(fd_file_path):
+            with open(fd_file_path, 'rb') as fd_file:
+                fd_content = fd_file.read()
+                self._upload_replicated("$FD", fd_content, suffix=True)
+        else:
+            print(f"$FD file not found at {fd_file_path}")
+
+    def start_sync_thread(self):
+        """
+        Starts a background thread to run sync_to_clouds every 5 minutes.
+        """
+        def sync_task():
+            while not self.stop_event.is_set():  # Check if stop_event is set
+                self.sync_to_clouds()
+                time.sleep(SYNC_TIME)  
+
+        # Start the sync task in a separate thread
+        self.sync_thread = threading.Thread(target=sync_task, daemon=True)
+        self.sync_thread.start()
+    
+    def stop_sync_thread(self):
+        """
+        Stops the background sync thread.
+        """
+        if self.sync_thread and self.sync_thread.is_alive():
+            self.stop_event.set()  # Signal the thread to stop
 
     def sync_from_clouds(self):
         """

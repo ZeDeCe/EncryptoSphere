@@ -7,6 +7,7 @@ from customtkinter import filedialog
 import os
 from threading import Thread
 import tkinter.messagebox as messagebox
+import time
 
 """
 TODO: - Add all relevent error/info masseges (Advanced UI)
@@ -71,8 +72,9 @@ class App(ctk.CTk):
     
     def on_closing(self):
         """Ensure proper cleanup before closing the application."""
+        self.api.manager.sync_to_clouds()
         if messagebox.askokcancel("Quit", "Are you sure you want to exit?"):
-            self.api.manager.fd.sync_to_file()  # Ensure file sync before exit
+            self.api.manager.stop_sync_thread()
             self.destroy()  # Close the window properly
     
     def register_context_menu(self, context_menu):
@@ -263,6 +265,8 @@ class MainPage(ctk.CTkFrame):
         Refresh the frame and display all updates
         """
         file_list = self.controller.get_api().get_files()
+        for widget in self.main_frame.winfo_children():
+            widget.after(0, widget.destroy)
         self.buttons = []
         columns = 6
         cell_size = 120
