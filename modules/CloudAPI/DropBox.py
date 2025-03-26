@@ -239,27 +239,27 @@ class DropBox(CloudService):
             raise Exception(f"Error: {e}")
     
     
-    def unshare_folder(self, folder_name):
+    def _get_shared_folder_from_path(self, path):
+        shared_folders = self.dbx.sharing_list_folders()
+        shared_folder_id = None
+        for folder in shared_folders.entries:
+            if folder.path_lower == path.lower():  # Match by folder name
+                shared_folder_id = folder.shared_folder_id
+                break
+        
+        if not shared_folder_id:
+            print(f"Folder '{path}' is not shared or doesn't exist.")
+            return None
+        return shared_folder_id
+
+    def unshare_folder(self, folder_path):
         """
         Unshare a folder on DropBox
         """
+        id = self._get_shared_folder_from_path(folder_path)
         try:
-            shared_folders = self.dbx.sharing_list_folders()
-        
-            # Check if the folder is shared and find its ID
-            shared_folder_id = None
-            for folder in shared_folders.entries:
-                if folder.path_lower == folder_name.lower():  # Match by folder name
-                    shared_folder_id = folder.shared_folder_id
-                    break
-            
-            if not shared_folder_id:
-                print(f"Folder '{folder_name}' is not shared or doesn't exist.")
-                return False
-            
-            # Step 2: Unshare the folder
-            self.dbx.sharing_unshare_folder(shared_folder_id)
-            print(f"Folder '{folder_name}' has been unshared.")
+            self.dbx.sharing_unshare_folder(id)
+            print(f"Folder '{folder_path}' has been unshared.")
             return True
         except dropbox.exceptions.ApiError as e:
              raise Exception(f"Error unsharing or deleting folder: {e}")
@@ -281,16 +281,21 @@ class DropBox(CloudService):
         """
         Unshare a folder by given email address
         """
+        folder_id = self._get_shared_folder_from_path(folder)
+        success = True
         for email in emails:
             try:
                 # Select the member using their email address
-                member = dropbox.sharing.MemberSelector.email(email)  
+                member = dropbox.sharing.MemberSelector.email(email) 
+
                 # Remove the member from the shared folder
-                result = self.dbx.sharing_remove_folder_member(folder, [member])  
+                result = self.dbx.sharing_remove_folder_member(folder_id, member, False)  
                 print(f"Member {email} removed from folder '{folder}' successfully.")
             except dropbox.exceptions.ApiError as e:
-                raise Exception(f"Error removing member '{email}' from folder '{folder}': {e}")
-        return True
+                print(f"Error removing member '{email}' from folder '{folder}': {e}")
+                success = False
+                continue
+        return success
     
     def list_shared_files(self, folder=None):
         """
@@ -318,7 +323,7 @@ class DropBox(CloudService):
                 folder_info = {
                     "folder_name": folder.name,
                     "folder_id": folder.shared_folder_id,
-                    "folder_path": folder.path_display if folder.path_display else "No Path",
+                    "folder_path": folder.path_display if folder.path_display else '/',
                     "files": []
                 }
 
@@ -333,32 +338,14 @@ class DropBox(CloudService):
 
                 # List files in the shared folder using the folder path
                 try:
-                    folder_files = self.dbx.files_list_folder(f"/{folder.name}")  # Adjust path for root folders
+                    folder_files = self.dbx.files_list_folder(folder_info["folder_path"])  # Adjust path for root folders
                 except dropbox.exceptions.ApiError as e:
                     print(f"Error listing files in folder {folder.name}: {e}")
                     continue  # Skip to the next folder if listing files fails
 
                 for entry in folder_files.entries:
                     if isinstance(entry, dropbox.files.FileMetadata):
-                        file_info = {
-                            "file_name": entry.name,
-                            "file_path": entry.path_display,
-                            "file_id": entry.id,
-                            "collaborators": []
-                        }
-                        # Get file collaborators (who it's shared with)
-                        try:
-                            file_members = self.dbx.sharing_list_file_members(entry.id)
-
-                            if file_members.users:
-                                for member in file_members.users:
-                                    file_info["collaborators"].append(member.user.email)
-                            else:
-                                file_info["collaborators"].append("No specific collaborators")
-                        except dropbox.exceptions.ApiError as e:
-                            print(f"Error fetching collaborators for {entry.name}: {e}")
-
-                        folder_info["files"].append(file_info)
+                        folder_info["files"].append(entry.name)
 
                 shared_folders_info.append(folder_info)
 
@@ -372,67 +359,25 @@ class DropBox(CloudService):
         Returns a list of emails that the folder is shared with if shared, and false if not shared
         @param folder the folder object
         """
-        pass
+        try:
+            metadata = self.dbx.files_get_metadata(folder)
+
+            if isinstance(metadata, dropbox.files.FolderMetadata) and metadata.shared_folder_id:
+                folder_id = metadata.shared_folder_id
+            else:
+                print(f"Folder '{folder}' is not a shared folder.")
+                return False
+            
+            members = self.dbx.sharing_list_folder_members(folder_id)
+            members_list = []
+
+            for member in members.users:
+                members_list.append(member.user.email)
+
+            return members_list
+
+        except dropbox.exceptions.ApiError as e:
+            raise Exception(f"Dropbox API error: {e}")
 
     def get_name(self):
         return "D"
-
-'''
-# Main function to interact with the user
-def main():
-    print("Dropbox POC")
-    #access_token = os.getenv('DROPBOX_TOKEN') if os.getenv('DROPBOX_TOKEN') else authenticate_dropbox()
-    email = input("Enter your Dropbox email address: ")
-    print(f"Authenticating {email}'s Dropbox account...")
-    dropbox = DropBox(email)
-    success = dropbox.authenticate(email)
-    if not success:
-        print("Authentication failed.")
-        return
-
-    while True:
-        print("\nSelect an action:")
-        print("1. List files in Dropbox")
-        print("2. Upload a file to Dropbox")
-        print("3. Download a file from Dropbox")
-        print("5. List all shared files")
-        print("6. Create new folder")
-        print("7. Share folder")
-        print("8. Delete file")
-        print("9. Unshare folder")
-        print("10. Exit")
-
-        choice = input("Enter your choice: ")
-
-        if choice == '1':
-            dropbox.list_files()
-        elif choice == '2':
-            file_path = input("Enter the file path to upload: ")
-            dropbox_dest_path = input("Enter the destination path in Dropbox (e.g., /folder/filename): ")
-            dropbox.upload_file(file_path, dropbox_dest_path)
-        elif choice == '3':
-            dropbox_file_path = input("Enter the file path to download (e.g., /folder/filename): ")
-            dropbox.download_file(dropbox_file_path)
-        elif choice == '5':
-            dropbox.list_shared_files()
-        elif choice == '6':
-            dropbox.create_folder()
-        elif choice == '7':
-            dropbox_folder_path = input("Enter the path in Dropbox to share (e.g., /folder/): ")
-            recipient_email = input("Enter email to share: ")
-            dropbox.share(dropbox_folder_path,recipient_email)
-        elif choice == '8':
-            delete_file = input("Enter the file/folder path to delete (e.g., /folder/filename or /folder): ")
-            dropbox.delete_file(delete_file)
-        elif choice == '9':
-            unshare_folder = input("Enter the folder path to unshare (e.g., /folder): ")
-            dropbox.unshare(unshare_folder)
-        elif choice == '10':
-            print("Exiting...")
-            break
-        else:
-            print("Invalid choice, please try again.")
-
-if __name__ == "__main__":
-    main()
-'''
