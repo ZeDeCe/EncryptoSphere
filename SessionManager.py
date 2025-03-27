@@ -1,4 +1,4 @@
-from SharedCloudManager import SharedCloudManager
+from CloudManager import CloudManager
 
 class SessionManager():
     """
@@ -15,54 +15,34 @@ class SessionManager():
         """
         return self.key
     
-    def add_session(self, session : SharedCloudManager):
+    def add_session(self, session : CloudManager):
         """
         Adds a new shared session to the sessions list
         """
         self.sessions.append(session)
 
-    def end_session(self, session : SharedCloudManager):
+    def end_session(self):
         """
         End a session from the session list if test_session returned false from SharedCloudManager
         """
-        if session in self.sessions:
-            self.sessions.remove(session)
+        pass
 
     def sync_new_sessions(self):
         """
         Looks in all clouds for shared sessions
         If one is found, create a SharedCloudManager for the folder and add it to self.sessions using add_session
         """
-        new_sessions = {}
-        for cloud in self.main_session.clouds:
-            shared_folders = cloud.list_shared_folders()
-            for folder in shared_folders:
-                if not SharedCloudManager.is_valid_session_root(cloud, folder):
-                    continue
-                for session in self.sessions:
-                    if session.root_folder == folder["path"]:
-                        continue
-                temp = new_sessions.get(folder["path"]) if new_sessions.get(folder["path"]) else []
-                temp.append(cloud)
-                new_sessions[folder["path"]] = temp
-        for folder,clouds in new_sessions.items():
-            self.add_session(SharedCloudManager(None, clouds, folder, None, self.main_session.encrypt))
-                
+        pass
 
     def sync_known_sessions(self):
         """
         Goes through all sessions in self.sessions and calls share_keys
         """
-        for session in self.sessions:
-            session.share_keys()
-
+        pass
 
     def check_session_status(self, root=None):
         """
         Goes through session and calls test_access, if the session is inactive, end it
         @param root optional, if given only checks the specific shared session with this root folder if one exists, if None checks all sessions
         @return success, False if at least one session is inactive, True otherwise 
-        """
-        for session in self.sessions:
-            if not session.test_access():
-                self.end_session(session)
+        """
