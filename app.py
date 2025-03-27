@@ -72,15 +72,12 @@ class App(ctk.CTk):
     
     def on_closing(self):
         """Ensure proper cleanup before closing the application."""
-        self.api.manager.sync_to_clouds()
+        if self.api.manager:
+            self.api.manager.sync_to_clouds()
         if messagebox.askokcancel("Quit", "Are you sure you want to exit?"):
-<<<<<<< HEAD
             if self.api.manager:
                 self.api.manager.delete_fd()
                 self.api.manager.stop_sync_thread()
-=======
-            self.api.manager.stop_sync_thread()
->>>>>>> parent of bedfcf2 (Merge branch 'main' into shaqed/gateway)
             self.destroy()  # Close the window properly
     
     def register_context_menu(self, context_menu):
