@@ -15,7 +15,7 @@ import customtkinter as ctk
 
 import utils.DialogBox as DialogBox
 import app as app
-import time #Testing bc no real download or upload
+
 
 # This is temporary:
 from cryptography.fernet import Fernet
@@ -33,15 +33,19 @@ class Gateway:
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
         dropbox1 = DropBox(email)
+        #drive1 = GoogleDrive(email)
+
         # Everything here is for testing
         self.manager = CloudManager(
             [dropbox1],
             "/EncryptoSphere", 
             NoSplit(), 
-            NoEncrypt(), 
-            FileDescriptor(os.path.join(os.getcwd(),"Test")))
+            NoEncrypt()
+            #FileDescriptor(os.path.join(os.getcwd(),"Test"))
+        )
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         self.manager.authenticate()
+        status = self.manager.sync_from_clouds()
 
         # dropbox2 = DropBox(email)
         # #Testing shared sessions
@@ -55,17 +59,13 @@ class Gateway:
         #     FileDescriptor(os.path.join(os.getcwd(),"Test\\SharedSession"))
         # )
         # self.shared_session.authenticate()
-        self.manager.fd.sync_to_file()
-        return True
+        return status
     
     def get_files(self):
         return self.manager.get_file_list()
     
     def download_file(self, file_id):
         self.manager.download_file(file_id)
-        print("Download file chosen")
-        time.sleep(10)
-        print("Download end")
         return True # TODO: Handle correctly!!
     
     def download_folder(self, folder_id):
@@ -83,10 +83,8 @@ class Gateway:
         return True # TODO: Handle correctly!!
     
     def delete_file(self, file_id):
+        print(f"Delete file selected {file_id}")
         self.manager.delete_file(file_id)
-        print("Delete file chosen")
-        time.sleep(10)
-        print("Delete end")
         return True # TODO: Handle correctly!!
     
     def delete_folder(self, folder_id):
@@ -126,7 +124,10 @@ def main():
     try:
         gui.mainloop()
     finally:    
-        gateway.manager.fd.sync_to_file()
+        try:
+            gateway.manager.fd.sync_to_file()
+        except:
+            pass
     
 if __name__=="__main__":
     main()

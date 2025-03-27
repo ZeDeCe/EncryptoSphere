@@ -435,6 +435,8 @@ class GoogleDrive(CloudService):
         """
         return "G"  #G for Google Drive
 
+    def share(self, folder_path : str, emails : list[str]):
+        pass
 
 # Main function to interact with the user
 def main():

@@ -165,9 +165,10 @@ class CloudService(ABC):
         List all shared folders in all of the cloud
         @return a list of folder objects that represent the shared folders
         """
+        pass
     
     @abstractmethod
-    def get_members_shared(self, folder : any) -> dict[str] | bool:
+    def get_members_shared(self, folder : any) -> list[str] | bool:
         """
         Returns a list of emails that the folder is shared with if shared, and false if not shared
         @param folder the folder object
