@@ -6,7 +6,9 @@ from zfec.easyfec import Decoder
 from modules.Split.Split import Split
 
 class ShamirSplit(Split):
-    def get_name(self):
+    
+    @staticmethod
+    def get_name():
         return "Shamir"
 
     def split(self, data, clouds_num):

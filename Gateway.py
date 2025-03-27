@@ -41,24 +41,22 @@ class Gateway:
             "/EncryptoSphere", 
             NoSplit(), 
             NoEncrypt()
-            #FileDescriptor(os.path.join(os.getcwd(),"Test"))
         )
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
-        self.manager.authenticate()
-        status = self.manager.sync_from_clouds()
+        status = self.manager.authenticate()
 
-        # dropbox2 = DropBox(email)
-        # #Testing shared sessions
-        # self.shared_session = SharedCloudManager(
-        #     #[{"D":"demek14150@sfxeur.com"}],
-        #     None,
-        #     [dropbox2],
-        #     "/SharedSession", 
-        #     NoSplit(), 
-        #     NoEncrypt(), 
-        #     FileDescriptor(os.path.join(os.getcwd(),"Test\\SharedSession"))
-        # )
-        # self.shared_session.authenticate()
+        dropbox2 = DropBox(email)
+        #Testing shared sessions
+        self.shared_session = SharedCloudManager(
+            #[{"D":"pokaya6659@cybtric.com"}],
+            None,
+            [dropbox2],
+            "/SharedSession", 
+            NoSplit(), 
+            NoEncrypt(), 
+        )
+        self.shared_session.authenticate()
+        self.shared_session.upload_file(".\\Test\\uploadme.txt")
         return status
     
     def get_files(self):

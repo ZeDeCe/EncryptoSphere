@@ -6,13 +6,16 @@ from datetime import datetime, timezone
 File descriptors look like this:
 FD:
 {
+    metadata = {
+        last_id, the last id in the descriptor
+        enc_sig, the encryption algorithm signature for the session
+        split_sig, the splitting algorithm signature for the session
+    }
     id = {
         name, The name of the file
         path, The path of the file in EncryptoSphere
         upload_date, The upload date
         edit_date, The edit date
-        e_alg, The encryption algorithm used to encrypt the file
-        s_alg, The splitting algorithm used to split the file
         shared_with, Who it is shared with
         encryption_salt, The encryption salt
         file_hash, The MD5 hash of the file
@@ -38,38 +41,37 @@ class FileDescriptor:
     #     def put(self, data):
     #         pass
 
-    def __init__(self, root):
+    def __init__(self, data : bytes | None, metadata : bytes | None, encrypt_sig=None, split_sig=None):
         """
         Creates a new FileDescriptor object from an existing FileDescriptor file
         Creating a filedescriptor with an invalid filedescriptor file will raise an OSError
-        @param root the path of the filedescriptor in the os
+        @param data the data for the already existing FD or None
+        """
+        self.files_ready = False
+        if not data and not metadata:
+            self.files = {}
+            self.metadata = {}
+            self.metadata["last_id"] = "0"
+            self.metadata["enc_sig"] = encrypt_sig
+            self.metadata["split_sig"] = split_sig
+            self.files_ready = True
+        else:
+            try:
+                self.metadata = self.deserialize(metadata)
+            except:
+                raise OSError("Failed to parse the filedescriptor from json, file descriptor metadata corrupted")
+            if data:
+                self.set_files(data)
+                self.files_ready = True
+
+    def set_files(self, data):
+        """
+        Deserializes data and sets it as the files list
         """
         try:
-            if not os.path.exists(root):
-                os.makedirs(root)
+            self.files = self.deserialize(data)
         except:
-            raise OSError("Root folder given for FD is invalid")
-
-        self.root = root
-        fd_path = os.path.join(self.root, "$FD")
-
-        if not os.path.isdir(root):
-            raise OSError("Root of file descriptor isn't a valid file or folder")
-        
-        if os.path.isfile(fd_path) and os.path.getsize(fd_path)!=0:
-            
-            with open(fd_path, "r+") as f:
-                try:
-                    self.files = json.load(f)
-                except:
-                    raise OSError("Failed to parse the filedescriptor from json, file descriptor corrupted")
-        else:
-            self.files = {}
-            self.files["metadata"] = {}
-            self.files["metadata"]["last_id"] = "0"
-
-        self.metadata = self.files["metadata"]
-        self.file_path = fd_path
+            raise OSError("Failed to parse the filedescriptor from json, file descriptor corrupted")
 
     def __get_last_id(self):
         return self.metadata["last_id"]
@@ -77,8 +79,14 @@ class FileDescriptor:
     def __inc_last_id(self):
         self.metadata["last_id"] = str(int(self.metadata["last_id"]) + 1)
         return self.metadata["last_id"]
+    
+    def get_encryption_signature(self):
+        return self.metadata["enc_sig"]
+    
+    def get_split_signature(self):
+        return self.metadata["split_sig"]
 
-    def add_file(self, name, path, encryption_alg_sig, splitting_alg_sig, clouds_order, hash, file_id=None):
+    def add_file(self, name, path, clouds_order, hash, file_id=None):
         """
         Add a new file to the filedescriptor listing
         @return the file_id
@@ -103,8 +111,6 @@ class FileDescriptor:
             "path": path,
             "upload_date" : now,
             "edit_date" : now,
-            "e_alg" : encryption_alg_sig,
-            "s_alg" : splitting_alg_sig,
             "parts" : clouds_order,
             "hash": hash
         }
@@ -148,26 +154,33 @@ class FileDescriptor:
             ...
         ]
         """
-        return [{"id": id, "name": f["name"], "path": f["path"], "upload_date": f["upload_date"], "edit_date": f["edit_date"]} for id,f in self.files.items() if id!="metadata"]
+        return [{"id": id, "name": f["name"], "path": f["path"], "upload_date": f["upload_date"], "edit_date": f["edit_date"]} for id,f in self.files.items()]
 
+    def serialize(self):
+        """
+        Serializes the data and metadata
+        @return data,metadata serialized
+        """
+        if not self.files_ready:
+            raise Exception("Files are not available, use set_files")
+        return json.dumps(self.files).encode('utf-8'), json.dumps(self.metadata).encode('utf-8')
     
-    def sync_to_file(self):
+    def deserialize(self, data):
         """
-        Sync the filemapping to disk
+        Deserializes data and metadata
         """
-        with open(self.file_path, "w") as f:
-            json.dump(self.files, f)
+        return json.loads(data)
 
     def __str__(self):
-        return str(self.files)
+        return str(self.metadata) + "\r\n" + str(self.files)
     
     def get_files_in_folder(self, folder_name):
         """
         Returns a recursive list of all the entrees for files in a specific folder based on their path 
         """
         file_list = []
-        for file in self.files:
-            if file.path.startswith(folder_name):
+        for id,file in self.files.items():
+            if file["path"].startswith(folder_name):
                 file_list.append(file)
         
         return file_list

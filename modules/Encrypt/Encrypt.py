@@ -1,7 +1,12 @@
 from abc import ABC, abstractmethod
 
 class Encrypt(ABC):
-
+    @staticmethod
+    def get_class(sig):
+        for cls in Encrypt.__subclasses__():
+            if cls.get_name() == sig:
+                return cls
+                
     def __init__(self, key=None):
         if not key:
             self.key = self.generate_key()
@@ -26,6 +31,8 @@ class Encrypt(ABC):
     def decrypt(self, data : bytes) -> bytes:
         pass
 
+    
+    @staticmethod
     @abstractmethod
-    def get_name(self) -> str:
+    def get_name() -> str:
         pass

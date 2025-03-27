@@ -13,5 +13,6 @@ class NoSplit(Split):
     def merge_parts(self, data, clouds_num) -> str:
         return data[0]
     
-    def get_name(self):
+    @staticmethod
+    def get_name():
         return "No"

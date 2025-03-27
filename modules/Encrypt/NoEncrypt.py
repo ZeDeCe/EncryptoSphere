@@ -10,7 +10,8 @@ class NoEncrypt(Encrypt):
     def decrypt(self, data):
         return data
     
-    def get_name(self):
+    @staticmethod
+    def get_name():
         return "No"
     
     def generate_key(self) -> bytes:
