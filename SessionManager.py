@@ -46,7 +46,8 @@ class SessionManager():
                 temp.append(cloud)
                 new_sessions[folder["path"]] = temp
         for folder,clouds in new_sessions.items():
-            self.add_session(SharedCloudManager(None, clouds, folder, None, self.main_session.encrypt))
+            self.add_session(SharedCloudManager(None, clouds, folder, self.main_session.split, self.main_session.encrypt))
+        self.sync_known_sessions()
                 
 
     def sync_known_sessions(self):
