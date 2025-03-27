@@ -76,7 +76,7 @@ class App(ctk.CTk):
             self.api.manager.sync_to_clouds()
         if messagebox.askokcancel("Quit", "Are you sure you want to exit?"):
             if self.api.manager:
-                self.api.manager.delete_FD_file()
+                self.api.manager.delete_fd()
                 self.api.manager.stop_sync_thread()
             self.destroy()  # Close the window properly
     

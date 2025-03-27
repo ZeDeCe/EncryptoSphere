@@ -1,4 +1,7 @@
 from CloudManager import CloudManager
+from FileDescriptor import FileDescriptor
+from modules.Encrypt import Encrypt
+from modules.Split import Split
 from modules.CloudAPI.CloudService import CloudService
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric import rsa,padding
@@ -30,20 +33,38 @@ class SharedCloudManager(CloudManager):
 
 
     def authenticate(self):
-        if(not super().authenticate()):
+        try:
+            for cloud in self.clouds:
+                cloud.authenticate_cloud()
+        except:
             return False
+        key = None
         if self.users:
             # This is a new session to be created
             try:
-                self.create_new_session()
+                key = self.create_new_session()
+                self.encrypt.set_key(key)
+                self.fd = FileDescriptor(None, None, self.encrypt.get_name(), self.split.get_name())
+                self.sync_fd()
             except:
                 return False
         else:
             # This session already exists (and might not be ours)
-            self.loaded = self.load_session()
-        return self.loaded
+            key = self.load_session()
+            self.fd = FileDescriptor(None, self._download_replicated("$FD_META"))
+            files_enc = self._download_replicated("$FD")
+            enc_cls = Encrypt.get_class(self.fd.get_encryption_signature())
+            self.encrypt = enc_cls(key)
+            split_cls = Split.get_class(self.fd.get_split_signature())
+            self.split = split_cls()
+            self.fd.set_files(self._decrypt(files_enc))
+        if key:
+            self.loaded = True
+            
+            return True
+        return False
     
-    def create_new_session(self):
+    def create_new_session(self) -> bytes:
         """
         Create a first time share, generate a shared key and upload FEK
         """
@@ -65,13 +86,11 @@ class SharedCloudManager(CloudManager):
             else:
                 # The folder is already shared, this is already a shared session
                 raise Exception("Attempting to create a shared session from an already existing shared root folder")
-        
-        shared_key = self.encrypt.generate_key()
-        encrypted_sk = self._encrypt(shared_key) # encrypted with master key
-        self._upload_replicated("$FEK",encrypted_sk,True)
-        self.encrypt.set_key(shared_key)
+        key = self.encrypt.generate_key()
+        self.sync_fek(key)
+        return key
 
-    def load_session(self) -> bool:
+    def load_session(self) -> bytes | None:
         """
         Attempts to load an already existing shared session
         If returns false, the session is not ready for use since we have no encryption key
@@ -98,17 +117,14 @@ class SharedCloudManager(CloudManager):
                 self.clouds.pop(self.clouds.index(cloud)) # pop cloud from clouds list
         if my_key:
             # We have at least a single FEK
-            real_key = self._decrypt(my_key)
-            self.encrypt.set_key(real_key)
-
-            # We can send this to it's own thread:
-            self.sync_fek(my_key)
-            return True
+            key = self._decrypt(my_key)
+            self.sync_fek(key)
+            return key
         return False
 
             
-    def sync_fek(self, encrypted_key : bytes) -> None:
-        self._upload_replicated("$FEK", encrypted_key, True)
+    def sync_fek(self, key : bytes) -> None:
+        self._upload_replicated("$FEK", self._encrypt(key), True)
 
         # Try deleting excess files
         for cloud in self.clouds:
@@ -254,6 +270,11 @@ class SharedCloudManager(CloudManager):
 
     def stop_sync_thread(self):
         pass
+
+    # In shared manager we do not use OS to store files
+    # Instead each operation shares the FD so everyone else can have it
+    def sync_fd(self):
+        super().sync_to_clouds()
     
     def revoke_user_from_share(self, users):
         """
