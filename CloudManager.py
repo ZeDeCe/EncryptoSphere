@@ -11,6 +11,7 @@ import threading
 import time
 
 SYNC_TIME = 300  # Sync time in seconds
+FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
 
 class CloudManager:
     """
@@ -73,6 +74,9 @@ class CloudManager:
         try:
             for cloud in self.clouds:
                 cloud.authenticate_cloud()
+            self.load_fd()
+            if not self.sync_thread or not self.sync_thread.is_alive():
+                self.start_sync_thread()
             return True
         except:
             return False
@@ -107,51 +111,42 @@ class CloudManager:
         file_id = self.fd.add_file(
                 os.path.basename(os_filepath),
                 path,
-                self.encrypt.get_name(),
-                self.split.get_name(),
                 cloud_file_count,
                 hash,
                 file_id
                 )
         
-        self.fd.sync_to_file()
+        self.sync_fd()
             
     def _upload_replicated(self, file_name, data, suffix=False):
         """
-        Encrypts and uploads the given file to all platforms without splitting.
+        Uploads the given file to all platforms without splitting.
         This function is purposefully limited to only uploading from the root folder
         @param file_name the name of the file on the cloud
         @param data the data to be written
         @param suffix, optional if True will add the email of the user to the file name at the end
         """
-        data = self._encrypt(data)
         for cloud in self.clouds:
             suffix = f"_{cloud.get_email()}" if suffix else ""
             cloud.upload_file(data, f"{file_name}{suffix}", self.root_folder)
 
     def _download_replicated(self, file_name, suffix=False):
         """
-        Downloads and decrypts a the file from the path given if it exists in all clouds
+        Downloads and decrypts a the file from the path given if it exists in at least one of the clouds
         This function is purposefully limited to only downloading from the root folder
+        @return the data of the file if succeeded, None otherwise
         """
-        replicated_files = []
+        file_data = None
         for cloud in self.clouds:
             suffix = f"_{cloud.get_email()}" if suffix else ""
             try:
                 file_data = cloud.download_file(f"{file_name}{suffix}", self.root_folder)
-                if file_data is None:
-                    raise Exception(f"Failed to download {file_name} from {cloud.get_email()}")
-                replicated_files.append(file_data)
+                if file_data is not None:
+                    break
             except Exception as e:
-                print(f"Error: {e}")
-        if(len(replicated_files) > 0):
-            status =  self._check_replicated_integrity(replicated_files)
-            if status[0]:
-                return replicated_files[0]
-            else:
-                raise Exception("integrity check failed")
-        else:
-            raise Exception("No Fd file found in clouds")
+                continue
+        return file_data
+        
     
     def _check_replicated_integrity(self, replicated : list[bytes]):
         """
@@ -183,7 +178,7 @@ class CloudManager:
             encrypto_root = "/".join(root_arr)
             for file in files:
                 self.upload_file(os.path.join(root,file), f"{path}{encrypto_root}")
-        # can add yield here to tell which files have been uploaded
+        self.sync_fd()
 
     def download_file(self, file_id):
         """
@@ -215,8 +210,6 @@ class CloudManager:
         on all of those files. Constructs them as the hierarchy in the filedescriptor on the OS.
         """
 
-        pass
-
     def delete_file(self, file_id):
         """
         Deletes a specific file from file ID using the filedescriptor
@@ -233,14 +226,14 @@ class CloudManager:
                         print(f"deleting {file_name} from {cloud_name}...")
                         cloud.delete_file(file_name, self.root_folder)
         self.fd.delete_file(file_id)    
-        self.fd.sync_to_file()
+        self.sync_fd()
 
     def delete_folder(self, folder_path):
         """
         Given a path in EncryptoSphere (/EncryptoSphere/...), deletes all files with that path name
         @param folder_path the path to the folder in the file descriptor
         """
-        pass
+        self.sync_fd()
 
     def get_file_list(self):
         return self.fd.get_file_list()
@@ -250,16 +243,11 @@ class CloudManager:
         Uploads the filedescriptor to the clouds encrypted using self.encrypt
         This function should use upload_replicated
         """
-        self.fd.sync_to_file()
-        fd_file_path = os.path.join(os.getcwd(), "Test", "$FD")
-
-        # Read the contents of the $FD file
-        if os.path.exists(fd_file_path):
-            with open(fd_file_path, 'rb') as fd_file:
-                fd_content = fd_file.read()
-                self._upload_replicated("$FD", fd_content)
-        else:
-            print(f"$FD file not found at {fd_file_path}")
+        if self.fd.files_ready:
+            data, metadata = self.fd.serialize()
+            self._upload_replicated("$FD_META", metadata)
+            self._upload_replicated("$FD", self._encrypt(data))
+        
 
     def start_sync_thread(self):
         """
@@ -281,41 +269,52 @@ class CloudManager:
         if self.sync_thread and self.sync_thread.is_alive():
             self.stop_event.set()  # Signal the thread to stop
 
-    def sync_from_clouds(self):
+    def load_fd(self):
         """
         Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor
-        This function should use download_replicated
         """
         data = self._download_replicated("$FD")
-        print("data: ", data)
-        fd = self._decrypt(data)
-        
-        fd_file_path = os.path.join(os.getcwd(), "Test", "$FD")
-        print("fd_file_path: ", fd_file_path)
+        metadata = self._download_replicated("$FD_META")
+        # Technically supposed to pull encryption decryption from cloud or at least check it matches
+        # TODO: Check here if a version is still in desktop, means corruption
+        self.fd = FileDescriptor.FileDescriptor(None if data == None else self._decrypt(data), metadata, self.encrypt.get_name(), self.split.get_name())
+    
+    def sync_fd(self):
+        """
+        Syncs the file descriptor
+        This function is called after every operation
+        """
+        fd_file_path = os.path.join(".", "Test") #temporary
         try:
-            with open(fd_file_path, "wb") as f:
-                f.write(fd) 
-        except Exception as e:
-            print(f"Error: {e}")
+            if not os.path.exists(fd_file_path):
+                os.makedirs(fd_file_path)
+        except:
+            raise OSError("Root folder given for FD is invalid")
+        data = None
+        metadata = None
+        try:
+            data, metadata = self.fd.serialize()
+        except:
+            raise Exception("Failed to serialize fd")
 
-        self.fd = FileDescriptor.FileDescriptor(os.path.join(os.getcwd(),"Test"))
-        print("FD Synced from clouds successfully")
-         # Ensure the sync thread is started only once
+        try:
+            with open(os.path.join(fd_file_path, "$FD"), "wb") as f:
+                f.write(self._encrypt(data)) 
+            with open(os.path.join(fd_file_path, "$FD_META"), "wb") as f:
+                f.write(metadata)
+        except:
+            print("Failed to write to {fd_file_path}")
         
-        if not self.sync_thread or not self.sync_thread.is_alive():
-            self.start_sync_thread()
-        return True
-
-    def delete_FD_file(self):
+        
+    def delete_fd(self):
         """
         Deletes the file descriptor file from disk
         This function should be used to clean up the file descriptor file after the session is over
         """
-        fd_file_path = os.path.join(os.getcwd(), "Test", "$FD")
-
         try:
-            os.remove(fd_file_path)
-            print("$DF deleted successfully!")
+            os.remove(os.path.join(FILE_DESCRIPTOR_FOLDER, "$FD"))
+            os.remove(os.path.join(FILE_DESCRIPTOR_FOLDER, "$FD_META"))
+            print("$FD deleted successfully!")
         except FileNotFoundError:
             print("File not found.")
         except PermissionError:
