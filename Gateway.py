@@ -45,18 +45,18 @@ class Gateway:
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
 
-        dropbox2 = DropBox(email)
-        #Testing shared sessions
-        self.shared_session = SharedCloudManager(
-            #[{"D":"pokaya6659@cybtric.com"}],
-            None,
-            [dropbox2],
-            "/SharedSession", 
-            NoSplit(), 
-            NoEncrypt(), 
-        )
-        self.shared_session.authenticate()
-        self.shared_session.upload_file(".\\Test\\uploadme.txt")
+        # dropbox2 = DropBox(email)
+        # #Testing shared sessions
+        # self.shared_session = SharedCloudManager(
+        #     #[{"D":"pokaya6659@cybtric.com"}],
+        #     None,
+        #     [dropbox2],
+        #     "/SharedSession", 
+        #     NoSplit(), 
+        #     NoEncrypt(), 
+        # )
+        # self.shared_session.authenticate()
+        # self.shared_session.upload_file(".\\Test\\uploadme.txt")
         return status
     
     def get_files(self):
