@@ -522,27 +522,6 @@ class SharePage(ctk.CTkFrame):
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
 
-    def upload_file(self):
-        """
-        If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file.
-        In a new thread, call upload_file_to_cloud to upload the file to the clouds and. After a successful upload, refresh the frame so a the new file will be displayed
-        TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
-        """
-        file_path = filedialog.askopenfilename()
-        self.context_menu.hide_context_menu()
-        print(file_path)
-        if file_path:
-            Thread(target=self.upload_file_to_cloud, args=(file_path,), daemon=True).start()
-            
-
-    def upload_file_to_cloud(self, file_path):
-        """
-        Upload file to the cloud and refresh the page
-        """
-        self.controller.get_api().upload_file(os.path.normpath(file_path))
-        self.refresh()
-
-
     def upload_folder(self):
         """
         If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder.

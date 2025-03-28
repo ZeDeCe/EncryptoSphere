@@ -115,12 +115,22 @@ class Gateway:
         new_session = SharedCloudManager(
              shared_with,
              self.manager.clouds,
-             f"{folder_name}_ENCRYPTOSPHERE_SHARE", 
+             f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
              NoSplit(), 
              NoEncrypt(), 
         )
-        self.current_session.add_session(new_session)
+        self.session_manager.add_session(new_session)
         return True
+
+    def get_shared_folders(self):
+        folders = {}
+        for session in self.session_manager.sessions:
+            folder_name =  session.root_folder
+            files_of_folder = session.get_file_list() # Sould return tuple of files and folders under the curr folder
+            folders[folder_name] = files_of_folder
+        return folders
+
+
 
     #def share_file(self):
     #    pass
