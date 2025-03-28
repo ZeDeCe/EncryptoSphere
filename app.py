@@ -234,6 +234,12 @@ class MainPage(ctk.CTkFrame):
         self.main_frame = ctk.CTkFrame(self, corner_radius=0)
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
 
+        self.curr_path = "/EncryptoSphere"
+
+        # Create a label that will display current location
+        self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
+
         # Context_menu object for the upload button (offers 2 options - upload file or upload folder)
         # This is because windows os filesystem cannot open the explorer to select file and folder at the same time.
         self.context_menu = OptionMenu(self, self.controller, [
