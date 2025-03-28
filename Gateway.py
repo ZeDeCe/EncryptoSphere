@@ -60,6 +60,12 @@ class Gateway:
         # self.shared_session.upload_file(".\\Test\\uploadme.txt")
         return status
     
+    def change_session(self, path=None):
+        if path:
+           self.current_session = self.session_manager.get_session(path)
+        else:
+            self.current_session = self.session_manager.main_session
+        
     def get_files(self):
         return self.manager.get_file_list()
     
