@@ -146,7 +146,14 @@ class CloudManager:
             except Exception as e:
                 continue
         return file_data
-        
+    
+    def _delete_replicated(self, file_name, suffix=False):
+        for cloud in self.clouds:
+            suffix = f"_{cloud.get_email()}" if suffix else ""
+            try:
+                cloud.download_file(f"{file_name}{suffix}", self.root_folder)
+            except Exception as e:
+                continue
     
     def _check_replicated_integrity(self, replicated : list[bytes]):
         """

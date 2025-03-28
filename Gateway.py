@@ -44,66 +44,95 @@ class Gateway:
         )
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
+        self.current_session = self.manager 
 
-        dropbox2 = DropBox(email)
-        #Testing shared sessions
-        self.shared_session = SharedCloudManager(
-            #[{"D":"pokaya6659@cybtric.com"}],
-            None,
-            [dropbox2],
-            "/SharedSession", 
-            NoSplit(), 
-            NoEncrypt(), 
-        )
-        self.shared_session.authenticate()
-        self.shared_session.upload_file(".\\Test\\uploadme.txt")
+        # dropbox2 = DropBox(email)
+        # #Testing shared sessions
+        # self.shared_session = SharedCloudManager(
+        #     #[{"D":"pokaya6659@cybtric.com"}],
+        #     None,
+        #     [dropbox2],
+        #     "/SharedSession", 
+        #     NoSplit(), 
+        #     NoEncrypt(), 
+        # )
+        # self.shared_session.authenticate()
+        # self.shared_session.upload_file(".\\Test\\uploadme.txt")
         return status
     
+    def change_session(self, path=None):
+        if path:
+           self.current_session = self.session_manager.get_session(path)
+        else:
+            self.current_session = self.session_manager.main_session
+        
     def get_files(self):
-        return self.manager.get_file_list()
+        return self.current_session.get_file_list()
     
     def download_file(self, file_id):
-        self.manager.download_file(file_id)
+        self.current_session.download_file(file_id)
         return True # TODO: Handle correctly!!
     
     def download_folder(self, folder_id):
-        self.manager.download_folder(folder_id)
+        self.current_session.download_folder(folder_id)
         return True # TODO: Handle correctly!!
     
     def upload_file(self, file_path):
         print(f"Upload file selected: {file_path}")
-        self.manager.upload_file(file_path)
+        self.current_session.upload_file(file_path)
         return True # TODO: Handle correctly!!
     
     def upload_folder(self, folder_path):
         print(f"Upload folder selected {folder_path}")
-        self.manager.upload_folder(folder_path)
+        self.current_session.upload_folder(folder_path)
         return True # TODO: Handle correctly!!
     
     def delete_file(self, file_id):
         print(f"Delete file selected {file_id}")
-        self.manager.delete_file(file_id)
+        self.current_session.delete_file(file_id)
         return True # TODO: Handle correctly!!
     
     def delete_folder(self, folder_id):
-        self.manager.delete_folder(folder_id)
+        self.current_session.delete_folder(folder_id)
         return True # TODO: Handle correctly!!
     
     # TODO: shared session functions
-    def create_shared_session(self):
-        pass
+    def create_shared_session(self, folder_name, emails):
+        """
+        Create new shared session
+        @param folder name
+        @param emails list of the share members
+        TODO: At the next stage we want to let the user pick on which clouds he want to do the share
+        also, we need to support the option of multiple emails account for the same email.
+        As of this POC we are given only one email and support only dropbox and google drive using the same email address.
+        """
+        shared_with = []
+        for email in emails:
+            user_dict = {}
+            for cloud in self.manager.clouds:
+                user_dict[cloud.get_name()] = email
+            shared_with.append(user_dict)
+        new_session = SharedCloudManager(
+             shared_with,
+             self.manager.clouds,
+             f"{folder_name}_ENCRYPTOSPHERE_SHARE", 
+             NoSplit(), 
+             NoEncrypt(), 
+        )
+        self.current_session.add_session(new_session)
+        return True
 
-    def share_file(self):
-        pass
+    #def share_file(self):
+    #    pass
 
-    def share_folder(self):
-        pass
+    #def share_folder(self):
+    #    pass
 
     def unshare_folder(self):
         pass
 
-    def unshare_file(self):
-        pass
+    #def unshare_file(self):
+    #    pass
 
     def revoke_user_from_share(self):
         pass
@@ -119,13 +148,7 @@ def main():
     """
     gateway = Gateway()
     gui = app.App(gateway)
-    try:
-        gui.mainloop()
-    finally:    
-        try:
-            gateway.manager.fd.sync_to_file()
-        except:
-            pass
+    gui.mainloop()
     
 if __name__=="__main__":
     main()
