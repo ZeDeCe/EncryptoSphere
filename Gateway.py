@@ -119,20 +119,20 @@ class Gateway:
              NoSplit(), 
              NoEncrypt(), 
         )
-        self.session_manager.add_session(new_session)
+        self.current_session.add_session(new_session)
         return True
 
-    def share_file(self):
-        pass
+    #def share_file(self):
+    #    pass
 
-    def share_folder(self):
-        pass
+    #def share_folder(self):
+    #    pass
 
     def unshare_folder(self):
         pass
 
-    def unshare_file(self):
-        pass
+    #def unshare_file(self):
+    #    pass
 
     def revoke_user_from_share(self):
         pass
