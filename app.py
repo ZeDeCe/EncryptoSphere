@@ -28,7 +28,9 @@ class App(ctk.CTk):
         self.title("EncryptoSphere")
 
         # As of now we are using specific sizing, on the advanced ui we will need to make dynamic sizing
-        self.geometry("650x400")
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        self.geometry("650x400+%d+%d" % (screen_width/2-325, screen_height/2-200))
         
         # "Backend" functions
         self.api = gateway
@@ -390,6 +392,8 @@ class OptionMenu(ctk.CTkFrame):
         self.context_hidden = False
         self.place(x=x, y=y)
 
+class Folder():
+    pass
 class SharePage(ctk.CTkFrame):
     def __init__(self, parent, controller):
         
@@ -413,7 +417,7 @@ class SharePage(ctk.CTkFrame):
         self.back_button.bind("<Leave>", lambda e: self.set_normal(self.back_button))
 
         self.share_folder_button = ctk.CTkButton(self.side_bar, text="New Share",
-                                      command=lambda: self.open_upload_menu(),
+                                      command=lambda: self.open_sharing_window(),
                                       width=120, height=30, fg_color="gray25", hover=False)
         self.share_folder_button.pack(anchor="nw", padx=10, pady=10, expand = False)
 
@@ -424,20 +428,6 @@ class SharePage(ctk.CTkFrame):
         self.main_frame = ctk.CTkFrame(self, corner_radius=0)
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
 
-        # Context_menu object for the upload button (offers 2 options - upload file or upload folder)
-        # This is because windows os filesystem cannot open the explorer to select file and folder at the same time.
-        self.context_menu = OptionMenu(self, self.controller, [
-            {
-                "label": "Upload File",
-                "color": "gray25",
-                "event": lambda: self.upload_file()
-             },
-             {
-                 "label": "Upload Folder",
-                 "color": "gray25",
-                 "event": lambda: self.upload_folder()
-             }
-        ])
 
     def set_bold(self, button):
         """ Change the button text to bold on hover. """
@@ -447,15 +437,89 @@ class SharePage(ctk.CTkFrame):
         """ Revert the button text to normal when not hovered. """
         button.configure(font=("Verdana", 13))
         
-    def open_upload_menu(self):
+    def open_sharing_window(self):
         """
-        This function opens the upload menu using the context_menue.
+        This function opens the upload menu with inputs for folder name and email list.
         """ 
-        if self.context_menu.context_hidden:
-            self.controller.button_clicked(self, [self.context_menu])
-            self.context_menu.show_context_menu(self.share_folder_button.winfo_x()+(120), self.share_folder_button.winfo_y())
-        else:
-            self.context_menu.hide_context_menu()
+        new_window = ctk.CTkToplevel(self)
+        new_window.title("New Share")
+        new_window.lift()  # Bring to front
+        new_window.transient(self)  # Keep it on top of the main window
+
+        # Get the position and size of the parent (controller) window
+        main_x = self.controller.winfo_x()
+        main_y = self.controller.winfo_y()
+        main_w = self.controller.winfo_width()
+        main_h = self.controller.winfo_height()
+        new_w, new_h = 400, 350  # Size of the new window
+
+        # Calculate the position to center the new window over the parent window
+        new_x = main_x + (main_w // 2) - (new_w // 2)
+        new_y = main_y + (main_h // 2) - (new_h // 2)
+        new_window.geometry(f"{new_w}x{new_h}+{new_x}+{new_y}")
+
+        # Create a frame for the scrollable area
+        frame = ctk.CTkFrame(new_window)
+        frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+
+        # Create a scrollable frame inside the main frame
+        scrollable_frame = ctk.CTkScrollableFrame(frame)
+        scrollable_frame.pack(fill=ctk.BOTH, expand=True)
+
+        # Folder name input (label above the entry field)
+        folder_label = ctk.CTkLabel(scrollable_frame, text="Enter Folder Name:", anchor="w")
+        folder_label.grid(row=0, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
+        folder_name_entry = ctk.CTkEntry(scrollable_frame, width=200)
+        folder_name_entry.grid(row=1, column=0, pady=5, sticky="w")
+
+        # Share with header
+        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w")
+        share_with_label.grid(row=2, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
+        
+        # Email list input
+        email_frame = ctk.CTkFrame(scrollable_frame, fg_color=scrollable_frame.cget('fg_color'))  # Match background
+        email_frame.grid(row=3, column=0, columnspan=2, pady=0, sticky="w")
+
+        email_inputs = []  # List to hold email input fields
+
+        # Initial email input field
+        initial_email_entry = ctk.CTkEntry(email_frame, width=200)
+        initial_email_entry.grid(row=1, column=0, pady=5, padx=(0, 10), sticky="w")
+        email_inputs.append(initial_email_entry)
+
+        # Function to add new email input
+        def add_email_input():
+            if len(email_inputs) < 5:
+                new_email_entry = ctk.CTkEntry(email_frame, width=200)
+                new_email_entry.grid(row=len(email_inputs) + 1, column=0, pady=5, padx=(0, 10), sticky="w")
+                email_inputs.append(new_email_entry)
+
+        # "+" button to add email inputs (styled as a small circular button)
+        plus_button = ctk.CTkButton(email_frame, text="+", command=add_email_input, width=30, height=30, corner_radius=15)
+        plus_button.grid(row=1, column=1, padx=10, pady=5)
+
+        # Function to handle the creation of new share
+        def create_new_share():
+            folder_name = folder_name_entry.get()
+            emails = [email.get() for email in email_inputs]
+            print(f"Creating share with folder: {folder_name} and emails: {emails}")
+            
+            # Call a new function with the folder and emails (replace this with your logic)
+            Thread(target=self.controller.get_api().create_shared_session, args=(folder_name, emails,), daemon=True).start()
+
+            # Close the new window
+            new_window.destroy()
+
+        # Create new share button (this now does both actions: create share and close the window)
+        create_share_button = ctk.CTkButton(scrollable_frame, text="Create New Share", command=create_new_share)
+        create_share_button.grid(row=100, column=0, pady=50, padx=100, sticky="s")
+
+        # Adjust the scrollbar to make it thinner (no slider_length argument)
+        new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
+
+
+
+
 
     def upload_file(self):
         """
@@ -514,12 +578,12 @@ class SharePage(ctk.CTkFrame):
             row = i // columns  
             col = i % columns   
 
-            file_frame = FolderButton(self.main_frame, width=cell_size, height=cell_size, file_data=file_data, controller=self.controller)
+            file_frame = SharedFolderButton(self.main_frame, width=cell_size, height=cell_size, file_data=file_data, controller=self.controller)
             file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             self.buttons.append(file_frame)
 
 
-class FolderButton(ctk.CTkFrame):
+class SharedFolderButton(ctk.CTkFrame):
     """
     This class represents a "file button".
     A file button is the frame surronding the file icon and name, so every mouse click in that area is considered as an action related to that specific file 
