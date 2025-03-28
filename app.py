@@ -544,7 +544,7 @@ class SharePage(ctk.CTkFrame):
         """
         Refresh the frame and display all updates
         """
-        file_list = self.controller.get_api().get_files()
+        file_list = self.controller.get_api().get_shared_folders()
         for widget in self.main_frame.winfo_children():
             widget.after(0, widget.destroy)
         self.buttons = []
