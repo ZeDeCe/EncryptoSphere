@@ -67,38 +67,39 @@ class Gateway:
             self.current_session = self.session_manager.main_session
         
     def get_files(self):
-        return self.manager.get_file_list()
+        return self.current_session.get_file_list()
     
     def download_file(self, file_id):
-        self.manager.download_file(file_id)
+        self.current_session.download_file(file_id)
         return True # TODO: Handle correctly!!
     
     def download_folder(self, folder_id):
-        self.manager.download_folder(folder_id)
+        self.current_session.download_folder(folder_id)
         return True # TODO: Handle correctly!!
     
     def upload_file(self, file_path):
         print(f"Upload file selected: {file_path}")
-        self.manager.upload_file(file_path)
+        self.current_session.upload_file(file_path)
         return True # TODO: Handle correctly!!
     
     def upload_folder(self, folder_path):
         print(f"Upload folder selected {folder_path}")
-        self.manager.upload_folder(folder_path)
+        self.current_session.upload_folder(folder_path)
         return True # TODO: Handle correctly!!
     
     def delete_file(self, file_id):
         print(f"Delete file selected {file_id}")
-        self.manager.delete_file(file_id)
+        self.current_session.delete_file(file_id)
         return True # TODO: Handle correctly!!
     
     def delete_folder(self, folder_id):
-        self.manager.delete_folder(folder_id)
+        self.current_session.delete_folder(folder_id)
         return True # TODO: Handle correctly!!
     
     # TODO: shared session functions
     def create_shared_session(self, folder_name, emails):
-        print("creating new shared session")
+        new_session = SharedCloudManager()
+        self.session_manager.add_session()
         return True
 
     def share_file(self):

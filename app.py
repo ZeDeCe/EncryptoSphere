@@ -518,9 +518,6 @@ class SharePage(ctk.CTkFrame):
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
 
-
-
-
     def upload_file(self):
         """
         If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file.
