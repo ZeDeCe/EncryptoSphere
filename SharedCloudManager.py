@@ -234,10 +234,8 @@ class SharedCloudManager(CloudManager):
         for cloud in self.clouds:
             public_keynames = filter(lambda name: name.startswith("$PUBLIC_"), cloud.list_files(self.root_folder))
             for keyname in public_keynames:
-                username = ""
-                try:
-                    username = keyname[8:]
-                except:
+                username = keyname[8:]
+                if username == "":
                     continue
                 pem = cloud.download_file(keyname, self.root_folder)
                 public = serialization.load_pem_public_key(

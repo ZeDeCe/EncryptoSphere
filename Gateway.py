@@ -47,10 +47,9 @@ class Gateway:
         self.current_session = self.manager 
 
         # dropbox2 = DropBox(email)
-        # #Testing shared sessions
+        #Testing shared sessions
         # self.shared_session = SharedCloudManager(
-        #     #[{"D":"pokaya6659@cybtric.com"}],
-        #     None,
+        #     [{"D":"pokaya6659@cybtric.com"}],
         #     [dropbox2],
         #     "/SharedSession", 
         #     NoSplit(), 
@@ -60,8 +59,8 @@ class Gateway:
         # self.shared_session.upload_file(".\\Test\\uploadme.txt")
         return status
     
-    def get_files(self):
-        return self.manager.get_file_list()
+    def get_files(self, path="/"):
+        return self.manager.get_items_in_folder(path)
     
     def download_file(self, file_id):
         self.manager.download_file(file_id)
@@ -71,14 +70,14 @@ class Gateway:
         self.manager.download_folder(folder_id)
         return True # TODO: Handle correctly!!
     
-    def upload_file(self, file_path):
+    def upload_file(self, file_path, path):
         print(f"Upload file selected: {file_path}")
-        self.manager.upload_file(file_path)
+        self.manager.upload_file(file_path, path)
         return True # TODO: Handle correctly!!
     
-    def upload_folder(self, folder_path):
+    def upload_folder(self, folder_path, path):
         print(f"Upload folder selected {folder_path}")
-        self.manager.upload_folder(folder_path)
+        self.manager.upload_folder(folder_path, path)
         return True # TODO: Handle correctly!!
     
     def delete_file(self, file_id):
@@ -86,8 +85,8 @@ class Gateway:
         self.manager.delete_file(file_id)
         return True # TODO: Handle correctly!!
     
-    def delete_folder(self, folder_id):
-        self.manager.delete_folder(folder_id)
+    def delete_folder(self, path):
+        self.manager.delete_folder(path)
         return True # TODO: Handle correctly!!
     
     # TODO: shared session functions
