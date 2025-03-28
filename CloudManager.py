@@ -205,10 +205,9 @@ class CloudManager:
                 for cloud in self.clouds:
                     if cloud.get_name() == cloud_name:
                         print("cloud: ", cloud_name)
-                        print(f"Downloading {file_name} from {cloud_name}...")
+                        print(f"Downloading {file_name} from {cloud_name}..., path: {self.root_folder}")
                         file_content = cloud.download_file(file_name, self.root_folder)
                         data.append(file_content)
-        print("data: ", data)
         #self._merge(data, len(self.clouds))
 
     def download_folder(self, folder_name):
@@ -224,13 +223,12 @@ class CloudManager:
         """
         file_data = self.fd.get_file_data(file_id)
         parts = file_data['parts']
-        print(file_data)
         for cloud_name, part_count in parts.items():  # Iterate over clouds
             for part_number in range(1, part_count + 1):  # Generate file parts
                 file_name = f"{file_id}_{part_number}"
                 for cloud in self.clouds:
                     if cloud.get_name() == cloud_name:                        
-                        print(f"deleting {file_name} from {cloud_name}...")
+                        print(f"deleting {file_name} from {cloud_name}...{self.root_folder}")
                         cloud.delete_file(file_name, self.root_folder)
         self.fd.delete_file(file_id)    
         self.sync_fd()
@@ -257,6 +255,7 @@ class CloudManager:
             data, metadata = self.fd.serialize()
             self._upload_replicated("$FD_META", metadata)
             self._upload_replicated("$FD", self._encrypt(data))
+            print("FDs Synced to clouds")
         
 
     def start_sync_thread(self):

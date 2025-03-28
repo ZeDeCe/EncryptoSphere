@@ -236,7 +236,9 @@ class FileDescriptor:
         folder_list = []
         for id,file in self.files.items():
             if file["path"] == folder_name:
-                file_list.append(file)
+                app = dict(file)
+                app["id"] = id
+                file_list.append(app)
         for folder in self.folders:
             if folder != "/" and folder!=folder_name and folder.startswith(folder_name) and folder[len(folder_name)+1:].find("/") == -1:
                 folder_list.append(folder)
