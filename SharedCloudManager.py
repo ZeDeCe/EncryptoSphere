@@ -6,6 +6,8 @@ from modules.CloudAPI.CloudService import CloudService
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric import rsa,padding
 from cryptography.hazmat.primitives import hashes,serialization
+import re
+import os
 
 class SharedCloudManager(CloudManager):
     """
@@ -30,7 +32,6 @@ class SharedCloudManager(CloudManager):
                         self.emails_by_cloud[cloud].append(email) 
                     else:
                          self.emails_by_cloud[cloud] = [email]
-
 
     def authenticate(self):
         try:
@@ -124,7 +125,6 @@ class SharedCloudManager(CloudManager):
             return key
         return False
 
-            
     def sync_fek(self, key : bytes) -> None:
         self._upload_replicated("$FEK", self._encrypt(key), True)
 
@@ -137,7 +137,6 @@ class SharedCloudManager(CloudManager):
             self._delete_replicated(f"$PUBLIC", True)
         except:
             pass
-
 
     def check_key_status(self, cloud : CloudService) -> bytes | bool:
         """
@@ -194,8 +193,6 @@ class SharedCloudManager(CloudManager):
         if not (tfek and public_key):
             self.upload_TFEK(cloud)
         return False
-        
-        
         
     def upload_TFEK(self, cloud : CloudService):
         """
@@ -295,6 +292,26 @@ class SharedCloudManager(CloudManager):
         Adds a new user to the shared session
         @param users a dictionary in the format: {"cloudname": "email", ...}
         """
+        for cloud_name, email in users.items():
+            # Find the cloud service by name
+            cloud = next((c for c in self.clouds if c.get_name() == cloud_name), None)
+            if not cloud:
+                print(f"Cloud {cloud_name} not found in the current session.")
+                continue
+
+            try:
+                # Share the folder with the new user
+                folder = cloud.get_folder(self.root_folder)
+                cloud.share_folder(folder, [email])
+                print(f"User {email} added to shared session on {cloud_name}.")
+
+                # Update self.users to include the new user
+                if self.users is None:
+                    self.users = []
+                self.users.append({cloud_name: email})
+
+            except Exception as e:
+                print(f"Failed to add user {email} to shared session on {cloud_name}: {e}")
 
     @staticmethod
     def is_valid_session_root(cloud, root) -> bool:
@@ -307,4 +324,34 @@ class SharedCloudManager(CloudManager):
         4. The folder has at least 2 members shared
         @return if it is valid, True, otherwise False
         """
-        pass
+         # Ensure the root includes the base path
+        base_path = os.getenv("ENCRYPTO_ROOT")
+        if not root.startswith(base_path):
+            root = f"{base_path}{root}"
+        
+        if not root.endswith("_ENCRYPTOSPHERE_SHARE"):
+            print(f"Folder {root} is not a valid session root, does not match pattern")
+            return False
+        try:            
+            members = cloud.get_members_shared(root)
+            print(f"Members: {members}")
+            if not members or len(members) < 2:
+                print(f"Folder {root} is not a valid session root, does not have at least 2 members shared")
+                return False
+        except Exception as e:
+            print(f"Error checking shared status for folder {root}: {e}")
+            return False
+
+        try:
+            files = cloud.list_files(root)
+            fek_pattern = r"$FEK_.+?@.+$"
+            if not any(re.match(fek_pattern, file) for file in files):
+                print(f"Folder {root} is not a valid session root, does not contain a valid $FEK file")
+                return False
+        except Exception as e:
+            print(f"Error listing files in folder {root}: {e}")
+            return False
+
+        # If all checks pass, the folder is valid
+        return True
+        

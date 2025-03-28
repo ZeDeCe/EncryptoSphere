@@ -45,7 +45,7 @@ class Gateway:
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         self.current_session = self.manager 
-
+       
         # dropbox2 = DropBox(email)
         # #Testing shared sessions
         # self.shared_session = SharedCloudManager(
@@ -106,12 +106,15 @@ class Gateway:
         also, we need to support the option of multiple emails account for the same email.
         As of this POC we are given only one email and support only dropbox and google drive using the same email address.
         """
+        emails = [email for email in emails if email.strip()]
+
         shared_with = []
         for email in emails:
             user_dict = {}
             for cloud in self.manager.clouds:
                 user_dict[cloud.get_name()] = email
             shared_with.append(user_dict)
+            
         new_session = SharedCloudManager(
              shared_with,
              self.manager.clouds,
