@@ -44,7 +44,7 @@ class Gateway:
         )
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
-        self.current_session = self.session_manager 
+        self.current_session = self.manager 
 
         # dropbox2 = DropBox(email)
         # #Testing shared sessions
