@@ -144,6 +144,8 @@ class LoginPage(ctk.CTkFrame):
         # Add the retry button
         if hasattr(self, 'error_label'):
             self.error_label.grid_forget()
+        if hasattr(self, 'retry_button'):
+            self.retry_button.configure(state="disabled")
         
         # Load GIF
         self.gif = Image.open("resources/loading-gif.gif")
