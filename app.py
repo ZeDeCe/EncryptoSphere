@@ -409,7 +409,7 @@ class SharePage(ctk.CTkFrame):
         encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand = False)
 
         self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
-                                                 command=lambda: self.controller.show_frame(MainPage),
+                                                 command=lambda: self.back_to_main_window(),
                                                  width=120, height=30, fg_color="gray25", hover=False)
         self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
 
@@ -436,7 +436,11 @@ class SharePage(ctk.CTkFrame):
     def set_normal(self, button):
         """ Revert the button text to normal when not hovered. """
         button.configure(font=("Verdana", 13))
-        
+    
+    def back_to_main_window(self):
+        self.controller.get_api().change_session()
+        self.controller.show_frame(MainPage)
+
     def open_sharing_window(self):
         """
         This function opens the upload menu with inputs for folder name and email list.
