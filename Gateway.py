@@ -98,8 +98,28 @@ class Gateway:
     
     # TODO: shared session functions
     def create_shared_session(self, folder_name, emails):
-        new_session = SharedCloudManager()
-        self.session_manager.add_session()
+        """
+        Create new shared session
+        @param folder name
+        @param emails list of the share members
+        TODO: At the next stage we want to let the user pick on which clouds he want to do the share
+        also, we need to support the option of multiple emails account for the same email.
+        As of this POC we are given only one email and support only dropbox and google drive using the same email address.
+        """
+        shared_with = []
+        for email in emails:
+            user_dict = {}
+            for cloud in self.manager.clouds:
+                user_dict[cloud.get_name()] = email
+            shared_with.append(user_dict)
+        new_session = SharedCloudManager(
+             shared_with,
+             self.manager.clouds,
+             f"{folder_name}_ENCRYPTOSPHERE_SHARE", 
+             NoSplit(), 
+             NoEncrypt(), 
+        )
+        self.session_manager.add_session(new_session)
         return True
 
     def share_file(self):
