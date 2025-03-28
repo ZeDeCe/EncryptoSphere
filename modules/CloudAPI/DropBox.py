@@ -136,6 +136,10 @@ class DropBox(CloudService):
         Get folder object
         """
         try:
+            if folder_path == "/":
+                print("Error: Cannot get root folder.")
+                return None
+            
             metadata = self.dbx.files_get_metadata(folder_path)
             
             # Ensure it's a folder, not a file
@@ -144,7 +148,6 @@ class DropBox(CloudService):
                 folder_path = metadata.path_display
                 folder_obj = CloudService.Folder(id=folder_id, path=folder_path, shared=False, members_shared=None)
                 return folder_obj
-            
             else:
                 print(f"Error: {folder_path} is not a folder.")
                 return None
@@ -156,7 +159,7 @@ class DropBox(CloudService):
         """
         Returns the folder path of a given folder object (as recived from get_folder())
         """
-        folder_path = folder.folder_path
+        folder_path = folder.path
         if folder_path:
             return folder_path
         else: 
@@ -173,8 +176,8 @@ class DropBox(CloudService):
         except dropbox.exceptions.ApiError as e:
             # Folder already exists
             if e.error.is_path() and e.error.get_path().is_conflict():
-                exsist_folder = self.dbx.files_get_metadata(folder_path)
-                return CloudService.Folder(id=exsist_folder.id, path=exsist_folder.path_display, shared=False, members_shared=None)
+                f = self.dbx.files_get_metadata(folder_path)
+                return CloudService.Folder(id=f.id, path=f.path_display)
             else:
                 raise Exception(f"Error: {e}")
 
@@ -273,6 +276,8 @@ class DropBox(CloudService):
         Unshare a folder on DropBox
         """
         id = folder.id
+        if isinstance(id, str):
+            raise Exception("Error: Folder ID should be a shared ID")
         try:
             self.dbx.sharing_unshare_folder(id)
             print(f"Folder '{folder.path}' has been unshared.")
@@ -298,6 +303,8 @@ class DropBox(CloudService):
         Unshare a folder by given email address
         """
         folder_id = folder.id
+        if isinstance(folder_id, str):
+            raise Exception("Error: Folder ID should be a shared ID")
         success = True
         for email in emails:
             try:
@@ -321,7 +328,7 @@ class DropBox(CloudService):
         """
         pass
 
-    def list_shared_folders(self):
+    def list_shared_folders(self) -> list[CloudService.Folder]:
         """
         Function to list all shared folders
         """
