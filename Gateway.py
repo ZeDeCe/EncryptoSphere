@@ -45,19 +45,19 @@ class Gateway:
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         self.current_session = self.manager 
-
-        #dropbox2 = DropBox(email)
-        #Testing shared sessions
-        #self.shared_session = SharedCloudManager(
-        #    [{"D":"pokaya6659@cybtric.com"}],
-        #    [dropbox2],
-        #    "/Hadas4_ENCRYPTOSPHERE_SHARE", 
-        #    NoSplit(), 
-        #    NoEncrypt(), 
-        #)
-        #self.shared_session.authenticate()
-        #self.shared_session.is_valid_session_root(dropbox2,"/Hadas4_ENCRYPTOSPHERE_SHARE")
-        #self.shared_session.add_user_to_share({"D":"noahay18@gmail.com"})
+       
+        # dropbox2 = DropBox(email)
+        # #Testing shared sessions
+        # self.shared_session = SharedCloudManager(
+        #     #[{"D":"pokaya6659@cybtric.com"}],
+        #     None,
+        #     [dropbox2],
+        #     "/SharedSession", 
+        #     NoSplit(), 
+        #     NoEncrypt(), 
+        # )
+        # self.shared_session.authenticate()
+        # self.shared_session.upload_file(".\\Test\\uploadme.txt")
         return status
     
     def change_session(self, path=None):

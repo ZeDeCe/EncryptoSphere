@@ -7,6 +7,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric import rsa,padding
 from cryptography.hazmat.primitives import hashes,serialization
 import re
+import os
 
 class SharedCloudManager(CloudManager):
     """
@@ -324,7 +325,7 @@ class SharedCloudManager(CloudManager):
         @return if it is valid, True, otherwise False
         """
          # Ensure the root includes the base path
-        base_path = "/EncryptoSphere"
+        base_path = os.getenv("ENCRYPTO_ROOT")
         if not root.startswith(base_path):
             root = f"{base_path}{root}"
         
@@ -343,7 +344,7 @@ class SharedCloudManager(CloudManager):
 
         try:
             files = cloud.list_files(root)
-            fek_pattern = r"^\$FEK_.+@.+$"
+            fek_pattern = r"$FEK_.+?@.+$"
             if not any(re.match(fek_pattern, file) for file in files):
                 print(f"Folder {root} is not a valid session root, does not contain a valid $FEK file")
                 return False
