@@ -160,7 +160,7 @@ class CloudService(ABC):
         pass
     
     @abstractmethod
-    def list_shared_folders(self):
+    def list_shared_folders(self) -> list[any]:
         """
         List all shared folders in all of the cloud
         @return a list of folder objects that represent the shared folders
