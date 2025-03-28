@@ -109,34 +109,48 @@ class GoogleDrive(CloudService):
         try:
             if not data:
                 raise ValueError("Google Drive: File data is empty")
+                
+            # Split the folder path into parts
+            folder_parts = path.strip('/').split('/')
 
-            # Search folder
-            folder_id = None
-            if path and path != "/":
-                query = f"name='{path}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-                results = self.drive_service.files().list(q=query, fields="files(id)").execute()
-                folders = results.get("files", [])
-                if folders:
-                    folder_id = folders[0]["id"]
-                else:
-                    # Create folder (if doesn't exist)
+            if len(folder_parts) < 1:
+                raise Exception("Invalid folder path")
+
+            # Start from the root folder
+            current_folder_id = 'root'
+
+            # Resolve the folder hierarchy
+            for folder in folder_parts:
+                results = self.drive_service.files().list(
+                    q=f"mimeType = 'application/vnd.google-apps.folder' and name = '{folder}' and '{current_folder_id}' in parents",
+                    fields="files(id, name)"
+                ).execute()
+
+                folders = results.get('files', [])
+                if not folders:
+                    # Create folder if it doesn't exist
                     folder_metadata = {
-                        'name': path,
-                        'mimeType': 'application/vnd.google-apps.folder'
+                        'name': folder,
+                        'mimeType': 'application/vnd.google-apps.folder',
+                        'parents': [current_folder_id]
                     }
                     folder = self.drive_service.files().create(body=folder_metadata, fields="id").execute()
-                    folder_id = folder['id']
+                    current_folder_id = folder['id']
+                else:
+                    current_folder_id = folders[0]['id']
 
-            # defienes file's metadata
+            folder_id = current_folder_id
+
+            # Define file's metadata
             file_metadata = {
                 "name": file_name,
                 "parents": [folder_id] if folder_id else []
             }
 
-            # convert to the right format
+            # Convert to the right format
             media = MediaIoBaseUpload(io.BytesIO(data), mimetype="application/octet-stream")
 
-            # upload
+            # Upload
             self.drive_service.files().create(
                 body=file_metadata,
                 media_body=media,
@@ -149,8 +163,8 @@ class GoogleDrive(CloudService):
             raise Exception(f"Google Drive: Upload failed - {error}")
         except Exception as error:
             raise Exception(f"Unexpected error during upload: {error}")
-
-    def download_file(self, file_path: str, save_path: str = '/') -> bytes | None:
+    
+    def download_file(self, file_name : str, path : str) -> bytes | None:
         """
         Download a file from Google Drive with full path support
         @param file_path: Full path of the file including file name (e.g., '/Folder/Subfolder/filename.txt')
@@ -158,42 +172,42 @@ class GoogleDrive(CloudService):
         @return: File content as bytes
         """
         try:
-            path_parts = file_path.strip('/').split('/')
-            
-            if len(path_parts) < 1:
-                raise Exception("Invalid file path")
-            
-            file_name = path_parts[-1]
-            
-            folder_parts = path_parts[:-1]
-            
+            # Split the folder path into parts
+            folder_parts = path.strip('/').split('/')
+
+            if len(folder_parts) < 1:
+                raise Exception("Invalid folder path")
+
+            # Start from the root folder
             current_folder_id = 'root'
-            
+
+            # Resolve the folder hierarchy
             for folder in folder_parts:
                 results = self.drive_service.files().list(
                     q=f"mimeType = 'application/vnd.google-apps.folder' and name = '{folder}' and '{current_folder_id}' in parents",
                     fields="files(id, name)"
                 ).execute()
-                
+
                 folders = results.get('files', [])
                 if not folders:
                     raise Exception(f"Folder '{folder}' not found in path")
-                
+
                 current_folder_id = folders[0]['id']
-            
+
+            # Query for the file in the resolved folder
             results = self.drive_service.files().list(
                 q=f"name = '{file_name}' and '{current_folder_id}' in parents",
                 fields="files(id, name, mimeType)"
             ).execute()
-            
+
             files = results.get('files', [])
             if not files:
-                raise Exception(f"File {file_name} not found in path")
-            
+                raise Exception(f"File '{file_name}' not found in path '{path}'")
+
             file_id = files[0]['id']
             mime_type = files[0].get('mimeType', '')
-            
-            # GooglePlace files
+
+            # Handle Google Workspace files (e.g., Google Docs, Sheets)
             if mime_type.startswith('application/vnd.google-apps'):
                 request = self.drive_service.files().export_media(
                     fileId=file_id,
@@ -201,9 +215,10 @@ class GoogleDrive(CloudService):
                 )
             else:
                 request = self.drive_service.files().get_media(fileId=file_id)
-            
+
+            # Execute the download request and return the file content
             return request.execute()
-        
+
         except Exception as e:
             print(f"Error downloading file: {e}")
             return None
@@ -533,7 +548,7 @@ class GoogleDrive(CloudService):
         """
         return "G"  #G for Google Drive
 
-"""""
+
 # Main function to interact with the user
 def main():
     print("Google POC")
@@ -704,5 +719,4 @@ def main():
             print("Invalid choice, please try again.")
 
 if __name__ == "__main__":
-    main()"
-"""
+    main()
