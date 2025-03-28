@@ -216,7 +216,7 @@ class MainPage(ctk.CTkFrame):
         self.controller = controller
 
         ctk.CTkFrame.__init__(self, parent)
-
+        self.prev_window = None
         
         self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
         self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
@@ -234,6 +234,8 @@ class MainPage(ctk.CTkFrame):
                                                  width=120, height=30, fg_color="gray25", hover=False)
         self.shared_files_button.pack(anchor="nw", padx=10, pady=5, expand=False)
 
+
+
         self.upload_button.bind("<Enter>", lambda e: self.set_bold(self.upload_button))
         self.upload_button.bind("<Leave>", lambda e: self.set_normal(self.upload_button))
 
@@ -244,6 +246,11 @@ class MainPage(ctk.CTkFrame):
         self.folders = {"/": root_folder}
         self.main_frame = root_folder
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
+
+        self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
+                                                 command=lambda: self.change_folder(self.get_previous_window(self.main_frame.path)),
+                                                 width=120, height=30, fg_color="gray25", hover=False)
+        self.back_button.pack_forget()
 
         self.curr_path = "/EncryptoSphere"
 
@@ -327,7 +334,12 @@ class MainPage(ctk.CTkFrame):
         """
         Changes the folder viewed in main_frame
         """
-
+        print(f"here : {path}")
+        if path != "/":
+            self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+        else:
+            self.back_button.pack_forget()
+        
         self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
@@ -339,6 +351,7 @@ class MainPage(ctk.CTkFrame):
 
         self.main_frame.refresh()
         self.main_frame.lift()
+
             
     def refresh(self):
         """
@@ -346,7 +359,17 @@ class MainPage(ctk.CTkFrame):
         """
         self.main_frame.refresh()
     
-    
+    def get_previous_window(self, path):
+        """
+        Get the previous window (if exists)
+        """
+        # Split the path from the right at the last '/'
+        parts = path.rsplit('/', 1)
+        # If there's only one part or the result is an empty string, return '/'
+        if len(parts) == 1 or parts[0] == '':
+            return '/'
+        # Otherwise, return the first part which is the path without the last segment
+        return parts[0]
 
 class Folder(ctk.CTkFrame):
     """
@@ -435,6 +458,9 @@ class FileButton(IconButton):
     def __init__(self, master, width, height, file_data, controller):
         IconButton.__init__(self, master, width, height, "resources/file_icon.png", file_data["name"], controller)
         self.file_data = file_data
+        print(self.file_data)
+        print(self.file_data["name"])
+        print(self.file_data["id"])
 
         # Create a context menu using CTkFrame
         self.context_menu = OptionMenu(master, self.controller, [
