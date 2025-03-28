@@ -8,6 +8,8 @@ import os
 from threading import Thread
 import tkinter.messagebox as messagebox
 import time
+import itertools
+
 
 """
 TODO: - Add all relevent error/info masseges (Advanced UI)
@@ -135,9 +137,35 @@ class LoginPage(ctk.CTkFrame):
     
     def __handle_login(self):
         """
-        This function is called when a user hit the submit button after typing the email address
-        The function hendels the login process, if succedded it pass the control to tne MainPage class - to display the main page
+        This function is called when a user hits the submit button after typing the email address.
+        The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
+        self.submit_button.configure(state="disabled")
+        # Add the retry button
+        if hasattr(self, 'error_label'):
+            self.error_label.grid_forget()
+        
+        # Load GIF
+        self.gif = Image.open(r'C:\Users\Shaqed\source\repos\finalProject\EncryptoSphere\resources\loading-gif.gif')
+        self.frames = [ctk.CTkImage(self.gif.copy().convert("RGBA").resize((100, 100)))]
+
+        # Extract all frames
+        try:
+            while True:
+                self.gif.seek(self.gif.tell() + 1)
+                self.frames.append(ctk.CTkImage(self.gif.copy().convert("RGBA").resize((100, 100)))
+            )
+        except EOFError:
+            pass
+
+        # Create a label for the GIF and place it under the submit button
+        self.gif_label = ctk.CTkLabel(self, image=None, text="")
+        self.gif_label.grid(row=4, column=0, pady=(10, 0), sticky="n")
+
+        # Start animation
+        self.frame_iterator = itertools.cycle(self.frames)
+        self.update_gif()
+
         email = self.entry.get()
         result = self.controller.get_api().authenticate(email)
         
@@ -146,14 +174,27 @@ class LoginPage(ctk.CTkFrame):
         else:
             self.controller.show_frame(MainPage)
     
+    def update_gif(self):
+        """Loop through frames"""
+        self.gif_label.configure(image=next(self.frame_iterator))
+        self.after(100, self.update_gif)  # Adjust speed as needed (100ms)
+
     def __show_error(self, error_message, func):
         """
-        If authentication to the clouds fails, display the error and add retry button
+        If authentication to the clouds fails, display the error and add retry button.
+        Remove the submit button and the GIF.
         """
-        self.error_label = ctk.CTkLabel(self, text=error_message)
+        # Remove the submit button and GIF
+        if hasattr(self, 'submit_button'):
+            self.submit_button.grid_forget()
+        if hasattr(self, 'gif_label'):
+            self.gif_label.grid_forget()
+
+        # Display the error message
+        self.error_label = ctk.CTkLabel(self, text=error_message, font=("Arial", 12), text_color="red")
         self.error_label.grid(row=4, column=0, pady=20, sticky="n")
-        
-        self.retry_button = ctk.CTkButton(self, text="Retry", command=func)
+
+        self.retry_button = ctk.CTkButton(self, text="Retry", command=self.__handle_login, width=200, fg_color="#3A7EBF")
         self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
 
 class MainPage(ctk.CTkFrame):
