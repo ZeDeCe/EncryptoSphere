@@ -218,7 +218,7 @@ class MainPage(ctk.CTkFrame):
         
         self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
         self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
-
+        self.side_bar.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
         encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
         encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand = False)
 
@@ -248,7 +248,7 @@ class MainPage(ctk.CTkFrame):
         # Create a label that will display current location
         self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
-
+        self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
         # Context_menu object for the upload button (offers 2 options - upload file or upload folder)
         # This is because windows os filesystem cannot open the explorer to select file and folder at the same time.
         self.context_menu = OptionMenu(self, self.controller, [
@@ -357,6 +357,7 @@ class Folder(ctk.CTkFrame):
         self.controller = controller
         self.path = path
         self.pack(fill = ctk.BOTH, expand = True)
+        self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
 
     def refresh(self):
@@ -406,15 +407,15 @@ class IconButton(ctk.CTkFrame):
         name_label.pack(pady=(0, 5))
 
         # Connect all file related content to do the same action when clicked (open the context_menu)
-        self.bind("<Button-1>", lambda e: self.on_button1_click(e))
-        icon_label.bind("<Button-1>", lambda e: self.on_button1_click(e))
-        name_label.bind("<Button-1>", lambda e: self.on_button1_click(e))
-        self.bind("<Button-2>", lambda e: self.on_button2_click(e))
-        icon_label.bind("<Button-2>", lambda e: self.on_button2_click(e))
-        name_label.bind("<Button-2>", lambda e: self.on_button2_click(e))
-        self.bind("<Double-Button-1>", lambda e: self.on_double_click(e))
-        icon_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e))
-        name_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e))
+        self.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
+        icon_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
+        name_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
+        self.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
+        icon_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
+        name_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
+        self.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
+        icon_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
+        name_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
     
     def on_button1_click(self, event=None):
         pass
@@ -422,7 +423,7 @@ class IconButton(ctk.CTkFrame):
     def on_double_click(self, event=None):
         pass
     
-    def on_button2_click(self, event=None):
+    def on_button3_click(self, event=None):
         pass
 
 class FileButton(IconButton):
@@ -435,7 +436,7 @@ class FileButton(IconButton):
         self.file_data = file_data
 
         # Create a context menu using CTkFrame
-        self.context_menu = OptionMenu(master, self.controller, [
+        self.context_menu = OptionMenu(master.master, self.controller, [
             {
                 "label": "Download File",
                 "color": "blue",
@@ -526,14 +527,14 @@ class FolderButton(IconButton):
         self.master = master
 
         # Create a context menu using CTkFrame
-        self.context_menu = OptionMenu(master, self.controller, [
+        self.context_menu = OptionMenu(master.master, self.controller, [
             {
-                "label": "Download File",
+                "label": "Download Folder",
                 "color": "blue",
                 "event": lambda: self.controller.get_api().download_folder(self.folder_path)
              },
              {
-                 "label": "Delete File",
+                 "label": "Delete Folder",
                  "color": "red",
                  "event": lambda: self.controller.get_api().delete_folder(self.folder_path) # maybe add "ARE YOU SURE?"
              }
@@ -543,10 +544,10 @@ class FolderButton(IconButton):
     def on_double_click(self, event=None):
         self.controller.change_folder(self.folder_path)
     
-    def on_button2_click(self, event=None):
+    def on_button3_click(self, event=None):
         if self.context_menu.context_hidden:
             self.context_menu.lift()
-            self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.winfo_rooty())
+            self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.master.winfo_rooty())
         else:
             self.context_menu.hide_context_menu()
 
@@ -728,7 +729,7 @@ class SharedFolderButton(IconButton):
         self.file_data = file_data
 
         # Create a context menu using CTkFrame
-        self.context_menu = OptionMenu(master, self.controller, [
+        self.context_menu = OptionMenu(master.master, self.controller, [
             {
                 "label": "Add Member",
                 "color": "green4",
