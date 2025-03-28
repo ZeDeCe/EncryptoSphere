@@ -45,12 +45,11 @@ class Gateway:
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         self.current_session = self.manager 
-
+       
         # dropbox2 = DropBox(email)
-        # #Testing shared sessions
+        #Testing shared sessions
         # self.shared_session = SharedCloudManager(
-        #     #[{"D":"pokaya6659@cybtric.com"}],
-        #     None,
+        #     [{"D":"pokaya6659@cybtric.com"}],
         #     [dropbox2],
         #     "/SharedSession", 
         #     NoSplit(), 
@@ -68,6 +67,8 @@ class Gateway:
         
     def get_files(self):
         return self.current_session.get_file_list()
+    def get_files(self, path="/"):
+        return self.manager.get_items_in_folder(path)
     
     def download_file(self, file_id):
         self.current_session.download_file(file_id)
@@ -77,14 +78,14 @@ class Gateway:
         self.current_session.download_folder(folder_id)
         return True # TODO: Handle correctly!!
     
-    def upload_file(self, file_path):
+    def upload_file(self, file_path, path):
         print(f"Upload file selected: {file_path}")
-        self.current_session.upload_file(file_path)
+        self.current_session.upload_file(file_path, path)
         return True # TODO: Handle correctly!!
     
-    def upload_folder(self, folder_path):
+    def upload_folder(self, folder_path, path):
         print(f"Upload folder selected {folder_path}")
-        self.current_session.upload_folder(folder_path)
+        self.current_session.upload_folder(folder_path, path)
         return True # TODO: Handle correctly!!
     
     def delete_file(self, file_id):
@@ -92,8 +93,8 @@ class Gateway:
         self.current_session.delete_file(file_id)
         return True # TODO: Handle correctly!!
     
-    def delete_folder(self, folder_id):
-        self.current_session.delete_folder(folder_id)
+    def delete_folder(self, path):
+        self.current_session.delete_folder(path)
         return True # TODO: Handle correctly!!
     
     # TODO: shared session functions
@@ -106,12 +107,15 @@ class Gateway:
         also, we need to support the option of multiple emails account for the same email.
         As of this POC we are given only one email and support only dropbox and google drive using the same email address.
         """
+        emails = [email for email in emails if email.strip()]
+
         shared_with = []
         for email in emails:
             user_dict = {}
             for cloud in self.manager.clouds:
                 user_dict[cloud.get_name()] = email
             shared_with.append(user_dict)
+            
         new_session = SharedCloudManager(
              shared_with,
              self.manager.clouds,

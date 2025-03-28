@@ -226,6 +226,19 @@ class DropBox(CloudService):
         Share a folder on DropBox
         """
         try:
+            # Check if the folder is already shared
+            shared_members = self.get_members_shared(folder_path)
+            if shared_members:
+                print(f"Folder '{folder_path}' is already shared! with: {shared_members}")
+                # Optionally, add new members to the existing shared folder
+                for email in emails:
+                    if email not in shared_members:
+                        if not self._add_member_to_share_folder(self._get_shared_folder_from_path(folder_path), email):
+                            print(f"Failed to add {email} to the shared folder")
+                            return None
+                        print(f"Folder shared successfully with {email}!")
+                return self.get_folder(folder_path)  # Return the folder metadata
+
             metadata = self._share_folder(folder_path)
             if not metadata:
                 print(f"Cannot share folder {folder_path}")
