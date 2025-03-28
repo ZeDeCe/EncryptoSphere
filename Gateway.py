@@ -121,13 +121,7 @@ def main():
     """
     gateway = Gateway()
     gui = app.App(gateway)
-    try:
-        gui.mainloop()
-    finally:    
-        try:
-            gateway.manager.fd.sync_to_file()
-        except:
-            pass
+    gui.mainloop()
     
 if __name__=="__main__":
     main()
