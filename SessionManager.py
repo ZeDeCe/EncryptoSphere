@@ -7,7 +7,7 @@ class SessionManager():
     def __init__(self, master_key, main_session):
         self.key = master_key
         self.main_session = main_session
-        self.sessions = []
+        self.sessions = {}
 
     def get_key(self):
         """
@@ -19,14 +19,21 @@ class SessionManager():
         """
         Adds a new shared session to the sessions list
         """
-        self.sessions.append(session)
+        self.sessions[session.root_folder] = session
 
     def end_session(self, session : SharedCloudManager):
         """
         End a session from the session list if test_session returned false from SharedCloudManager
         """
-        if session in self.sessions:
-            self.sessions.remove(session)
+
+        try:
+            if isinstance(session, str):
+                self.sessions.pop(session)
+            else:
+                self.sessions.pop(session.root_folder)
+        except KeyError as e:
+            print("No such session exists")
+            return
 
     def sync_new_sessions(self):
         """
@@ -46,9 +53,14 @@ class SessionManager():
                 temp.append(cloud)
                 new_sessions[folder["path"]] = temp
         for folder,clouds in new_sessions.items():
-            self.add_session(SharedCloudManager(None, clouds, folder, None, self.main_session.encrypt))
+            self.add_session(SharedCloudManager(None, clouds, folder, self.main_session.split, self.main_session.encrypt))
+        self.sync_known_sessions()
                 
-
+    def get_session(self, path=None):
+        if not path:
+            return self.main_session
+        return self.sessions.get(path)
+        
     def sync_known_sessions(self):
         """
         Goes through all sessions in self.sessions and calls share_keys

@@ -51,6 +51,8 @@ class SharedCloudManager(CloudManager):
         else:
             # This session already exists (and might not be ours)
             key = self.load_session()
+            if not key: # Waiting for TFEK signing
+                return False
             self.fd = FileDescriptor(None, self._download_replicated("$FD_META"))
             files_enc = self._download_replicated("$FD")
             enc_cls = Encrypt.get_class(self.fd.get_encryption_signature())
@@ -60,7 +62,7 @@ class SharedCloudManager(CloudManager):
             self.fd.set_files(self._decrypt(files_enc))
         if key:
             self.loaded = True
-            
+            self.share_keys() # Can happen on a different thread now
             return True
         return False
     
@@ -126,16 +128,15 @@ class SharedCloudManager(CloudManager):
     def sync_fek(self, key : bytes) -> None:
         self._upload_replicated("$FEK", self._encrypt(key), True)
 
-        # Try deleting excess files
-        for cloud in self.clouds:
-            try:
-                cloud.delete_file(f"$TFEK_{cloud.get_email()}")
-            except:
-                pass
-            try:
-                cloud.delete_file(f"$PUBLIC_{cloud.get_email()}")
-            except:
-                pass
+        # Try deleting excess files - can happen on new thread
+        try:
+            self._delete_replicated(f"$TFEK", True)
+        except:
+            pass
+        try:
+            self._delete_replicated(f"$PUBLIC", True)
+        except:
+            pass
 
 
     def check_key_status(self, cloud : CloudService) -> bytes | bool:
@@ -148,9 +149,14 @@ class SharedCloudManager(CloudManager):
         @param cloud the cloud to use
         @return the encrypted key if found, if not then False
         """
-        fek = cloud.download_file(f"$FEK_{cloud.get_email()}", self.root_folder)
+        fek = None
+        try:
+            fek = cloud.download_file(f"$FEK_{cloud.get_email()}", self.root_folder)
+        except:
+            pass
         if fek:
             return fek
+        
         shared_secret = None
         tfek = None
         public_key = None
@@ -184,12 +190,12 @@ class SharedCloudManager(CloudManager):
                 )
             )
             shared_secret = self._encrypt(shared_secret)
-            self.sync_fek(shared_secret)
             return shared_secret
-        if tfek and public_key:
-            return False
+        if not (tfek and public_key):
+            self.upload_TFEK(cloud)
+        return False
         
-        self.upload_TFEK(cloud)
+        
         
     def upload_TFEK(self, cloud : CloudService):
         """
@@ -214,7 +220,6 @@ class SharedCloudManager(CloudManager):
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             )
-        
         cloud.upload_file(self.tfek, f"$TFEK_{cloud.get_email()}", self.root_folder)
         cloud.upload_file(self.public_key, f"$PUBLIC_{cloud.get_email()}", self.root_folder)
     
@@ -246,7 +251,7 @@ class SharedCloudManager(CloudManager):
                         label=None
                     )
                 )
-                cloud.upload_file(response, "$SHARED_{username}", self.root_folder)
+                cloud.upload_file(response, f"$SHARED_{username}", self.root_folder)
 
     def test_access(self) -> bool:
         """
