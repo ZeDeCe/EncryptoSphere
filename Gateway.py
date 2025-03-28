@@ -44,6 +44,7 @@ class Gateway:
         )
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
+        self.current_session = self.session_manager 
 
         # dropbox2 = DropBox(email)
         # #Testing shared sessions
@@ -90,8 +91,9 @@ class Gateway:
         return True # TODO: Handle correctly!!
     
     # TODO: shared session functions
-    def create_shared_session(self):
-        pass
+    def create_shared_session(self, folder_name, emails):
+        print("creating new shared session")
+        return True
 
     def share_file(self):
         pass

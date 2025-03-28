@@ -502,10 +502,10 @@ class SharePage(ctk.CTkFrame):
         def create_new_share():
             folder_name = folder_name_entry.get()
             emails = [email.get() for email in email_inputs]
-            print(f"Folder: {folder_name}, Emails: {emails}")
+            print(f"Creating share with folder: {folder_name} and emails: {emails}")
             
             # Call a new function with the folder and emails (replace this with your logic)
-            self.create_share(folder_name, emails)
+            Thread(target=self.controller.get_api().create_shared_session, args=(folder_name, emails,), daemon=True).start()
 
             # Close the new window
             new_window.destroy()
@@ -518,12 +518,6 @@ class SharePage(ctk.CTkFrame):
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
 
-    def create_share(self, folder_name, emails):
-        """
-        This function will handle the share creation logic (e.g., sending emails, saving share details).
-        """
-        # Your logic for creating the share, e.g., send emails, update databases, etc.
-        print(f"Creating share with folder: {folder_name} and emails: {emails}")
 
 
 
