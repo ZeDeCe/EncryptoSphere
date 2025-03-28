@@ -1,6 +1,12 @@
 from abc import ABC, abstractmethod
 
 class CloudService(ABC):
+    class Folder:
+        def __init__(self, id, path, shared=False, members_shared=None):
+            self.id = id
+            self.path = path
+            self.shared = shared
+            self.members_shared = members_shared if members_shared is not None else []
 
     def __new__(cls, email : str):
         """
@@ -31,7 +37,7 @@ class CloudService(ABC):
         """
         return self.email
     
-    def is_authenticated(self):
+    def is_authenticated(self) -> bool:
         """
         Returns the self.authenticated flag if already authenticated
         """
@@ -87,7 +93,7 @@ class CloudService(ABC):
         pass
     
     @abstractmethod
-    def get_folder(self, path : str) -> any:
+    def get_folder(self, path : str) -> Folder:
         """
         Get a folder object from the path if it exists, if not throws an error
         @param path the path to the folder to get
@@ -103,7 +109,7 @@ class CloudService(ABC):
         """
 
     @abstractmethod
-    def create_folder(self, path : str) -> any:
+    def create_folder(self, path : str) -> Folder:
         """
         Create a folder in the cloud storage
         @param path the path to create the folder at
@@ -112,7 +118,7 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def share_folder(self, folder : any, emails : list[str]) -> any:
+    def share_folder(self, folder : any, emails : list[str]) -> Folder:
         """
         Share a file or folder with a user (read/write permissions)
         @param folder the folder object returned from create_folder (or get_folder)
@@ -122,7 +128,7 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def create_shared_folder(self, path, emails : list[str]) -> any:
+    def create_shared_folder(self, path, emails : list[str]) -> Folder:
         """
         Creates and shares a folder with a specific list of emails
         @param path the path the new folder should be created at
@@ -132,7 +138,7 @@ class CloudService(ABC):
         pass
  
     @abstractmethod
-    def unshare_folder(self, folder):
+    def unshare_folder(self, folder) -> None:
         """
         Unshares a folder - makes the folder "unshared", removes anyone shared with it
         @param folder, the folder object
@@ -160,7 +166,7 @@ class CloudService(ABC):
         pass
     
     @abstractmethod
-    def list_shared_folders(self) -> list[any]:
+    def list_shared_folders(self) -> list[Folder]:
         """
         List all shared folders in all of the cloud
         @return a list of folder objects that represent the shared folders
@@ -180,10 +186,3 @@ class CloudService(ABC):
          @return the string name of the cloud service
         """
         pass
-
-    class Folder:
-        def __init__(self, id, path, shared=False, members_shared=None):
-            self.id = id
-            self.path = path
-            self.shared = shared
-            self.members_shared = members_shared if members_shared is not None else []
