@@ -242,6 +242,9 @@ class CloudManager:
 
     def get_file_list(self):
         return self.fd.get_file_list()
+    
+    def get_items_in_folder(self, path):
+        return self.fd.get_items_in_folder(path)
 
     def sync_to_clouds(self):
         """
