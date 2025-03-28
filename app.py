@@ -278,14 +278,18 @@ class MainPage(ctk.CTkFrame):
         """
         Changes the folder viewed in main_frame
         """
+
+        self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
-            self.main_frame.refresh()
+            
         else:
-            new_folder = Folder(self, self, self.controller, path)
+            new_folder = Folder(self, self.controller, path)
             self.folders[path] = new_folder
             self.main_frame = new_folder
-            self.main_frame.refresh()
+
+        self.main_frame.refresh()
+        self.main_frame.lift()
             
     def refresh(self):
         """
@@ -305,6 +309,7 @@ class Folder(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, parent)
         self.controller = controller
         self.path = path
+        self.pack(fill = ctk.BOTH, expand = True)
 
 
     def refresh(self):

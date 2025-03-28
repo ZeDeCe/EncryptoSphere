@@ -76,7 +76,7 @@ class FileDescriptor:
             if len(data) != 2:
                 raise Exception()
             self.files = self.deserialize(data[0])
-            self.folders = set(data[1])
+            self.folders = set(self.deserialize(data[1]))
         except:
             raise OSError("Failed to parse the filedescriptor from json, file descriptor corrupted")
 
@@ -235,9 +235,9 @@ class FileDescriptor:
         file_list = []
         folder_list = []
         for id,file in self.files.items():
-            if file["path"].startswith(folder_name):
+            if file["path"] == folder_name:
                 file_list.append(file)
         for folder in self.folders:
-            if folder.startswith(folder_name) and folder != "/" and folder[len(folder_name)+1:].find("/") == -1:
+            if folder != "/" and folder!=folder_name and folder.startswith(folder_name) and folder[len(folder_name)+1:].find("/") == -1:
                 folder_list.append(folder)
         return file_list, folder_list
