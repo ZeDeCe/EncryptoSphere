@@ -130,8 +130,6 @@ class Gateway:
             folders[folder_name] = files_of_folder
         return folders
 
-
-
     #def share_file(self):
     #    pass
 
@@ -144,11 +142,45 @@ class Gateway:
     #def unshare_file(self):
     #    pass
 
-    def revoke_user_from_share(self):
-        pass
+    def revoke_user_from_share(self, folder_path ,emails):
+        """
+        unshare emails from given shared folder
+        @param folder name (will be convertet to session)
+        @param emails list to remove from share 
+        TODO: we need to support the option of multiple emails account for the same email.
+        As of this POC we are given only one email and support only dropbox and google drive using the same email address.
+        """
+        share = None
+        for session in self.session_manager.sessions:
+            if folder_path ==  session.root_folder:
+                share = session
+        unshare_with = []
+        for email in emails:
+            user_dict = {}
+            for cloud in self.manager.clouds:
+                user_dict[cloud.get_name()] = email
+            unshare_with.append(user_dict)
+        share.revoke_user_from_share(unshare_with)
 
-    def add_user_to_share(self):
-        pass
+    def add_user_to_share(self, folder_path ,emails):
+        """
+        share email with given folder
+        @param folder name (will be convertet to session)
+        @param emails list to add to share 
+        TODO: we need to support the option of multiple emails account for the same email.
+        As of this POC we are given only one email and support only dropbox and google drive using the same email address.
+        """
+        share = None
+        for session in self.session_manager.sessions:
+            if folder_path ==  session.root_folder:
+                share = session
+        share_with = []
+        for email in emails:
+            user_dict = {}
+            for cloud in self.manager.clouds:
+                user_dict[cloud.get_name()] = email
+            share_with.append(user_dict)
+        share.revoke_user_from_share(share_with)
 
 
 
