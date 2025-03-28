@@ -8,6 +8,8 @@ import os
 from threading import Thread
 import tkinter.messagebox as messagebox
 import time
+import itertools
+
 
 """
 TODO: - Add all relevent error/info masseges (Advanced UI)
@@ -135,9 +137,35 @@ class LoginPage(ctk.CTkFrame):
     
     def __handle_login(self):
         """
-        This function is called when a user hit the submit button after typing the email address
-        The function hendels the login process, if succedded it pass the control to tne MainPage class - to display the main page
+        This function is called when a user hits the submit button after typing the email address.
+        The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
+        self.submit_button.configure(state="disabled")
+        # Add the retry button
+        if hasattr(self, 'error_label'):
+            self.error_label.grid_forget()
+        
+        # Load GIF
+        self.gif = Image.open("resources/loading-gif.gif")
+        self.frames = [ctk.CTkImage(self.gif.copy().convert("RGBA").resize((100, 100)))]
+
+        # Extract all frames
+        try:
+            while True:
+                self.gif.seek(self.gif.tell() + 1)
+                self.frames.append(ctk.CTkImage(self.gif.copy().convert("RGBA").resize((100, 100)))
+            )
+        except EOFError:
+            pass
+
+        # Create a label for the GIF and place it under the submit button
+        self.gif_label = ctk.CTkLabel(self, image=None, text="")
+        self.gif_label.grid(row=4, column=0, pady=(10, 0), sticky="n")
+
+        # Start animation
+        self.frame_iterator = itertools.cycle(self.frames)
+        self.update_gif()
+
         email = self.entry.get()
         result = self.controller.get_api().authenticate(email)
         
@@ -146,14 +174,27 @@ class LoginPage(ctk.CTkFrame):
         else:
             self.controller.show_frame(MainPage)
     
+    def update_gif(self):
+        """Loop through frames"""
+        self.gif_label.configure(image=next(self.frame_iterator))
+        self.after(100, self.update_gif)  # Adjust speed as needed (100ms)
+
     def __show_error(self, error_message, func):
         """
-        If authentication to the clouds fails, display the error and add retry button
+        If authentication to the clouds fails, display the error and add retry button.
+        Remove the submit button and the GIF.
         """
-        self.error_label = ctk.CTkLabel(self, text=error_message)
+        # Remove the submit button and GIF
+        if hasattr(self, 'submit_button'):
+            self.submit_button.grid_forget()
+        if hasattr(self, 'gif_label'):
+            self.gif_label.grid_forget()
+
+        # Display the error message
+        self.error_label = ctk.CTkLabel(self, text=error_message, font=("Arial", 12), text_color="red")
         self.error_label.grid(row=4, column=0, pady=20, sticky="n")
-        
-        self.retry_button = ctk.CTkButton(self, text="Retry", command=func)
+
+        self.retry_button = ctk.CTkButton(self, text="Retry", command=self.__handle_login, width=200, fg_color="#3A7EBF")
         self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
 
 class MainPage(ctk.CTkFrame):
@@ -522,27 +563,6 @@ class SharePage(ctk.CTkFrame):
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
 
-    def upload_file(self):
-        """
-        If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file.
-        In a new thread, call upload_file_to_cloud to upload the file to the clouds and. After a successful upload, refresh the frame so a the new file will be displayed
-        TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
-        """
-        file_path = filedialog.askopenfilename()
-        self.context_menu.hide_context_menu()
-        print(file_path)
-        if file_path:
-            Thread(target=self.upload_file_to_cloud, args=(file_path,), daemon=True).start()
-            
-
-    def upload_file_to_cloud(self, file_path):
-        """
-        Upload file to the cloud and refresh the page
-        """
-        self.controller.get_api().upload_file(os.path.normpath(file_path))
-        self.refresh()
-
-
     def upload_folder(self):
         """
         If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder.
@@ -565,7 +585,7 @@ class SharePage(ctk.CTkFrame):
         """
         Refresh the frame and display all updates
         """
-        file_list = self.controller.get_api().get_files()
+        file_list = self.controller.get_api().get_shared_folders()
         for widget in self.main_frame.winfo_children():
             widget.after(0, widget.destroy)
         self.buttons = []

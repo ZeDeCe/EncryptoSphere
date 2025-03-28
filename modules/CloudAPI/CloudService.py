@@ -165,7 +165,6 @@ class CloudService(ABC):
         List all shared folders in all of the cloud
         @return a list of folder objects that represent the shared folders
         """
-        pass
     
     @abstractmethod
     def get_members_shared(self, folder : any) -> list[str] | bool:
@@ -181,3 +180,10 @@ class CloudService(ABC):
          @return the string name of the cloud service
         """
         pass
+
+    class Folder:
+        def __init__(self, id, path, shared=False, members_shared=None):
+            self.id = id
+            self.path = path
+            self.shared = shared
+            self.members_shared = members_shared if members_shared is not None else []
