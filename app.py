@@ -146,7 +146,7 @@ class LoginPage(ctk.CTkFrame):
             self.error_label.grid_forget()
         
         # Load GIF
-        self.gif = Image.open(r'C:\Users\Shaqed\source\repos\finalProject\EncryptoSphere\resources\loading-gif.gif')
+        self.gif = Image.open("resources/loading-gif.gif")
         self.frames = [ctk.CTkImage(self.gif.copy().convert("RGBA").resize((100, 100)))]
 
         # Extract all frames
