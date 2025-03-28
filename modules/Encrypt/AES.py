@@ -34,17 +34,19 @@ class AESEncrypt(Encrypt):
         cipher = AES.new(self.key, AES.MODE_GCM, nonce=nonce)
         return cipher.decrypt_and_verify(ciphertext, tag)
 
-    def get_name(self) -> str:
+    @staticmethod
+    def get_name() -> str:
         """
         Return the encryption method name (AES).
         """
         return "AES"
 
 
+"""
 def main():
-    """
+    \"\"\"
     Main function to test the implementation.
-    """
+    \"\"\"
     # Example key generation (in reality, this would be from Argon2id)
     raw_key = b"11111111111111111111111111111111"
     
@@ -73,3 +75,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+"""
