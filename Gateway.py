@@ -46,18 +46,18 @@ class Gateway:
         status = self.manager.authenticate()
         self.current_session = self.manager 
 
-        # dropbox2 = DropBox(email)
-        # #Testing shared sessions
-        # self.shared_session = SharedCloudManager(
-        #     #[{"D":"pokaya6659@cybtric.com"}],
-        #     None,
-        #     [dropbox2],
-        #     "/SharedSession", 
-        #     NoSplit(), 
-        #     NoEncrypt(), 
-        # )
-        # self.shared_session.authenticate()
-        # self.shared_session.upload_file(".\\Test\\uploadme.txt")
+        #dropbox2 = DropBox(email)
+        #Testing shared sessions
+        #self.shared_session = SharedCloudManager(
+        #    [{"D":"pokaya6659@cybtric.com"}],
+        #    [dropbox2],
+        #    "/Hadas4_ENCRYPTOSPHERE_SHARE", 
+        #    NoSplit(), 
+        #    NoEncrypt(), 
+        #)
+        #self.shared_session.authenticate()
+        #self.shared_session.is_valid_session_root(dropbox2,"/Hadas4_ENCRYPTOSPHERE_SHARE")
+        #self.shared_session.add_user_to_share({"D":"noahay18@gmail.com"})
         return status
     
     def change_session(self, path=None):
@@ -106,16 +106,22 @@ class Gateway:
         also, we need to support the option of multiple emails account for the same email.
         As of this POC we are given only one email and support only dropbox and google drive using the same email address.
         """
+        emails = [email for email in emails if email.strip()]
+
         shared_with = []
         for email in emails:
             user_dict = {}
             for cloud in self.manager.clouds:
                 user_dict[cloud.get_name()] = email
             shared_with.append(user_dict)
+            
+        # Ensure the folder name starts with "/"
+        root_folder = f"/{folder_name}_ENCRYPTOSPHERE_SHARE" if not folder_name.startswith("/") else f"{folder_name}_ENCRYPTOSPHERE_SHARE"
+
         new_session = SharedCloudManager(
              shared_with,
              self.manager.clouds,
-             f"{folder_name}_ENCRYPTOSPHERE_SHARE", 
+             root_folder, 
              NoSplit(), 
              NoEncrypt(), 
         )
