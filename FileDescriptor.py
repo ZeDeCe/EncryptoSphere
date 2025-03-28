@@ -23,7 +23,7 @@ FD:
     }
 }
 """
-
+DATA_SEPERATOR = "==============SEP=============="
 class FileDescriptor:
     # class LFUCache:
     #     """
@@ -50,6 +50,8 @@ class FileDescriptor:
         self.files_ready = False
         if not data and not metadata:
             self.files = {}
+            self.folders = set()
+            self.folders.add("/")
             self.metadata = {}
             self.metadata["last_id"] = "0"
             self.metadata["enc_sig"] = encrypt_sig
@@ -64,12 +66,17 @@ class FileDescriptor:
                 self.set_files(data)
                 self.files_ready = True
 
-    def set_files(self, data):
+    def set_files(self, data : bytes):
         """
         Deserializes data and sets it as the files list
         """
         try:
-            self.files = self.deserialize(data)
+            data = data.decode('utf-8')
+            data = data.split(DATA_SEPERATOR)
+            if len(data) != 2:
+                raise Exception()
+            self.files = self.deserialize(data[0])
+            self.folders = set(self.deserialize(data[1]))
         except:
             raise OSError("Failed to parse the filedescriptor from json, file descriptor corrupted")
 
@@ -114,7 +121,20 @@ class FileDescriptor:
             "parts" : clouds_order,
             "hash": hash
         }
+        self.add_folder(path)
         return new_id
+
+    def add_folder(self, path):
+        """
+        Add a new folder to the file descriptor
+        If a folder of this name already exists does nothing
+        """
+        build = ""
+        for path in path.split("/"):
+            if path == "": 
+                continue
+            build = f"{build}/{path}"
+            self.folders.add(build)
     
     def get_next_id(self):
         """
@@ -129,12 +149,33 @@ class FileDescriptor:
         @return the file metadata that got deleted
         """
         return self.files.pop(file_id)
+    
+    def delete_folder(self, path : str):
+        """
+        Deletes a folder, all the subfolders of the folder, all files of subfolders of the folder
+        @param path the path to the folder
+        """
+        if path == "/":
+            raise Exception("Cannot delete root folder")
+        if not (path in self.folders):
+            raise Exception(f"No folder with path {path}")
+        
+        for folder in self.folders:
+            if folder.startswith(path):
+                self.folders.remove(folder)
 
-    def edit_file(self, file_id, data):
+        for id,file in self.files.items():
+            if file["path"].startswith(path):
+                self.files.pop(id)
+
+    def edit_file(self, file_id : str, data : dict):
         """
         Edits the file metadata of file_id with the new data in data
         @return the file_id
         """
+        if data.get("path"):
+            if not (data["path"] in self.folders):
+                raise Exception("Trying to change file path to a non-existant folder")
         file = self.files[file_id]
         for key, val in data.items():
             file[key] = val
@@ -144,6 +185,9 @@ class FileDescriptor:
         Returns the data of a file_id as an array that can be edited and sent to edit_file
         """
         return self.files[file_id]
+    
+    def get_folder(self, path):
+        return path if path in self.folders else None
 
     def get_file_list(self):
         """
@@ -153,8 +197,16 @@ class FileDescriptor:
             [file_id, name, path, upload_date, edit_date],
             ...
         ]
+        @param folder the folder to get the files from
+        @return the list of files
         """
         return [{"id": id, "name": f["name"], "path": f["path"], "upload_date": f["upload_date"], "edit_date": f["edit_date"]} for id,f in self.files.items()]
+
+    def get_folder_list(self):
+        """
+        Returns the list of all folders in the FileDescriptor
+        """
+        return list(self.folders)
 
     def serialize(self):
         """
@@ -163,7 +215,7 @@ class FileDescriptor:
         """
         if not self.files_ready:
             raise Exception("Files are not available, use set_files")
-        return json.dumps(self.files).encode('utf-8'), json.dumps(self.metadata).encode('utf-8')
+        return json.dumps(self.files).encode('utf-8') + DATA_SEPERATOR.encode('utf-8') + json.dumps(list(self.folders)).encode('utf-8'), json.dumps(self.metadata).encode('utf-8')
     
     def deserialize(self, data):
         """
@@ -174,13 +226,18 @@ class FileDescriptor:
     def __str__(self):
         return str(self.metadata) + "\r\n" + str(self.files)
     
-    def get_files_in_folder(self, folder_name):
+    def get_items_in_folder(self, folder_name="/"):
         """
-        Returns a recursive list of all the entrees for files in a specific folder based on their path 
+        Returns a shallow list of all the entrees for files and folders in a folder
+        @param folder_name the folder to get the items from
+        @return file_list, folder_list, a tuple of the list of files and the list of folders
         """
         file_list = []
+        folder_list = []
         for id,file in self.files.items():
-            if file["path"].startswith(folder_name):
+            if file["path"] == folder_name:
                 file_list.append(file)
-        
-        return file_list
+        for folder in self.folders:
+            if folder != "/" and folder!=folder_name and folder.startswith(folder_name) and folder[len(folder_name)+1:].find("/") == -1:
+                folder_list.append(folder)
+        return file_list, folder_list

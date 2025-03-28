@@ -51,6 +51,9 @@ class App(ctk.CTk):
         # List of all context_menus in the app
         self.context_menus = []
         
+        # List of all buttons
+        self.buttons = []
+        
         # Creating the frames
         for F in (LoginPage, MainPage, SharePage):
             frame = F(container, self)
@@ -97,6 +100,10 @@ class App(ctk.CTk):
         for menu in self.context_menus:
             if menu not in ignore_list:
                 menu.hide_context_menu()
+
+    def change_folder(self, path):
+        self.frames[MainPage].change_folder(path)
+        
 
 class LoginPage(ctk.CTkFrame):
     """
@@ -233,8 +240,16 @@ class MainPage(ctk.CTkFrame):
         self.shared_files_button.bind("<Enter>", lambda e: self.set_bold(self.shared_files_button))
         self.shared_files_button.bind("<Leave>", lambda e: self.set_normal(self.shared_files_button))
         
-        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
+        root_folder = Folder(self, controller, "/")
+        self.folders = {"/": root_folder}
+        self.main_frame = root_folder
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
+
+        self.curr_path = "/EncryptoSphere"
+
+        # Create a label that will display current location
+        self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
 
         # Context_menu object for the upload button (offers 2 options - upload file or upload folder)
         # This is because windows os filesystem cannot open the explorer to select file and folder at the same time.
@@ -286,7 +301,7 @@ class MainPage(ctk.CTkFrame):
         """
         Upload file to the cloud and refresh the page
         """
-        self.controller.get_api().upload_file(os.path.normpath(file_path))
+        self.controller.get_api().upload_file(os.path.normpath(file_path), self.main_frame.path)
         self.refresh()
 
 
@@ -305,56 +320,121 @@ class MainPage(ctk.CTkFrame):
         """
         Upload folder to the cloud and refresh the page
         """
-        self.controller.get_api().upload_folder(os.path.normpath(folder_path))
+        self.controller.get_api().upload_folder(os.path.normpath(folder_path), self.main_frame.path)
         self.refresh()
-    
+
+    def change_folder(self, path):
+        """
+        Changes the folder viewed in main_frame
+        """
+
+        self.main_frame.pack_forget()
+        if path in self.folders:
+            self.main_frame = self.folders[path]
+            
+        else:
+            new_folder = Folder(self, self.controller, path)
+            self.folders[path] = new_folder
+            self.main_frame = new_folder
+
+        self.main_frame.refresh()
+        self.main_frame.lift()
+            
     def refresh(self):
         """
         Refresh the frame and display all updates
         """
-        file_list = self.controller.get_api().get_files()
-        for widget in self.main_frame.winfo_children():
+        self.main_frame.refresh()
+    
+    
+
+class Folder(ctk.CTkFrame):
+    """
+    This class represents the current folder we are in
+    It contains all the files and folders that are in the current folder, the current folder, and the frame to display
+    """
+
+    def __init__(self, parent, controller : App, path):
+        ctk.CTkFrame.__init__(self, parent)
+        self.controller = controller
+        self.path = path
+        self.pack(fill = ctk.BOTH, expand = True)
+
+
+    def refresh(self):
+        """
+        Refresh the frame and display all updates
+        """
+        file_list, folder_list = self.controller.get_api().get_files(self.path)
+        for widget in self.winfo_children():
             widget.after(0, widget.destroy)
-        self.buttons = []
         columns = 6
         cell_size = 120
 
         for col in range(columns):
-            self.main_frame.grid_columnconfigure(col, weight=1, uniform="file_grid")
+            self.grid_columnconfigure(col, weight=1, uniform="file_grid")
+        index = 0
+        for folder in folder_list:
+            row = index // columns  
+            col = index % columns   
 
-        for i, file_data in enumerate(file_list):
-            row = i // columns  
-            col = i % columns   
-
-            file_frame = FileButton(self.main_frame, width=cell_size, height=cell_size, file_data=file_data, controller=self.controller)
+            file_frame = FolderButton(self, width=cell_size, height=cell_size, folder_path=folder, controller=self.controller)
             file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-            self.buttons.append(file_frame)
+            
+            index += 1
 
-class FileButton(ctk.CTkFrame):
+        for file in file_list:
+            row = index // columns  
+            col = index % columns   
+
+            file_frame = FileButton(self, width=cell_size, height=cell_size, file_data=file, controller=self.controller)
+            file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            index += 1
+
+class IconButton(ctk.CTkFrame):
+    """
+    This class is an abstract button class for all icons that go in MainFrame
+    """
+    def __init__(self, master, width, height, icon_path, text, controller):
+        ctk.CTkFrame.__init__(self, master, width=width, height=height)
+        self.controller = controller
+        self.master = master
+        self.file_icon = ctk.CTkImage(light_image=Image.open(icon_path), size=(40, 40))
+
+        icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
+        icon_label.pack(pady=(5, 0))
+
+        name_label = ctk.CTkLabel(self, text=text, font=("Arial", 9), wraplength=90, justify="center")
+        name_label.pack(pady=(0, 5))
+
+        # Connect all file related content to do the same action when clicked (open the context_menu)
+        self.bind("<Button-1>", lambda e: self.on_button1_click(e))
+        icon_label.bind("<Button-1>", lambda e: self.on_button1_click(e))
+        name_label.bind("<Button-1>", lambda e: self.on_button1_click(e))
+        self.bind("<Button-2>", lambda e: self.on_button2_click(e))
+        icon_label.bind("<Button-2>", lambda e: self.on_button2_click(e))
+        name_label.bind("<Button-2>", lambda e: self.on_button2_click(e))
+        self.bind("<Double-Button-1>", lambda e: self.on_double_click(e))
+        icon_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e))
+        name_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e))
+    
+    def on_button1_click(self, event=None):
+        pass
+
+    def on_double_click(self, event=None):
+        pass
+    
+    def on_button2_click(self, event=None):
+        pass
+
+class FileButton(IconButton):
     """
     This class represents a "file button".
     A file button is the frame surronding the file icon and name, so every mouse click in that area is considered as an action related to that specific file 
     """
     def __init__(self, master, width, height, file_data, controller):
-
-        ctk.CTkFrame.__init__(self, master, width=width, height=height)
-
-        self.controller = controller
-        self.master = master
+        IconButton.__init__(self, master, width, height, "resources/file_icon.png", file_data["name"], controller)
         self.file_data = file_data
-
-        self.file_icon = ctk.CTkImage(light_image=Image.open("resources/file_icon.png"), size=(40, 40))
-
-        icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
-        icon_label.pack(pady=(5, 0))
-
-        name_label = ctk.CTkLabel(self, text=self.file_data["name"], font=("Arial", 9), wraplength=90, justify="center")
-        name_label.pack(pady=(0, 5))
-
-        # Connect all file related content to do the same action when clicked (open the context_menu)
-        self.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
-        icon_label.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
-        name_label.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
 
         # Create a context menu using CTkFrame
         self.context_menu = OptionMenu(master, self.controller, [
@@ -369,9 +449,7 @@ class FileButton(ctk.CTkFrame):
                  "event": lambda: Thread(target=self.delete_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
              }
         ])
-
-        # When clicking anywhere on the screen, close the context_menu
-        master.bind("<Button-1>", lambda event: self.context_menu.hide_context_menu(), add="+")
+        self.controller.register_context_menu(self.context_menu)
 
     def download_file_from_cloud(self, file_id):
         self.controller.get_api().download_file(file_id)
@@ -381,12 +459,11 @@ class FileButton(ctk.CTkFrame):
         self.controller.get_api().delete_file(file_id)
         self.master.master.refresh()
 
-    def on_file_click(self, file_id, event=None):
+    def on_button1_click(self, event=None):
         """
         When clicking on a file, open the context menu for that file, double clicking means open-close the context menu.
         Click on a file close any other open context menu.
         """
-        print(f"File clicked: {file_id}")
         self.controller.button_clicked(self, [self.context_menu])
         if self.context_menu.context_hidden:
             self.context_menu.lift()
@@ -435,8 +512,46 @@ class OptionMenu(ctk.CTkFrame):
         self.context_hidden = False
         self.place(x=x, y=y)
 
-class Folder():
-    pass
+class FolderButton(IconButton):
+    def __init__(self, master, width, height, folder_path, controller):
+        self.folder_path = folder_path
+        name_index = folder_path.rfind("/")+1
+        if len(folder_path) > name_index:
+            self.folder_name = folder_path[name_index:]
+        elif folder_path == "/":
+            self.folder_name = "/"
+        else:
+            raise Exception("Invalid folder path")  
+        
+        IconButton.__init__(self, master, width, height, "resources/folder_icon.png", self.folder_name, controller)
+        self.controller = controller
+        self.master = master
+
+        # Create a context menu using CTkFrame
+        self.context_menu = OptionMenu(master, self.controller, [
+            {
+                "label": "Download File",
+                "color": "blue",
+                "event": lambda: self.controller.get_api().download_folder(self.folder_path)
+             },
+             {
+                 "label": "Delete File",
+                 "color": "red",
+                 "event": lambda: self.controller.get_api().delete_folder(self.folder_path) # maybe add "ARE YOU SURE?"
+             }
+        ])
+        self.controller.register_context_menu(self.context_menu)
+
+    def on_double_click(self, event=None):
+        self.controller.change_folder(self.folder_path)
+    
+    def on_button2_click(self, event=None):
+        if self.context_menu.context_hidden:
+            self.context_menu.lift()
+            self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.winfo_rooty())
+        else:
+            self.context_menu.hide_context_menu()
+
 class SharePage(ctk.CTkFrame):
     def __init__(self, parent, controller):
         
@@ -606,31 +721,13 @@ class SharePage(ctk.CTkFrame):
             self.buttons.append(file_frame)
 
 
-class SharedFolderButton(ctk.CTkFrame):
-    """
-    This class represents a "file button".
-    A file button is the frame surronding the file icon and name, so every mouse click in that area is considered as an action related to that specific file 
-    """
+class SharedFolderButton(IconButton):
     def __init__(self, master, width, height, file_data, controller):
 
-        ctk.CTkFrame.__init__(self, master, width=width, height=height)
-
+        super().__init__(self, master, width, height, "resources/folder_icon.png", file_data["name"], controller)
         self.controller = controller
         self.master = master
         self.file_data = file_data
-
-        self.file_icon = ctk.CTkImage(light_image=Image.open("resources/folder_icon.png"), size=(40, 40))
-
-        icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
-        icon_label.pack(pady=(5, 0))
-
-        name_label = ctk.CTkLabel(self, text=self.file_data["name"], font=("Arial", 9), wraplength=90, justify="center")
-        name_label.pack(pady=(0, 5))
-
-        # Connect all file related content to do the same action when clicked (open the context_menu)
-        self.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
-        icon_label.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
-        name_label.bind("<Button-1>", lambda e, file_id=self.file_data["id"]: self.on_file_click(file_id, e))
 
         # Create a context menu using CTkFrame
         self.context_menu = OptionMenu(master, self.controller, [
@@ -656,8 +753,7 @@ class SharedFolderButton(ctk.CTkFrame):
              }
         ])
 
-        # When clicking anywhere on the screen, close the context_menu
-        master.bind("<Button-1>", lambda event: self.context_menu.hide_context_menu(), add="+")
+        self.controller.register_context_menu(self.context_menu)
 
     def download_file_from_cloud(self, file_id):
         self.controller.get_api().download_file(file_id)
@@ -667,12 +763,11 @@ class SharedFolderButton(ctk.CTkFrame):
         self.controller.get_api().delete_file(file_id)
         self.master.master.refresh()
 
-    def on_file_click(self, file_id, event=None):
+    def on_button1_click(self, event=None):
         """
         When clicking on a file, open the context menu for that file, double clicking means open-close the context menu.
         Click on a file close any other open context menu.
         """
-        print(f"File clicked: {file_id}")
         self.controller.button_clicked(self, [self.context_menu])
         if self.context_menu.context_hidden:
             self.context_menu.lift()
