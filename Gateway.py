@@ -33,10 +33,11 @@ class Gateway:
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
-        raw_key = b"11111111111111111111111111111111"
+        master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
         dropbox1 = DropBox(email)
         drive1 = GoogleDrive(email)
-        encrypt = AESEncrypt(raw_key)
+        encrypt = AESEncrypt()
+        encrypt.set_key(encrypt.generate_key_from_key(master_key))
         # Everything here is for testing
         self.manager = CloudManager(
             [drive1, dropbox1],
@@ -153,8 +154,8 @@ class Gateway:
             shared_with,
             self.manager.clouds,
             f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
-            NoSplit(), 
-            NoEncrypt(), 
+            self.manager.split,
+            self.manager.encrypt, 
         )
 
         self.session_manager.add_session(new_session)

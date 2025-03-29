@@ -16,3 +16,6 @@ class NoEncrypt(Encrypt):
     
     def generate_key(self) -> bytes:
         return b"NOKEY"
+
+    def generate_key_from_key(self, key):
+        return key
