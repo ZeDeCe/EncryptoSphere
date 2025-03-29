@@ -100,7 +100,7 @@ class GoogleDrive(CloudService):
 
     def upload_file(self, data: bytes, file_name: str, path: str):
         """
-        Upload a file to Google Drive
+        Upload a file to Google Drive, updating it if a file with the same name already exists
         @param data: The file data to upload
         @param file_name: The name of the file
         @param path: The folder path where the file should be uploaded
@@ -108,13 +108,13 @@ class GoogleDrive(CloudService):
         """
         try:
             if not data:
-                raise ValueError("Google Drive: File data is empty")
+                raise ValueError("Google Drive- Google Drive: File data is empty")
                 
             # Split the folder path into parts
             folder_parts = path.strip('/').split('/')
 
             if len(folder_parts) < 1:
-                raise Exception("Invalid folder path")
+                raise Exception("Google Drive- Invalid folder path")
 
             # Start from the root folder
             current_folder_id = 'root'
@@ -129,6 +129,7 @@ class GoogleDrive(CloudService):
                 folders = results.get('files', [])
                 if not folders:
                     # Create folder if it doesn't exist
+                    print(f"Google Drive: Creating folder '{folder}'")
                     folder_metadata = {
                         'name': folder,
                         'mimeType': 'application/vnd.google-apps.folder',
@@ -141,28 +142,45 @@ class GoogleDrive(CloudService):
 
             folder_id = current_folder_id
 
-            # Define file's metadata
-            file_metadata = {
-                "name": file_name,
-                "parents": [folder_id] if folder_id else []
-            }
+            # Check if file already exists in the folder
+            results = self.drive_service.files().list(
+                q=f"name = '{file_name}' and '{folder_id}' in parents and trashed = false",
+                fields="files(id, name)"
+            ).execute()
+
+            existing_files = results.get('files', [])
 
             # Convert to the right format
             media = MediaIoBaseUpload(io.BytesIO(data), mimetype="application/octet-stream")
 
-            # Upload
-            self.drive_service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields="id"
-            ).execute()
+            if existing_files:
+                # Update the existing file
+                file_id = existing_files[0]['id']
+                updated_file = self.drive_service.files().update(
+                    fileId=file_id,
+                    media_body=media
+                ).execute()
+                print(f"Google Drive: {file_name} uploaded successfully.")
+                return True
+            else:
+                # Define file's metadata for new file
+                file_metadata = {
+                    "name": file_name,
+                    "parents": [folder_id] if folder_id else []
+                }
 
-            return True
-
+                # Upload new file
+                self.drive_service.files().create(
+                    body=file_metadata,
+                    media_body=media,
+                    fields="id"
+                ).execute()
+                print(f"Google Drive: {file_name} uploaded successfully.")
+                return True
         except HttpError as error:
             raise Exception(f"Google Drive: Upload failed - {error}")
         except Exception as error:
-            raise Exception(f"Unexpected error during upload: {error}")
+            raise Exception(f"Google Drive: Unexpected error during upload: {error}")
     
     def download_file(self, file_name : str, path : str) -> bytes | None:
         """
@@ -176,7 +194,7 @@ class GoogleDrive(CloudService):
             folder_parts = path.strip('/').split('/')
 
             if len(folder_parts) < 1:
-                raise Exception("Invalid folder path")
+                raise Exception("GoogleDrive- Invalid folder path")
 
             # Start from the root folder
             current_folder_id = 'root'
@@ -202,7 +220,7 @@ class GoogleDrive(CloudService):
 
             files = results.get('files', [])
             if not files:
-                raise Exception(f"File '{file_name}' not found in path '{path}'")
+                raise Exception(f"GoogleDrive- File {file_name} not found in path {path}")
 
             file_id = files[0]['id']
             mime_type = files[0].get('mimeType', '')
@@ -217,10 +235,11 @@ class GoogleDrive(CloudService):
                 request = self.drive_service.files().get_media(fileId=file_id)
 
             # Execute the download request and return the file content
+            print(f"Google Drive: file {file_name} downloaded successfully")
             return request.execute()
 
         except Exception as e:
-            print(f"Error downloading file: {e}")
+            print(f"GoogleDrive- Error downloading file: {e}")
             return None
     
     def delete_file(self, file_name: str, path: str):
@@ -246,18 +265,18 @@ class GoogleDrive(CloudService):
             files = results.get('files', [])
             
             if not files:
-                raise Exception(f"File '{file_name}' not found in Drive under path '{path}'")
+                raise Exception(f"GoogleDrive- File {file_name} not found in Drive under path {path}")
             
             # Get the file ID
             file_id = files[0]['id']
             
             # Perform the delete operation
             self.drive_service.files().delete(fileId=file_id).execute()
-            
+            print(f"Google Drive: {file_name} deleted successfully.")
             return True
 
         except HttpError as error:
-            raise Exception(f"Error deleting file: {error}")
+            raise Exception(f"Google Drive- Error deleting file: {error}")
 
     def get_folder(self, path: str):
         """
@@ -548,7 +567,7 @@ class GoogleDrive(CloudService):
         """
         return "G"  #G for Google Drive
 
-
+"""
 # Main function to interact with the user
 def main():
     print("Google POC")
@@ -720,3 +739,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+"""
