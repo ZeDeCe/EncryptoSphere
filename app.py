@@ -59,7 +59,7 @@ class App(ctk.CTk):
         self.buttons = []
         
         # Creating the frames
-        for F in (LoginPage, MainPage, SharePage):
+        for F in (LoginPage, MainPage, SharePage, SharedFolderPage):
             frame = F(container, self)
             self.frames[F] = frame  
             frame.grid(row=0, column=0, sticky="nsew")
@@ -67,13 +67,14 @@ class App(ctk.CTk):
         # Show the start page (as of this POC, login to the clouds)
         self.show_frame(LoginPage)
 
-    def show_frame(self, cont):
+    def show_frame(self, cont, **kwargs):
         """
         Display the given frame
         @param cont: The frame to be displayed
         """
         frame = self.frames[cont]
-        frame.refresh()
+        if hasattr(frame, "refresh"):
+            frame.refresh(**kwargs)
         frame.tkraise()
 
     def get_api(self):
@@ -867,13 +868,9 @@ class SharedFolderButton(IconButton):
 
     def on_double_click(self, event=None):
         """
-        When double clicking on a folder, Display the folder contents
-        @param event: The event that triggered this function
+        When double clicking on a shared folder, navigate to the SharedFolderPage.
         """
-        # Add here the correct function
-        self.controller.change_folder(self.full_folder_name)
-        
-
+        self.controller.show_frame(SharedFolderPage, folder_name=self.full_folder_name)
         
 
     def add_member_on_shared_folder(self):
@@ -900,3 +897,52 @@ class SharedFolderButton(IconButton):
             self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.winfo_rooty())
         else:
            self.context_menu.hide_context_menu()
+
+class SharedFolderPage(ctk.CTkFrame):
+    """
+    This class creates the shared folder page frame - where the user can view the contents of a shared folder.
+    """
+    def __init__(self, parent, controller):
+        ctk.CTkFrame.__init__(self, parent)
+        self.controller = controller
+
+        # Side bar
+        self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
+        self.side_bar.pack(side=ctk.LEFT, fill="y", expand=False)
+
+        # Back button
+        self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
+                                         command=lambda: self.controller.show_frame(SharePage),
+                                         width=120, height=30, fg_color="gray25", hover=False)
+        self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+
+        # Main frame to display folder contents
+        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
+        self.main_frame.pack(fill=ctk.BOTH, expand=True)
+
+    def refresh(self, folder_name):
+        """
+        Refresh the frame and display the contents of the shared folder.
+        """
+        file_list, folder_list = self.controller.get_api().get_files(folder_name)
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+
+        columns = 6
+        cell_size = 120
+
+        for i, folder in enumerate(folder_list):
+            row = i // columns
+            col = i % columns
+
+            folder_button = FolderButton(self.main_frame, width=cell_size, height=cell_size,
+                                         folder_path=folder, controller=self.controller)
+            folder_button.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+
+        for i, file in enumerate(file_list):
+            row = (i + len(folder_list)) // columns
+            col = (i + len(folder_list)) % columns
+
+            file_button = FileButton(self.main_frame, width=cell_size, height=cell_size,
+                                     file_data=file, controller=self.controller)
+            file_button.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
