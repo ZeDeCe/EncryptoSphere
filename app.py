@@ -252,8 +252,7 @@ class MainPage(ctk.CTkFrame):
                                                  width=120, height=30, fg_color="gray25", hover=False)
         self.back_button.pack_forget()
 
-        self.curr_path = "/EncryptoSphere"
-
+        self.curr_path = "/"
         # Create a label that will display current location
         self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
@@ -349,7 +348,7 @@ class MainPage(ctk.CTkFrame):
             self.folders[path] = new_folder
             self.main_frame = new_folder
 
-        self.main_frame.refresh()
+        self.main_frame.refresh(path)
         self.main_frame.lift()
 
             
@@ -385,7 +384,7 @@ class Folder(ctk.CTkFrame):
         
 
 
-    def refresh(self):
+    def refresh(self, path='/'):
         """
         Refresh the frame and display all updates
         """
@@ -415,6 +414,11 @@ class Folder(ctk.CTkFrame):
             file_frame = FileButton(self, width=cell_size, height=cell_size, file_data=file, controller=self.controller)
             file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
+        
+        
+        # Create a label that will display current location
+        self.url_label = ctk.CTkLabel(self, text=path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
 
 class IconButton(ctk.CTkFrame):
     """
