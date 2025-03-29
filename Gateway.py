@@ -33,43 +33,42 @@ class Gateway:
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
+        raw_key = b"11111111111111111111111111111111"
         dropbox1 = DropBox(email)
         drive1 = GoogleDrive(email)
-        raw_key = b"11111111111111111111111111111111"
+        encrypt = AESEncrypt(raw_key)
         # Everything here is for testing
         self.manager = CloudManager(
             [drive1, dropbox1],
             "/EncryptoSphere", 
             ShamirSplit(), 
-            AESEncrypt(raw_key)
+            encrypt
         )
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         print(f"Status: {status}")
-        self.current_session = self.manager 
-       
-        # dropbox2 = DropBox(email)
-        #Testing shared sessions
-        # self.shared_session = SharedCloudManager(
-        #     [{"D":"pokaya6659@cybtric.com"}],
-        #     [dropbox2],
-        #     "/SharedSession", 
-        #     NoSplit(), 
-        #     NoEncrypt(), 
-        # )
-        # self.shared_session.authenticate()
-        # self.shared_session.upload_file(".\\Test\\uploadme.txt")
+        self.current_session = self.manager
+        #self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
         return status
     
     def change_session(self, path=None):
+        """
+        Change the current session to the one specified by path
+        @param path: the path to the session to change to
+        """
         if path:
            self.current_session = self.session_manager.get_session(path)
         else:
             self.current_session = self.session_manager.main_session
-        
+    """ 
     def get_files(self):
         return self.current_session.get_file_list()
+    """ 
+    
     def get_files(self, path="/"):
+        """
+        @return: list of files in the current session in the FD format
+        """
         return self.manager.get_items_in_folder(path)
     
     def download_file(self, file_id):

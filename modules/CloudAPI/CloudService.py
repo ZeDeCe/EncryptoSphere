@@ -173,7 +173,7 @@ class CloudService(ABC):
         """
     
     @abstractmethod
-    def get_members_shared(self, folder : any) -> list[str] | bool:
+    def get_members_shared(self, folder : Folder) -> list[str] | bool:
         """
         Returns a list of emails that the folder is shared with if shared, and false if not shared
         @param folder the folder object

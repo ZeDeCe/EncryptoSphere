@@ -8,6 +8,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa,padding
 from cryptography.hazmat.primitives import hashes,serialization
 import re
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 class SharedCloudManager(CloudManager):
     """
@@ -132,11 +134,11 @@ class SharedCloudManager(CloudManager):
         try:
             self._delete_replicated(f"$TFEK", True)
         except:
-            pass
+            print("Failed to delete TFEK")
         try:
             self._delete_replicated(f"$PUBLIC", True)
         except:
-            pass
+            print("Failed to delete PUBLIC")
 
     def check_key_status(self, cloud : CloudService) -> bytes | bool:
         """
@@ -189,6 +191,12 @@ class SharedCloudManager(CloudManager):
                 )
             )
             shared_secret = self._encrypt(shared_secret)
+            try:
+                self._delete_replicated("$TFEK", True)
+                self._delete_replicated("$SHARED", True)
+                self._delete_replicated("$PUBLIC", True)
+            except:
+                print("Failed to delete temporary files, but successful key share")
             return shared_secret
         if not (tfek and public_key):
             self.upload_TFEK(cloud)
@@ -312,7 +320,7 @@ class SharedCloudManager(CloudManager):
                 print(f"Failed to add user {email} to shared session on {cloud_name}: {e}")
 
     @staticmethod
-    def is_valid_session_root(cloud, root) -> bool:
+    def is_valid_session_root(cloud : CloudService, root : CloudService.Folder) -> bool:
         """
         Checks if the folder root given in the cloud is a valid session root for SharedCloudManager
         Checks the following:
@@ -323,15 +331,17 @@ class SharedCloudManager(CloudManager):
         @return if it is valid, True, otherwise False
         """
          # Ensure the root includes the base path
-        base_path = os.getenv("ENCRYPTO_ROOT")
-        if not root.startswith(base_path):
-            root = f"{base_path}{root}"
+        folder = root
+        root = root.path
+        # base_path = os.getenv("ENCRYPTO_ROOT")
+        # if not root.startswith(base_path):
+        #     root = f"{base_path}{root}"
         
         if not root.endswith("_ENCRYPTOSPHERE_SHARE"):
             print(f"Folder {root} is not a valid session root, does not match pattern")
             return False
         try:            
-            members = cloud.get_members_shared(root)
+            members = cloud.get_members_shared(folder)
             print(f"Members: {members}")
             if not members or len(members) < 2:
                 print(f"Folder {root} is not a valid session root, does not have at least 2 members shared")
@@ -342,8 +352,8 @@ class SharedCloudManager(CloudManager):
 
         try:
             files = cloud.list_files(root)
-            fek_pattern = r"$FEK_.+?@.+$"
-            if not any(re.match(fek_pattern, file) for file in files):
+            fek_pattern = r"\$FEK_.+?@.+"
+            if not any([re.match(fek_pattern, file) for file in files]):
                 print(f"Folder {root} is not a valid session root, does not contain a valid $FEK file")
                 return False
         except Exception as e:
