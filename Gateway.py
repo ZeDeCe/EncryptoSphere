@@ -32,10 +32,10 @@ class Gateway:
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
-        dropbox1 = DropBox(email)
-        drive1 = GoogleDrive(email)
-        encrypt = AESEncrypt()
-        encrypt.set_key(encrypt.generate_key())
+        raw_key = b"11111111111111111111111111111111"
+        dropbox1 = DropBox("rexope3919@evluence.com")
+        drive1 = GoogleDrive("shaqedmov@gmail.com")
+        encrypt = AESEncrypt(raw_key)
         # Everything here is for testing
         self.manager = CloudManager(
             [drive1, dropbox1],
@@ -46,7 +46,7 @@ class Gateway:
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         print(f"Status: {status}")
-        self.current_session = self.manager 
+        self.current_session = self.manager
         #self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
         return status
     

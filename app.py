@@ -189,7 +189,6 @@ class LoginPage(ctk.CTkFrame):
     
     def update_gif(self):
         """Loop through frames"""
-        print("updating gif")
         self.gif_label.configure(image=next(self.frame_iterator))
         self.gif_animation_id = self.after(100, self.update_gif)  # Store the after call ID
 
