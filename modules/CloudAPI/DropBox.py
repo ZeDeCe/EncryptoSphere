@@ -141,13 +141,20 @@ class DropBox(CloudService):
                 return None
             
             metadata = self.dbx.files_get_metadata(folder_path)
-            
+            print(metadata)
             # Ensure it's a folder, not a file
             if isinstance(metadata, dropbox.files.FolderMetadata):
-                folder_id = metadata.id
                 folder_path = metadata.path_display
-                folder_obj = CloudService.Folder(id=folder_id, path=folder_path, shared=False, members_shared=None)
-                return folder_obj
+                if metadata.shared_folder_id:
+                    folder_id = metadata.shared_folder_id
+                    shared = True
+                    folder_obj = CloudService.Folder(id=folder_id, path=folder_path, shared=True, members_shared=None)
+                    members_shared = self.get_members_shared(folder_obj)
+                    folder_obj.members_shared = members_shared
+                    return folder_obj
+                else:
+                    folder_obj = CloudService.Folder(id=metadata.id, path=folder_path, shared=False, members_shared=None)
+                    return folder_obj
             else:
                 print(f"Error: {folder_path} is not a folder.")
                 return None
@@ -177,6 +184,12 @@ class DropBox(CloudService):
             # Folder already exists
             if e.error.is_path() and e.error.get_path().is_conflict():
                 f = self.dbx.files_get_metadata(folder_path)
+                print(f)
+                if f.shared_folder_id:
+                    obj = CloudService.Folder(id=f.shared_folder_id, path=f.path_display, shared=True, members_shared=None)
+                    members_shared = self.get_members_shared(obj)
+                    obj.members_shared = members_shared
+                    return obj
                 return CloudService.Folder(id=f.id, path=f.path_display)
             else:
                 raise Exception(f"Error: {e}")
@@ -184,8 +197,8 @@ class DropBox(CloudService):
 
     def create_shared_folder(self, folder_path, emails):
         try:
-            folder = self.create_folder(folder_path)
-            return self.share_folder(folder, emails)
+            folder = self.create_folder(folder_path) # folder is CloudService.Folder object
+            return self.share_folder(folder.path, emails)
         except dropbox.exceptions.ApiError as e:
             print(f"Error occurred: {e}")
 
@@ -214,7 +227,7 @@ class DropBox(CloudService):
         Protected function to share a folder by email address
         """
         try:
-            member = dropbox.sharing.AddMember(dropbox.sharing.MemberSelector.email(email))
+            member = dropbox.sharing.AddMember(dropbox.sharing.MemberSelector.email(email), dropbox.sharing.AccessLevel.editor)
             
             # Share the folder with the member (email address)
             result = self.dbx.sharing_add_folder_member(folder_id, [member])
@@ -230,7 +243,7 @@ class DropBox(CloudService):
         """
         try:
             # Check if the folder is already shared
-            shared_members = self.get_members_shared(folder_path)
+            shared_members = self.get_members_shared(self.get_folder(folder_path))
             if shared_members:
                 print(f"Folder '{folder_path}' is already shared! with: {shared_members}")
                 # Optionally, add new members to the existing shared folder
@@ -240,7 +253,7 @@ class DropBox(CloudService):
                             print(f"Failed to add {email} to the shared folder")
                             return None
                         print(f"Folder shared successfully with {email}!")
-                return self.get_folder(folder_path)  # Return the folder metadata
+                return self.get_folder(folder_path)  #return the folder object
 
             metadata = self._share_folder(folder_path)
             if not metadata:
