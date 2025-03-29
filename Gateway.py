@@ -44,6 +44,7 @@ class Gateway:
             ShamirSplit(), 
             encrypt
         )
+
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         print(f"Status: {status}")
@@ -60,6 +61,7 @@ class Gateway:
            self.current_session = self.session_manager.get_session(path)
         else:
             self.current_session = self.session_manager.main_session
+    
     """ 
     def get_files(self):
         return self.current_session.get_file_list()
@@ -72,33 +74,60 @@ class Gateway:
         return self.manager.get_items_in_folder(path)
     
     def download_file(self, file_id):
-        self.current_session.download_file(file_id)
-        return True # TODO: Handle correctly!!
-    
+        """
+        Download file function
+        @param file_id: the id of the file to download
+        @return: True if the file was downloaded successfully, False otherwise
+        """
+        return self.current_session.download_file(file_id)
+
+    """
     def download_folder(self, folder_id):
         self.current_session.download_folder(folder_id)
         return True # TODO: Handle correctly!!
+    """
     
     def upload_file(self, file_path, path):
+        """
+        Upload file function
+        @param file_path: the path of the file to upload
+        @param path: the path in the cloud to upload the file to
+        @return: True if the file was uploaded successfully, False otherwise
+        """
         print(f"Upload file selected: {file_path}")
-        self.current_session.upload_file(file_path, path)
-        return True # TODO: Handle correctly!!
+        return self.current_session.upload_file(file_path, path)
+
     
     def upload_folder(self, folder_path, path):
+        """
+        Upload folder function
+        @param folder_path: the path of the folder to upload
+        @param path: the path in the cloud to upload the folder to
+        @return: True if the folder was uploaded successfully, False otherwise
+        """
         print(f"Upload folder selected {folder_path}")
-        self.current_session.upload_folder(folder_path, path)
-        return True # TODO: Handle correctly!!
+        return self.current_session.upload_folder(folder_path, path)
+
     
     def delete_file(self, file_id):
+        """
+        Delete file function
+        @param file_id: the id of the file to delete
+        @return: True if the file was deleted successfully, False otherwise
+        """
         print(f"Delete file selected {file_id}")
-        self.current_session.delete_file(file_id)
-        return True # TODO: Handle correctly!!
+        return self.current_session.delete_file(file_id)
+
     
     def delete_folder(self, path):
-        self.current_session.delete_folder(path)
-        return True # TODO: Handle correctly!!
+        """
+        Delete folder function
+        @param path: the path of the folder to delete
+        @return: True if the folder was deleted successfully, False otherwise
+        """
+        return self.current_session.delete_folder(path)
     
-    # TODO: shared session functions
+
     def create_shared_session(self, folder_name, emails):
         """
         Create new shared session
@@ -106,9 +135,11 @@ class Gateway:
         @param emails list of the share members
         TODO: At the next stage we want to let the user pick on which clouds he want to do the share
         also, we need to support the option of multiple emails account for the same email.
-        As of this POC we are given only one email and support only dropbox and google drive using the same email address.
+
+        As of this POC we are given only one email and support only dropbox and google drive using the same email address!
+
         """
- 
+
         emails = [email for email in emails if email.strip()]
 
         shared_with = []
@@ -125,6 +156,7 @@ class Gateway:
             NoSplit(), 
             NoEncrypt(), 
         )
+
         self.session_manager.add_session(new_session)
         print(f"New shared session created: {folder_name}")
         return True
@@ -137,24 +169,28 @@ class Gateway:
         """
         return self.session_manager.sessions.keys()
 
+    #TODO: Advanced sharing options
+    """
+    def share_file(self):
+        pass
 
-    #def share_file(self):
-    #    pass
 
+    def unshare_folder(self):
+        pass
 
-    #def unshare_folder(self):
-        #pass
-
-    #def unshare_file(self):
-    #    pass
+    def unshare_file(self):
+        pass
+    """
 
     def revoke_user_from_share(self, folder_path ,emails):
         """
         unshare emails from given shared folder
         @param folder name (will be convertet to session)
         @param emails list to remove from share 
-        TODO: we need to support the option of multiple emails account for the same email.
-        As of this POC we are given only one email and support only dropbox and google drive using the same email address.
+        TODO: We need to support the option of multiple emails account for the same email.
+
+        As of this POC we are given only one email and support only dropbox and google drive using the same email address!
+
         """
         share = None
         for session in self.session_manager.sessions:
@@ -171,10 +207,12 @@ class Gateway:
     def add_user_to_share(self, folder_path ,emails):
         """
         share email with given folder
-        @param folder name (will be convertet to session)
+        @param folder name ==> session
         @param emails list to add to share 
-        TODO: we need to support the option of multiple emails account for the same email.
-        As of this POC we are given only one email and support only dropbox and google drive using the same email address.
+        TODO: We need to support the option of multiple emails account for the same email.
+        
+        As of this POC we are given only one email and support only dropbox and google drive using the same email address!
+
         """
         share = None
         for session in self.session_manager.sessions:
@@ -187,7 +225,6 @@ class Gateway:
                 user_dict[cloud.get_name()] = email
             share_with.append(user_dict)
         share.revoke_user_from_share(share_with)
-
 
 
 def main():
