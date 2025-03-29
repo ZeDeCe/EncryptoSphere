@@ -21,6 +21,16 @@ class Encrypt(ABC):
     
     @abstractmethod
     def generate_key() -> bytes:
+        """
+        Generates a random key that can be used with set key
+        """
+        pass
+
+    @abstractmethod
+    def generate_key_from_key(self, key : bytes) -> bytes:
+        """
+        Recieves a key and returns a key that can be used with this encryption method
+        """
         pass
 
     @abstractmethod

@@ -5,7 +5,7 @@ import hashlib
 
 class AESEncrypt(Encrypt):
 
-    def generate_key(self) -> bytes:
+    def generate_key_from_key(self, key : bytes) -> bytes:
         """
         Generate an AES key using Argon2id or another suitable method
         for secure key generation (here we use a simple example).
@@ -13,7 +13,15 @@ class AESEncrypt(Encrypt):
         If the key length is not 32 bytes, we adjust it using SHA-256.
         """
         # Ensure key is 32 bytes long by hashing it with SHA-256
-        return hashlib.sha256(self.key.encode()).digest()
+        return hashlib.sha256(key).digest()
+    
+    def generate_key(self) -> bytes:
+        """
+        Generate a 32-byte AES key using SHA-256.
+        """
+        # Generate a random 16-byte value and hash it to create a 32-byte key
+        return hashlib.sha256(get_random_bytes(16)).digest()
+        
 
     def encrypt(self, data: bytes) -> bytes:
         """
