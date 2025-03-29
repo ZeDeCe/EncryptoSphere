@@ -42,9 +42,17 @@ class Gateway:
             NoSplit(), 
             NoEncrypt()
         )
-        self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
-        status = self.manager.authenticate()
-        self.current_session = self.manager 
+        try:
+            self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
+            status = self.manager.authenticate()
+            self.current_session = self.manager
+            #self.create_shared_session("FlowShared", ["rexope3919@evluence.com"])
+            self.session_manager.sync_new_sessions()
+        except Exception as e:
+            print(e)
+            # print traceback
+            
+            return False
        
         # dropbox2 = DropBox(email)
         #Testing shared sessions

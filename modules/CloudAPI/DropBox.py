@@ -178,6 +178,7 @@ class DropBox(CloudService):
         """
         try:
             new_folder = self.dbx.files_create_folder_v2(folder_path)
+            new_folder = new_folder.metadata
             return CloudService.Folder(id=new_folder.id, path=new_folder.path_display, shared=False, members_shared=None)
 
         except dropbox.exceptions.ApiError as e:
@@ -200,7 +201,10 @@ class DropBox(CloudService):
             folder = self.create_folder(folder_path) # folder is CloudService.Folder object
             return self.share_folder(folder.path, emails)
         except dropbox.exceptions.ApiError as e:
+            print(f"Dropbox Error occurred: {e}")
+        except Exception as e:
             print(f"Error occurred: {e}")
+        return None
 
     def _share_folder(self, folder_path):
         """
@@ -356,21 +360,21 @@ class DropBox(CloudService):
 
             # Iterate through each shared folder
             for folder in shared_folders.entries:
-                folder_id = folder.shared_folder_id
-                folder_path = folder.path_display if folder.path_display else "No Path"
-
                 # Check if the folder has a valid path or is already mounted
                 if not folder.path_lower:
                     print(f"Folder {folder.name} isn't joined. Attempting to join folder...")
                     try:
-                        self.dbx.sharing_mount_folder(folder.shared_folder_id)
+                        folder = self.dbx.sharing_mount_folder(folder.shared_folder_id)
+
                     except dropbox.exceptions.ApiError as e:
                         print(f"Failed to mount folder {folder.name}: {e}")
                         continue  # Skip this folder if we can't mount it
-
-                members_shared = self.get_members_shared(folder_path)
-                folder_obj = CloudService.Folder(id=folder_id, path=folder_path, shared=True, members_shared=members_shared)
-                shared_folders_info.append(folder_obj)
+                
+                folder_path = folder.path_display if folder.path_display else None
+                obj = CloudService.Folder(id=folder.shared_folder_id, path=folder_path, shared=True, members_shared=None)
+                members_shared = self.get_members_shared(obj)
+                obj.members_shared = members_shared
+                shared_folders_info.append(obj)
 
             return shared_folders_info
 
