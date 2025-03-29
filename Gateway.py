@@ -1,5 +1,6 @@
 """
 This is the main file that runs the the entire program
+Runs the GUI and handles the requests from the GUI to the backend
 """
 import os
 from dotenv import load_dotenv
@@ -173,7 +174,7 @@ class Gateway:
         share email with given folder
         @param folder name (will be convertet to session)
         @param emails list to add to share 
-        TODO: we need to support the option of multiple emails account for the same email.
+        TODO: We need to support the option of multiple emails account for the same email.
         As of this POC we are given only one email and support only dropbox and google drive using the same email address.
         """
         share = None
@@ -189,10 +190,10 @@ class Gateway:
         share.revoke_user_from_share(share_with)
 
 
-
 def main():
     """
     Encryptosphere main program
+    Creates Gateway object and starts the GUI
     """
     gateway = Gateway()
     gui = app.App(gateway)
