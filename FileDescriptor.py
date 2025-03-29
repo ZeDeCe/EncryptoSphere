@@ -77,6 +77,7 @@ class FileDescriptor:
                 raise Exception()
             self.files = self.deserialize(data[0])
             self.folders = set(self.deserialize(data[1]))
+            self.files_ready = True
         except:
             raise OSError("Failed to parse the filedescriptor from json, file descriptor corrupted")
 
@@ -214,7 +215,10 @@ class FileDescriptor:
         @return data,metadata serialized
         """
         if not self.files_ready:
-            raise Exception("Files are not available, use set_files")
+            if not self.metadata is None:
+                return None, json.dumps(self.metadata).encode('utf-8')
+            else:
+                return None, None
         return json.dumps(self.files).encode('utf-8') + DATA_SEPERATOR.encode('utf-8') + json.dumps(list(self.folders)).encode('utf-8'), json.dumps(self.metadata).encode('utf-8')
     
     def deserialize(self, data):
