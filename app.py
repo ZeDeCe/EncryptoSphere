@@ -151,6 +151,8 @@ class LoginPage(ctk.CTkFrame):
         # Add the retry button
         if hasattr(self, 'error_label'):
             self.error_label.grid_forget()
+        if hasattr(self, 'retry_button'):
+            self.retry_button.configure(state="disabled")
         
         # Load GIF
         self.gif = Image.open("resources/loading-gif.gif")
@@ -214,7 +216,7 @@ class MainPage(ctk.CTkFrame):
         self.controller = controller
 
         ctk.CTkFrame.__init__(self, parent)
-
+        self.prev_window = None
         
         self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
         self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
@@ -232,6 +234,8 @@ class MainPage(ctk.CTkFrame):
                                                  width=120, height=30, fg_color="gray25", hover=False)
         self.shared_files_button.pack(anchor="nw", padx=10, pady=5, expand=False)
 
+
+
         self.upload_button.bind("<Enter>", lambda e: self.set_bold(self.upload_button))
         self.upload_button.bind("<Leave>", lambda e: self.set_normal(self.upload_button))
 
@@ -243,8 +247,12 @@ class MainPage(ctk.CTkFrame):
         self.main_frame = root_folder
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
 
-        self.curr_path = "/EncryptoSphere"
+        self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
+                                                 command=lambda: self.change_folder(self.get_previous_window(self.main_frame.path)),
+                                                 width=120, height=30, fg_color="gray25", hover=False)
+        self.back_button.pack_forget()
 
+        self.curr_path = "/"
         # Create a label that will display current location
         self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
@@ -325,7 +333,12 @@ class MainPage(ctk.CTkFrame):
         """
         Changes the folder viewed in main_frame
         """
-
+        print(f"here : {path}")
+        if path != "/":
+            self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+        else:
+            self.back_button.pack_forget()
+        
         self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
@@ -335,8 +348,9 @@ class MainPage(ctk.CTkFrame):
             self.folders[path] = new_folder
             self.main_frame = new_folder
 
-        self.main_frame.refresh()
+        self.main_frame.refresh(path)
         self.main_frame.lift()
+
             
     def refresh(self):
         """
@@ -344,7 +358,18 @@ class MainPage(ctk.CTkFrame):
         """
         self.main_frame.refresh()
     
-    
+    def get_previous_window(self, path):
+        """
+        Get the previous window (if exists)
+        """
+        # Split the path from the right at the last '/'
+        parts = path.rsplit('/', 1)
+        # If there's only one part or the result is an empty string, return '/'
+        if len(parts) == 1 or parts[0] == '':
+            return '/'
+        # Otherwise, return the first part which is the path without the last segment
+        print(parts[0])
+        return parts[0]
 
 class Folder(ctk.CTkFrame):
     """
@@ -360,10 +385,12 @@ class Folder(ctk.CTkFrame):
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
 
-    def refresh(self):
+
+    def refresh(self, path='/'):
         """
         Refresh the frame and display all updates
         """
+        self.pack(fill = ctk.BOTH, expand = True)
         file_list, folder_list = self.controller.get_api().get_files(self.path)
         for widget in self.winfo_children():
             widget.after(0, widget.destroy)
@@ -389,6 +416,11 @@ class Folder(ctk.CTkFrame):
             file_frame = FileButton(self, width=cell_size, height=cell_size, file_data=file, controller=self.controller)
             file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
+        
+        
+        # Create a label that will display current location
+        self.url_label = ctk.CTkLabel(self, text=path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
 
 class IconButton(ctk.CTkFrame):
     """
@@ -434,6 +466,9 @@ class FileButton(IconButton):
     def __init__(self, master, width, height, file_data, controller):
         IconButton.__init__(self, master, width, height, "resources/file_icon.png", file_data["name"], controller)
         self.file_data = file_data
+        print(self.file_data)
+        print(self.file_data["name"])
+        print(self.file_data["id"])
 
         # Create a context menu using CTkFrame
         self.context_menu = OptionMenu(master.master, self.controller, [
