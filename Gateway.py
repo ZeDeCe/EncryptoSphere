@@ -40,10 +40,9 @@ class Gateway:
         encrypt.set_key(encrypt.generate_key_from_key(master_key))
         # Everything here is for testing
         self.manager = CloudManager(
-            [dropbox1],
+            [drive1, dropbox1],
             "/EncryptoSphere", 
-            #ShamirSplit(), 
-            NoSplit(),
+            ShamirSplit(), 
             encrypt
         )
 
