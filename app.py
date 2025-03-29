@@ -827,7 +827,9 @@ class SharedFolderButton(IconButton):
     
     def __init__(self, master, width, height, folder_name, controller):
 
+        
         # Get the folder name from the path
+        self.full_folder_name = folder_name
         folder_name = folder_name.replace("_ENCRYPTOSPHERE_SHARE", "")
         folder_name = folder_name.split("/")[-1]
 
@@ -835,6 +837,7 @@ class SharedFolderButton(IconButton):
         self.controller = controller
         self.master = master
         self.folder_name = folder_name
+        
 
         # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
         self.context_menu = OptionMenu(master.master, self.controller, [
@@ -862,6 +865,17 @@ class SharedFolderButton(IconButton):
 
         self.controller.register_context_menu(self.context_menu)
 
+    def on_double_click(self, event=None):
+        """
+        When double clicking on a folder, Display the folder contents
+        @param event: The event that triggered this function
+        """
+        # Add here the correct function
+        self.controller.change_folder(self.full_folder_name)
+        
+
+        
+
     def add_member_on_shared_folder(self):
         pass
 
@@ -874,7 +888,7 @@ class SharedFolderButton(IconButton):
     def delete_shared_folder(self):
         pass
 
-    def on_button1_click(self, event=None):
+    def on_button3_click(self, event=None):
         """
         When clicking on a file, open the context menu for that file, double clicking means open-close the context menu
         Click on a file close any other open context menu
