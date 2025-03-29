@@ -171,6 +171,7 @@ class DropBox(CloudService):
         """
         try:
             new_folder = self.dbx.files_create_folder_v2(folder_path)
+            new_folder = new_folder.metadata
             return CloudService.Folder(id=new_folder.id, path=new_folder.path_display, shared=False, members_shared=None)
 
         except dropbox.exceptions.ApiError as e:
@@ -184,8 +185,8 @@ class DropBox(CloudService):
 
     def create_shared_folder(self, folder_path, emails):
         try:
-            folder = self.create_folder(folder_path)
-            return self.share_folder(folder, emails)
+            folder = self.create_folder(folder_path) # folder is CloudService.Folder object
+            return self.share_folder(folder.path, emails)
         except dropbox.exceptions.ApiError as e:
             print(f"Error occurred: {e}")
 
@@ -214,7 +215,7 @@ class DropBox(CloudService):
         Protected function to share a folder by email address
         """
         try:
-            member = dropbox.sharing.AddMember(dropbox.sharing.MemberSelector.email(email))
+            member = dropbox.sharing.AddMember(dropbox.sharing.MemberSelector.email(email), dropbox.sharing.AccessLevel.editor)
             
             # Share the folder with the member (email address)
             result = self.dbx.sharing_add_folder_member(folder_id, [member])
@@ -230,7 +231,7 @@ class DropBox(CloudService):
         """
         try:
             # Check if the folder is already shared
-            shared_members = self.get_members_shared(folder_path)
+            shared_members = self.get_members_shared(self.get_folder(folder_path))
             if shared_members:
                 print(f"Folder '{folder_path}' is already shared! with: {shared_members}")
                 # Optionally, add new members to the existing shared folder
@@ -240,7 +241,7 @@ class DropBox(CloudService):
                             print(f"Failed to add {email} to the shared folder")
                             return None
                         print(f"Folder shared successfully with {email}!")
-                return self.get_folder(folder_path)  # Return the folder metadata
+                return self.get_folder(folder_path)  #return the folder object
 
             metadata = self._share_folder(folder_path)
             if not metadata:
