@@ -554,7 +554,7 @@ class GoogleDrive(CloudService):
             # Collect shared emails
             shared_emails = [
                 permission['emailAddress'] for permission in permission_list 
-                if permission.get('emailAddress') and permission['role'] != 'owner'
+                if permission.get('emailAddress')
             ]
 
             return shared_emails if shared_emails else False
