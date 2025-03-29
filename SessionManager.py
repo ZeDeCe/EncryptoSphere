@@ -20,6 +20,7 @@ class SessionManager():
         Adds a new shared session to the sessions list
         """
         self.sessions[session.root_folder] = session
+        session.authenticate()
 
     def end_session(self, session : SharedCloudManager):
         """

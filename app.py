@@ -387,8 +387,6 @@ class Folder(ctk.CTkFrame):
         self.pack(fill = ctk.BOTH, expand = True)
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
-
-
     def refresh(self, path='/'):
         """
         Refresh the frame and display all updates
@@ -419,8 +417,7 @@ class Folder(ctk.CTkFrame):
             file_frame = FileButton(self, width=cell_size, height=cell_size, file_data=file, controller=self.controller)
             file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
-        
-        
+         
         # Create a label that will display current location
         self.url_label = ctk.CTkLabel(self, text=path, anchor="e", fg_color="gray30", corner_radius=10)
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
@@ -702,10 +699,8 @@ class SharePage(ctk.CTkFrame):
             folder_name = folder_name_entry.get()
             emails = [email.get() for email in email_inputs]
             print(f"Creating share with folder: {folder_name} and emails: {emails}")
-            
             # Call a new function with the folder and emails (replace this with your logic)
-            Thread(target=self.controller.get_api().create_shared_session, args=(folder_name, emails,), daemon=True).start()
-
+            Thread(target=self.create_shared_session_on_cloud, args=(folder_name, emails,), daemon=True).start()
             # Close the new window
             new_window.destroy()
 
@@ -716,11 +711,17 @@ class SharePage(ctk.CTkFrame):
         # Adjust the scrollbar to make it thinner (no slider_length argument)
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
     
+    def create_shared_session_on_cloud(self, folder_name, emails):
+        self.controller.get_api().create_shared_session(folder_name, emails)
+        self.refresh()
+    
     def refresh(self):
         """
         Refresh the frame and display all updates
         """
-        file_list = self.controller.get_api().get_shared_folders()
+        
+        folder_list = self.controller.get_api().get_shared_folders()
+        folder_list = list(folder_list)
         for widget in self.main_frame.winfo_children():
             widget.after(0, widget.destroy)
         self.buttons = []
@@ -730,22 +731,25 @@ class SharePage(ctk.CTkFrame):
         for col in range(columns):
             self.main_frame.grid_columnconfigure(col, weight=1, uniform="file_grid")
 
-        for i, file_data in enumerate(file_list):
+        for i, folder_name in enumerate(folder_list):
             row = i // columns  
             col = i % columns   
 
-            file_frame = SharedFolderButton(self.main_frame, width=cell_size, height=cell_size, file_data=file_data, controller=self.controller)
+            file_frame = SharedFolderButton(self.main_frame, width=cell_size, height=cell_size, folder_name=folder_name, controller=self.controller)
             file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             self.buttons.append(file_frame)
 
 
 class SharedFolderButton(IconButton):
-    def __init__(self, master, width, height, file_data, controller):
+    
+    def __init__(self, master, width, height, folder_name, controller):
+        folder_name = folder_name.replace("_ENCRYPTOSPHERE_SHARE", "")
+        folder_name = folder_name.split("/")[-1]
 
-        super().__init__(self, master, width, height, "resources/folder_icon.png", file_data["name"], controller)
+        super().__init__(master, width, height, "resources/folder_icon.png", folder_name, controller)
         self.controller = controller
         self.master = master
-        self.file_data = file_data
+        self.folder_name = folder_name
 
         # Create a context menu using CTkFrame
         self.context_menu = OptionMenu(master.master, self.controller, [
