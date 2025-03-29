@@ -152,6 +152,8 @@ class LoginPage(ctk.CTkFrame):
         # Add the retry button
         if hasattr(self, 'error_label'):
             self.error_label.grid_forget()
+        if hasattr(self, 'retry_button'):
+            self.retry_button.configure(state="disabled")
         
         # Load GIF
         self.gif = Image.open("resources/loading-gif.gif")
@@ -161,8 +163,7 @@ class LoginPage(ctk.CTkFrame):
         try:
             while True:
                 self.gif.seek(self.gif.tell() + 1)
-                self.frames.append(ctk.CTkImage(self.gif.copy().convert("RGBA").resize((100, 100)))
-            )
+                self.frames.append(ctk.CTkImage(self.gif.copy().convert("RGBA").resize((100, 100))))
         except EOFError:
             pass
 
@@ -172,6 +173,7 @@ class LoginPage(ctk.CTkFrame):
 
         # Start animation
         self.frame_iterator = itertools.cycle(self.frames)
+        self.gif_animation_id = None  # Initialize the animation ID
         self.update_gif()
 
         email = self.entry.get()
@@ -180,12 +182,16 @@ class LoginPage(ctk.CTkFrame):
         if not result:
             self.__show_error("Error While connecting to the Cloud", self.controller.show_frame(LoginPage))
         else:
+            # Stop the animation
+            if self.gif_animation_id:
+                self.after_cancel(self.gif_animation_id)
             self.controller.show_frame(MainPage)
     
     def update_gif(self):
         """Loop through frames"""
+        print("updating gif")
         self.gif_label.configure(image=next(self.frame_iterator))
-        self.after(100, self.update_gif)  # Adjust speed as needed (100ms)
+        self.gif_animation_id = self.after(100, self.update_gif)  # Store the after call ID
 
     def __show_error(self, error_message, func):
         """
@@ -197,6 +203,8 @@ class LoginPage(ctk.CTkFrame):
             self.submit_button.grid_forget()
         if hasattr(self, 'gif_label'):
             self.gif_label.grid_forget()
+            if self.gif_animation_id:
+                self.after_cancel(self.gif_animation_id)
 
         # Display the error message
         self.error_label = ctk.CTkLabel(self, text=error_message, font=("Arial", 12), text_color="red")
@@ -206,27 +214,23 @@ class LoginPage(ctk.CTkFrame):
         self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
 
 class MainPage(ctk.CTkFrame):
-    """
-    This class creates the Main page frame after successful login.
-    This class inherits ctk.CTkFrame class.
-    """
     def __init__(self, parent, controller):
-        
         self.controller = controller
 
         ctk.CTkFrame.__init__(self, parent)
+        self.prev_window = None
 
-        
         self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
-        self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
+        self.side_bar.pack(side=ctk.LEFT, fill="y", expand=False)
         self.side_bar.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
+
         encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
-        encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand = False)
+        encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         self.upload_button = ctk.CTkButton(self.side_bar, text="Upload",
-                                      command=lambda: self.open_upload_menu(),
-                                      width=120, height=30, fg_color="gray25", hover=False)
-        self.upload_button.pack(anchor="nw", padx=10, pady=10, expand = False)
+                                           command=lambda: self.open_upload_menu(),
+                                           width=120, height=30, fg_color="gray25", hover=False)
+        self.upload_button.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         self.shared_files_button = ctk.CTkButton(self.side_bar, text="Shared Files",
                                                  command=lambda: self.controller.show_frame(SharePage),
@@ -238,31 +242,41 @@ class MainPage(ctk.CTkFrame):
 
         self.shared_files_button.bind("<Enter>", lambda e: self.set_bold(self.shared_files_button))
         self.shared_files_button.bind("<Leave>", lambda e: self.set_normal(self.shared_files_button))
-        
+
         root_folder = Folder(self, controller, "/")
         self.folders = {"/": root_folder}
         self.main_frame = root_folder
-        self.main_frame.pack(fill = ctk.BOTH, expand = True)
+        self.main_frame.pack(fill=ctk.BOTH, expand=True)
 
-        self.curr_path = "/EncryptoSphere"
+        self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
+                                         command=lambda: self.change_folder(self.get_previous_window(self.main_frame.path)),
+                                         width=120, height=30, fg_color="gray25", hover=False)
+        self.back_button.pack_forget()
 
+        self.curr_path = "/"
         # Create a label that will display current location
         self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
-        # Context_menu object for the upload button (offers 2 options - upload file or upload folder)
-        # This is because windows os filesystem cannot open the explorer to select file and folder at the same time.
+
+        # Initialize the context menu
+        self.initialize_context_menu()
+
+    def initialize_context_menu(self):
+        """
+        Initialize or recreate the context menu for the upload button.
+        """
         self.context_menu = OptionMenu(self, self.controller, [
             {
                 "label": "Upload File",
                 "color": "gray25",
                 "event": lambda: self.upload_file()
-             },
-             {
-                 "label": "Upload Folder",
-                 "color": "gray25",
-                 "event": lambda: self.upload_folder()
-             }
+            },
+            {
+                "label": "Upload Folder",
+                "color": "gray25",
+                "event": lambda: self.upload_folder()
+            }
         ])
 
     def set_bold(self, button):
@@ -272,80 +286,93 @@ class MainPage(ctk.CTkFrame):
     def set_normal(self, button):
         """ Revert the button text to normal when not hovered. """
         button.configure(font=("Verdana", 13))
-        
+
     def open_upload_menu(self):
         """
-        This function opens the upload menu using the context_menue.
-        """ 
+        This function opens the upload menu using the context menu.
+        """
+        print("Upload button clicked")
         if self.context_menu.context_hidden:
             self.controller.button_clicked(self, [self.context_menu])
-            self.context_menu.show_context_menu(self.upload_button.winfo_x()+(120), self.upload_button.winfo_y())
+            self.context_menu.show_context_menu(self.upload_button.winfo_x() + 120, self.upload_button.winfo_y())
         else:
             self.context_menu.hide_context_menu()
 
     def upload_file(self):
         """
         If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file.
-        In a new thread, call upload_file_to_cloud to upload the file to the clouds and. After a successful upload, refresh the frame so a the new file will be displayed
-        TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
         """
         file_path = filedialog.askopenfilename()
         self.context_menu.hide_context_menu()
         print(file_path)
         if file_path:
             Thread(target=self.upload_file_to_cloud, args=(file_path,), daemon=True).start()
-            
 
     def upload_file_to_cloud(self, file_path):
         """
-        Upload file to the cloud and refresh the page
+        Upload file to the cloud and refresh the page.
         """
         self.controller.get_api().upload_file(os.path.normpath(file_path), self.main_frame.path)
-        self.refresh()
-
+        self.main_frame.refresh(self.main_frame.path)
 
     def upload_folder(self):
         """
         If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder.
-        In a new thread, call upload_folder_to_cloud to upload the folder to the clouds. After a successful upload, refresh the frame so a the new folder will be displayed
-        TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
         """
         folder_path = filedialog.askdirectory()
         self.context_menu.hide_context_menu()
         if folder_path:
             Thread(target=self.upload_folder_to_cloud, args=(folder_path,), daemon=True).start()
-        
+
     def upload_folder_to_cloud(self, folder_path):
         """
-        Upload folder to the cloud and refresh the page
+        Upload folder to the cloud and refresh the page.
         """
         self.controller.get_api().upload_folder(os.path.normpath(folder_path), self.main_frame.path)
-        self.refresh()
+        self.main_frame.refresh(self.main_frame.path)
 
     def change_folder(self, path):
         """
-        Changes the folder viewed in main_frame
+        Changes the folder viewed in main_frame.
         """
+        print(f"here : {path}")
+        if path != "/":
+            self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+        else:
+            self.back_button.pack_forget()
 
         self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
-            
         else:
             new_folder = Folder(self, self.controller, path)
             self.folders[path] = new_folder
             self.main_frame = new_folder
 
-        self.main_frame.refresh()
+        self.main_frame.refresh(path)
         self.main_frame.lift()
-            
+
+        # Reinitialize the context menu when changing folders
+        self.initialize_context_menu()
+
     def refresh(self):
         """
-        Refresh the frame and display all updates
+        Refresh the frame and display all updates.
         """
         self.main_frame.refresh()
     
-    
+    def get_previous_window(self, path):
+        """
+        Get the previous window (if exists)
+        """
+        # Split the path from the right at the last '/'
+        parts = path.rsplit('/', 1)
+        # If there's only one part or the result is an empty string, return '/'
+        if len(parts) == 1 or parts[0] == '':
+            return '/'
+        # Otherwise, return the first part which is the path without the last segment
+        print(parts[0])
+        return parts[0]
 
 class Folder(ctk.CTkFrame):
     """
@@ -361,10 +388,12 @@ class Folder(ctk.CTkFrame):
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
 
-    def refresh(self):
+
+    def refresh(self, path='/'):
         """
         Refresh the frame and display all updates
         """
+        self.pack(fill = ctk.BOTH, expand = True)
         file_list, folder_list = self.controller.get_api().get_files(self.path)
         for widget in self.winfo_children():
             widget.after(0, widget.destroy)
@@ -390,6 +419,11 @@ class Folder(ctk.CTkFrame):
             file_frame = FileButton(self, width=cell_size, height=cell_size, file_data=file, controller=self.controller)
             file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
+        
+        
+        # Create a label that will display current location
+        self.url_label = ctk.CTkLabel(self, text=path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
 
 class IconButton(ctk.CTkFrame):
     """
@@ -435,6 +469,9 @@ class FileButton(IconButton):
     def __init__(self, master, width, height, file_data, controller):
         IconButton.__init__(self, master, width, height, "resources/file_icon.png", file_data["name"], controller)
         self.file_data = file_data
+        print(self.file_data)
+        print(self.file_data["name"])
+        print(self.file_data["id"])
 
         # Create a context menu using CTkFrame
         self.context_menu = OptionMenu(master.master, self.controller, [
@@ -678,25 +715,6 @@ class SharePage(ctk.CTkFrame):
 
         # Adjust the scrollbar to make it thinner (no slider_length argument)
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
-
-
-    def upload_folder(self):
-        """
-        If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder.
-        In a new thread, call upload_folder_to_cloud to upload the folder to the clouds. After a successful upload, refresh the frame so a the new folder will be displayed
-        TODO: Add test to see if the upload was succesful, if so - resresh the frame. Else pop an error message!
-        """
-        folder_path = filedialog.askdirectory()
-        self.context_menu.hide_context_menu()
-        if folder_path:
-            Thread(target=self.upload_folder_to_cloud, args=(folder_path,), daemon=True).start()
-        
-    def upload_folder_to_cloud(self, folder_path):
-        """
-        Upload folder to the cloud and refresh the page
-        """
-        self.controller.get_api().upload_folder(os.path.normpath(folder_path))
-        self.refresh()
     
     def refresh(self):
         """
