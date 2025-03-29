@@ -132,6 +132,7 @@ class CloudManager:
                 )
         
         self.sync_fd()
+        return True
             
     def _upload_replicated(self, file_name, data, suffix=False):
         """
@@ -204,6 +205,7 @@ class CloudManager:
             for file in files:
                 self.upload_file(os.path.join(root,file), f"{path}{encrypto_root}")
         self.sync_fd()
+        return True
 
     def download_file(self, file_id):
         """
@@ -296,6 +298,7 @@ class CloudManager:
                         cloud.delete_file(file_name, self.root_folder)
         self.fd.delete_file(file_id)    
         self.sync_fd()
+        return True
 
     def delete_folder(self, folder_path):
         """
@@ -303,6 +306,7 @@ class CloudManager:
         @param folder_path the path to the folder in the file descriptor
         """
         self.sync_fd()
+        return True
 
     def get_file_list(self):
         return self.fd.get_file_list()
