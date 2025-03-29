@@ -337,7 +337,7 @@ class SharedCloudManager(CloudManager):
         # if not root.startswith(base_path):
         #     root = f"{base_path}{root}"
         
-        if not root.endswith("_ENCRYPTOSPHERE_SHARE"):
+        if not root.endswith("_ENCRYPTOSPHERE_SHARE") or not root.startswith("/"):
             print(f"Folder {root} is not a valid session root, does not match pattern")
             return False
         try:            
