@@ -178,13 +178,18 @@ class DropBox(CloudService):
         """
         try:
             new_folder = self.dbx.files_create_folder_v2(folder_path)
-            new_folder = new_folder.metadata
             return CloudService.Folder(id=new_folder.id, path=new_folder.path_display, shared=False, members_shared=None)
 
         except dropbox.exceptions.ApiError as e:
             # Folder already exists
             if e.error.is_path() and e.error.get_path().is_conflict():
                 f = self.dbx.files_get_metadata(folder_path)
+                print(f)
+                if f.shared_folder_id:
+                    obj = CloudService.Folder(id=f.shared_folder_id, path=f.path_display, shared=True, members_shared=None)
+                    members_shared = self.get_members_shared(obj)
+                    obj.members_shared = members_shared
+                    return obj
                 return CloudService.Folder(id=f.id, path=f.path_display)
             else:
                 raise Exception(f"Error: {e}")
