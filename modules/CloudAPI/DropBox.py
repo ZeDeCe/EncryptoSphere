@@ -91,10 +91,10 @@ class DropBox(CloudService):
         try:
             # override if exsist
             self.dbx.files_upload(data, path, mute=True, mode=dropbox.files.WriteMode("overwrite"))
-            print(f"File uploaded successfully to {path}.")
+            print(f"DropBox     : {file_name} uploaded successfully.")
             return True
         except Exception as e:
-            raise Exception(f"DropBox: Failed to upload file: {e}")
+            raise Exception(f"DropBox     : Failed to upload file: {e}")
         
     
     def download_file(self, file_name: str, path="/"):
@@ -103,18 +103,17 @@ class DropBox(CloudService):
         """
         try:
             path = f"{path}/{file_name}"
-            print('Downloading file...', path)
             metadata, res = self.dbx.files_download(path)
             file_data = res.content
-            print(f"File data downloaded successfully.")
+            print(f"DropBox     : file {file_name} downloaded successfully.")
             return file_data
         
         except dropbox.exceptions.ApiError as e:
-            raise Exception(f"Error {e}")
+            raise Exception(f"DropBox-Error {e}")
         except FileNotFoundError:
-             raise Exception("The specified Dropbox file was not found.")
+             raise Exception("DropBox: The specified Dropbox file was not found.")
         except Exception as e:
-            raise Exception(f"Error: {e}")
+            raise Exception(f"DropBox-Error: {e}")
 
 
     def delete_file(self, file_name: str, path: str):
@@ -123,12 +122,11 @@ class DropBox(CloudService):
         """
         try:
             path = f"{path}/{file_name}"
-            print('Delete file...', path)
             self.dbx.files_delete_v2(path)
-            print(f"File '{file_name}' has been deleted successfully.")
+            print(f"DropBox     : {file_name} deleted successfully.")
             return True
         except dropbox.exceptions.ApiError as e:
-            raise Exception(f"Error deleting file: {e}")
+            raise Exception(f"DropBox-Error deleting file: {e}")
 
 
     def get_folder(self, folder_path : str) -> CloudService.Folder:

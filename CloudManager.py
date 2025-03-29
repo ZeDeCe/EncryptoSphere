@@ -61,8 +61,9 @@ class CloudManager:
         return data
     
     def _decrypt(self, data : bytes):
-        data = self.encrypt.decrypt(data)
-        return data
+        cleaned_data = data.rstrip(b'\x00')  # Remove only the null byte at the end
+        clear_data = self.encrypt.decrypt(cleaned_data)
+        return clear_data
 
     def _tempfile_from_path(self, os_filepath):
         file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
@@ -71,16 +72,31 @@ class CloudManager:
         return file
 
     def authenticate(self):
+        """
+        Authenticates the clouds and loads the file descriptor.
+        Returns True if the process succeeds, False otherwise.
+        """
         try:
+            # Authenticate all clouds
             for cloud in self.clouds:
                 cloud.authenticate_cloud()
-            self.load_fd()
+
+            # Attempt to load the file descriptor
+            fd_loaded = self.load_fd()
+            if not fd_loaded:
+                print("Failed to load file descriptor.")
+                return False
+
+            # Start the sync thread if not already running
             if not self.sync_thread or not self.sync_thread.is_alive():
                 self.start_sync_thread()
-            return True
-        except:
-            return False
 
+            return True  # Authentication and file descriptor loading succeeded
+
+        except Exception as e:
+            print(f"Error during authentication: {e}")
+            return False
+        
     def upload_file(self, os_filepath, path="/"):
         if not os.path.isfile(os_filepath):
             raise OSError()
@@ -107,7 +123,6 @@ class CloudManager:
                     print(e)
                     self.fd.delete_file(file_id)
                     raise Exception("Failed to upload one of the files")
-        data = self._split(data, len(self.clouds))
         file_id = self.fd.add_file(
                 os.path.basename(os_filepath),
                 path,
@@ -127,6 +142,7 @@ class CloudManager:
         @param suffix, optional if True will add the email of the user to the file name at the end
         """
         for cloud in self.clouds:
+            print(f"Uploading to {cloud.get_name()}")
             suffix = f"_{cloud.get_email()}" if suffix else ""
             cloud.upload_file(data, f"{file_name}{suffix}", self.root_folder)
 
@@ -136,16 +152,18 @@ class CloudManager:
         This function is purposefully limited to only downloading from the root folder
         @return the data of the file if succeeded, None otherwise
         """
-        file_data = None
         for cloud in self.clouds:
             suffix = f"_{cloud.get_email()}" if suffix else ""
             try:
                 file_data = cloud.download_file(f"{file_name}{suffix}", self.root_folder)
                 if file_data is not None:
-                    break
+                    print(f"Successfully downloaded {file_name}{suffix} from {cloud.get_name()}.")
+                    return file_data  # Return the data if download is successful
             except Exception as e:
-                continue
-        return file_data
+                print(f"Failed to download {file_name}{suffix} from {cloud.get_name()}: {e}")
+                continue  # Move to the next cloud if the current one fails
+
+        return None  # Return None if all clouds fail
     
     def _delete_replicated(self, file_name, suffix=False):
         for cloud in self.clouds:
@@ -193,22 +211,69 @@ class CloudManager:
         file_id is a FileDescriptor ID of the file.
         Make sure to check if the clouds of this object exist in the "parts" array
         """
-        print("in Downloading file: ", file_id)
-        file_data = self.fd.get_file_data(file_id)
-        parts = file_data['parts']
-        print(parts)
-        data = []
-        for cloud_name, part_count in parts.items():  # Iterate over clouds
-            for part_number in range(1, part_count + 1):  # Generate file parts
-                file_name = f"{file_id}_{part_number}"
-                print("file: ", file_name)
-                for cloud in self.clouds:
-                    if cloud.get_name() == cloud_name:
-                        print("cloud: ", cloud_name)
-                        print(f"Downloading {file_name} from {cloud_name}..., path: {self.root_folder}")
-                        file_content = cloud.download_file(file_name, self.root_folder)
-                        data.append(file_content)
-        #self._merge(data, len(self.clouds))
+        try:
+            file_data = self.fd.get_file_data(file_id)
+            if not file_data:
+                raise ValueError(f"File descriptor for file_id {file_id} not found.")
+
+            parts = file_data.get('parts', {})
+            if not parts:
+                raise ValueError(f"No parts found for file_id {file_id} in the file descriptor.")
+
+            data = []
+
+            # Iterate over clouds and download file parts
+            for cloud_name, part_count in parts.items():
+                for part_number in range(1, part_count + 1):
+                    file_name = f"{file_id}_{part_number}"
+                    for cloud in self.clouds:
+                        if cloud.get_name() == cloud_name:
+                            try:
+                                file_content = cloud.download_file(file_name, self.root_folder)
+                                if file_content is None:
+                                    raise FileNotFoundError(f"File part {file_name} not found in {cloud_name}.")
+                                data.append(file_content)
+                            except Exception as e:
+                                print(f"Error downloading {file_name} from {cloud_name}: {e}")
+                                raise
+
+            # Merge and decrypt the data
+            if not data:
+                raise ValueError(f"No data downloaded for file_id {file_id}.")
+            try:
+                encrypted_data = self._merge(data, len(self.clouds))
+                file = self._decrypt(encrypted_data)
+            except Exception as e:
+                print(f"Error merging or decrypting data for file_id {file_id}: {e}")
+                raise
+
+            # Get the file metadata and filename
+            file_name = file_data.get("name")
+            if not file_name:
+                raise ValueError(f"Filename not found in file descriptor for file_id {file_id}.")
+
+            # Set the destination path to the Downloads folder
+            downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+            dest_path = os.path.join(downloads_folder, file_name)
+
+            # Write the reconstructed file to the destination path
+            try:
+                with open(dest_path, 'wb') as output:
+                    output.write(file)
+                print(f"File successfully reconstructed into '{dest_path}'.")
+            except Exception as e:
+                print(f"Error writing file to {dest_path}: {e}")
+                raise
+
+            return True
+
+        except ValueError as ve:
+            print(f"ValueError: {ve}")
+        except FileNotFoundError as fnfe:
+            print(f"FileNotFoundError: {fnfe}")
+        except Exception as e:
+            print(f"Unexpected error while downloading file: {e}")
+        return False
 
     def download_folder(self, folder_name):
         """
@@ -228,7 +293,6 @@ class CloudManager:
                 file_name = f"{file_id}_{part_number}"
                 for cloud in self.clouds:
                     if cloud.get_name() == cloud_name:                        
-                        print(f"deleting {file_name} from {cloud_name}...{self.root_folder}")
                         cloud.delete_file(file_name, self.root_folder)
         self.fd.delete_file(file_id)    
         self.sync_fd()
@@ -256,7 +320,6 @@ class CloudManager:
             self._upload_replicated("$FD_META", metadata)
             self._upload_replicated("$FD", self._encrypt(data))
             print("FDs Synced to clouds")
-        
 
     def start_sync_thread(self):
         """
@@ -287,6 +350,7 @@ class CloudManager:
         # Technically supposed to pull encryption decryption from cloud or at least check it matches
         # TODO: Check here if a version is still in desktop, means corruption
         self.fd = FileDescriptor.FileDescriptor(None if data == None else self._decrypt(data), metadata, self.encrypt.get_name(), self.split.get_name())
+        return True
     
     def sync_fd(self):
         """
@@ -313,7 +377,6 @@ class CloudManager:
                 f.write(metadata)
         except:
             print("Failed to write to {fd_file_path}")
-        
         
     def delete_fd(self):
         """
