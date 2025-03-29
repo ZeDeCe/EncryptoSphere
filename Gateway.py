@@ -33,26 +33,19 @@ class Gateway:
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
         dropbox1 = DropBox(email)
-        #drive1 = GoogleDrive(email)
-
+        drive1 = GoogleDrive(email)
+        raw_key = b"11111111111111111111111111111111"
         # Everything here is for testing
         self.manager = CloudManager(
-            [dropbox1],
+            [drive1, dropbox1],
             "/EncryptoSphere", 
-            NoSplit(), 
-            NoEncrypt()
+            ShamirSplit(), 
+            AESEncrypt(raw_key)
         )
-        try:
-            self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
-            status = self.manager.authenticate()
-            self.current_session = self.manager
-            #self.create_shared_session("FlowShared", ["rexope3919@evluence.com"])
-            self.session_manager.sync_new_sessions()
-        except Exception as e:
-            print(e)
-            # print traceback
-            
-            return False
+        self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
+        status = self.manager.authenticate()
+        print(f"Status: {status}")
+        self.current_session = self.manager 
        
         # dropbox2 = DropBox(email)
         #Testing shared sessions
@@ -115,6 +108,7 @@ class Gateway:
         also, we need to support the option of multiple emails account for the same email.
         As of this POC we are given only one email and support only dropbox and google drive using the same email address.
         """
+ 
         emails = [email for email in emails if email.strip()]
 
         shared_with = []
@@ -125,31 +119,31 @@ class Gateway:
             shared_with.append(user_dict)
             
         new_session = SharedCloudManager(
-             shared_with,
-             self.manager.clouds,
-             f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
-             NoSplit(), 
-             NoEncrypt(), 
+            shared_with,
+            self.manager.clouds,
+            f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
+            NoSplit(), 
+            NoEncrypt(), 
         )
         self.session_manager.add_session(new_session)
+        print(f"New shared session created: {folder_name}")
         return True
 
+
     def get_shared_folders(self):
-        folders = {}
-        for session in self.session_manager.sessions:
-            folder_name =  session.root_folder
-            files_of_folder = session.get_file_list() # Sould return tuple of files and folders under the curr folder
-            folders[folder_name] = files_of_folder
-        return folders
+        """
+        Returns the list of shared folders
+        @return: list of shared folders names
+        """
+        return self.session_manager.sessions.keys()
+
 
     #def share_file(self):
     #    pass
 
-    #def share_folder(self):
-    #    pass
 
-    def unshare_folder(self):
-        pass
+    #def unshare_folder(self):
+        #pass
 
     #def unshare_file(self):
     #    pass

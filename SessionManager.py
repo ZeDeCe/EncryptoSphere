@@ -21,6 +21,7 @@ class SessionManager():
         """
         session.authenticate()
         self.sessions[session.root_folder] = session
+        session.authenticate()
 
     def end_session(self, session : SharedCloudManager):
         """
