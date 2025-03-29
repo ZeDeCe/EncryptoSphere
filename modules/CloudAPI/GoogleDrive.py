@@ -279,26 +279,27 @@ class GoogleDrive(CloudService):
         except HttpError as error:
             raise Exception(f"Google Drive- Error deleting file: {error}")
 
-    def get_folder(self, path: str):
+    def get_folder(self, path: str) -> CloudService.Folder:
         """
-        Get the ID of a folder in Google Drive by its full path.
+        Get a folder object in Google Drive by its full path.
         
         :param path: Full path of the folder (e.g., '/Parent/Child/Folder')
-        :return: The ID of the folder if found, otherwise raise an exception
+        :return: A CloudService.Folder object representing the folder
         """
         try:
             path_parts = path.strip('/').split('/')
             
-            # params validation
+            # Validate the path
             if len(path_parts) < 1:
                 raise Exception("Invalid folder path")
             
             current_folder_id = 'root'
-            
+            current_folder_path = ""
+
             for folder_name in path_parts:
                 results = self.drive_service.files().list(
                     q=f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{current_folder_id}' in parents",
-                    fields="files(id, name)"
+                    fields="files(id, name, shared, permissions(emailAddress))"
                 ).execute()
                 
                 folders = results.get('files', [])
@@ -306,20 +307,41 @@ class GoogleDrive(CloudService):
                 if not folders:
                     raise Exception(f"Folder '{folder_name}' not found in path")
                 
+                # Update the current folder ID and path
                 current_folder_id = folders[0]['id']
-            
-            return current_folder_id
+                current_folder_path = f"{current_folder_path}/{folder_name}"
+
+            # Check if the folder is shared and get shared members
+            permissions = self.drive_service.permissions().list(
+                fileId=current_folder_id,
+                fields="permissions(emailAddress)"
+            ).execute()
+            shared_members = [
+                perm["emailAddress"] for perm in permissions.get("permissions", [])
+            ]
+
+            # Determine if the folder is shared
+            is_shared = len(shared_members) > 0
+
+            # Return the CloudService.Folder object
+            return CloudService.Folder(
+                id=current_folder_id,
+                path=current_folder_path,
+                shared=is_shared,
+                members_shared=shared_members if is_shared else None
+            )
 
         except Exception as e:
-            raise Exception(f"Error while fetching folder ID: {e}")
+            raise Exception(f"Error while fetching folder: {e}")
+    
 
-    def get_folder_path(self, folder: any):
+    def get_folder_path(self, folder: CloudService.Folder) -> str:
         """
         Get the full path of a folder in Google Drive given its folder object (ID).
         
         :param folder: A folder object (or ID) returned from one of the folder functions.
         :return: The full path of the folder.
-        """
+        
         try:
             folder_id = folder if isinstance(folder, str) else folder.get('id')
 
@@ -346,7 +368,13 @@ class GoogleDrive(CloudService):
         except Exception as e:
             print(f"Error while fetching folder path: {e}")
             raise
-
+        """
+        folder_path = folder.path
+        if folder_path:
+            return folder_path
+        else: 
+            return None
+        
     def create_folder(self, folder_path: str) -> CloudService.Folder:
         """
         Create folder on Google Drive and return its full path
@@ -395,7 +423,7 @@ class GoogleDrive(CloudService):
         except Exception as e:
             raise Exception(f"Error creating folder: {e}")
 
-    def share_folder(self, folder: any, emails: list[str]):
+    def share_folder(self, folder: CloudService.Folder, emails : list[str]) -> CloudService.Folder:
         """
         Share a folder with specific emails
         """
@@ -414,7 +442,14 @@ class GoogleDrive(CloudService):
                     fields='id'
                 ).execute()
             
-            return folder
+            # Return the updated CloudService.Folder object
+            return CloudService.Folder(
+                id=folder.id,
+                path=folder.path,
+                shared=True,
+                members_shared=emails
+            )
+
         
         except HttpError as error:
             raise Exception(f"Error sharing folder: {error}")
@@ -433,7 +468,7 @@ class GoogleDrive(CloudService):
         except Exception as error:
             raise Exception(f"Error creating and sharing folder: {error}")
 
-    def unshare_folder(self, folder):
+    def unshare_folder(self, folder: CloudService.Folder):
         """
         Unshare a folder completely using the folder ID.
         """
@@ -491,10 +526,11 @@ class GoogleDrive(CloudService):
             shared_folders = []
             page_token = None
 
-            #my info
+            # Get the authenticated user's email
             about_info = self.drive_service.about().get(fields="user(emailAddress)").execute()
             my_email = about_info["user"]["emailAddress"]
 
+            # Query to find folders that are shared
             query = "mimeType='application/vnd.google-apps.folder' and (sharedWithMe=true or visibility='limited')"
 
             while True:
@@ -509,20 +545,30 @@ class GoogleDrive(CloudService):
                     for item in items:
                         folder_id = item["id"]
                         folder_name = item["name"]
-                        
+
+                        # Get the owners of the folder
                         owners = [owner["emailAddress"] for owner in item.get("owners", [])]
 
-                        if my_email in owners:
-                            members_shared = [
-                                perm["emailAddress"] for perm in item.get("permissions", []) 
-                                if perm["emailAddress"] != my_email
-                            ]
-                        
-                        else:
-                            members_shared = [email for email in owners if email != my_email]
+                        # Determine shared members (exclude the owner)
+                        members_shared = [
+                            perm["emailAddress"] for perm in item.get("permissions", [])
+                            if perm["emailAddress"] != my_email
+                        ]
 
-                        folder_obj = CloudService.Folder(id=folder_id, path=folder_name, shared=True, members_shared=members_shared)
-                        shared_folders.append(folder_obj)
+                        # Only include folders that are actually shared (have members other than the owner)
+                        if members_shared:
+                            # Include the owner's email in the members list
+                            for owner_email in owners:
+                                if owner_email not in members_shared:
+                                    members_shared.append(owner_email)
+
+                            folder_obj = CloudService.Folder(
+                                id=folder_id,
+                                path=folder_name,
+                                shared=True,
+                                members_shared=members_shared
+                            )
+                            shared_folders.append(folder_obj)
 
                 page_token = results.get('nextPageToken')
                 if not page_token:
@@ -557,10 +603,11 @@ class GoogleDrive(CloudService):
                 if permission.get('emailAddress')
             ]
 
-            return shared_emails if shared_emails else False
+            return shared_emails
 
         except HttpError as error:
-            raise Exception(f"Error getting shared members: {error}")
+            print(f"Error getting shared members: {error}")
+            return False  # Return False if an error occurs
     
     def get_name(self):
         """
@@ -641,7 +688,8 @@ def main():
             recipient_email = input("Enter email to share with: ")
 
             folder_id = google.get_folder(folder_path)  # Get the ID of the folder
-            google.share_folder({'id': folder_id}, [recipient_email])
+            folder = google.share_folder({'id': folder_id}, [recipient_email])
+            print(folder)
         elif choice == '8':
             delete_file = input("Enter the file name to delete: ")
             folder_path = input("Enter the folder path to delete from (default is '/'): ") or '/'
@@ -671,9 +719,17 @@ def main():
             folder_path = input("Enter the folder path to create share: ")
             recipient_email = input("Enter email to share with: ")
 
-            folder_id = google.create_folder(folder_path)  # Get folder ID
-            print("DEBUG: Created folder ID:", folder_id)
-            google.share_folder({'id': folder_id}, [recipient_email])
+            try:
+                # Create the folder and get the CloudService.Folder object
+                folder = google.create_folder(folder_path)
+
+                # Share the folder using the CloudService.Folder object
+                shared_folder = google.share_folder(folder, [recipient_email])
+
+                print(f"Folder shared successfully: {shared_folder}")
+                print(google.get_members_shared(folder))  # Print the members shared with the folder
+            except Exception as e:
+                print(f"Error creating and sharing folder: {e}")
 
         elif choice == '12':
             folder = input("Enter the folder to list: ")
@@ -730,7 +786,7 @@ def main():
             folder_path = input("Enter the folder name to get its path: ")
             try:
                 folder = google.get_folder(folder_path)  # מקבל את אובייקט התיקייה (ID)
-                folder_full_path = google.get_folder_path({'id': folder})  # קורא לפונקציה החדשה
+                folder_full_path = google.get_folder_path(folder)  # קורא לפונקציה החדשה
                 print(f"Full path of '{folder_path}': {folder_full_path}")
             except Exception as e:
                 print(f"Error getting folder path: {e}")
