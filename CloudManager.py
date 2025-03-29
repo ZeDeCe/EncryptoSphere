@@ -61,8 +61,9 @@ class CloudManager:
         return data
     
     def _decrypt(self, data : bytes):
-        cleaned_data = data.rstrip(b'\x00')  # Remove only the null byte at the end
-        clear_data = self.encrypt.decrypt(cleaned_data)
+        #cleaned_data = data.rstrip(b'\x00')  # Remove only the null byte at the end
+        #clear_data = self.encrypt.decrypt(cleaned_data)
+        clear_data = self.encrypt.decrypt(data)
         return clear_data
 
     def _tempfile_from_path(self, os_filepath):

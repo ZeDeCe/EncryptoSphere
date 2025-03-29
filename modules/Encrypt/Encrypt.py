@@ -12,7 +12,7 @@ class Encrypt(ABC):
             self.key = self.generate_key()
         else:
             self.key = key
-
+    
     def set_key(self, key) -> None:
         self.key = key
 
@@ -41,6 +41,8 @@ class Encrypt(ABC):
     def decrypt(self, data : bytes) -> bytes:
         pass
 
+    def copy(self):
+        return self.__class__(self.key)
     
     @staticmethod
     @abstractmethod
