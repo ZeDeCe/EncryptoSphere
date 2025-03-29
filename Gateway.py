@@ -107,6 +107,7 @@ class Gateway:
         also, we need to support the option of multiple emails account for the same email.
         As of this POC we are given only one email and support only dropbox and google drive using the same email address.
         """
+ 
         emails = [email for email in emails if email.strip()]
 
         shared_with = []
@@ -117,31 +118,31 @@ class Gateway:
             shared_with.append(user_dict)
             
         new_session = SharedCloudManager(
-             shared_with,
-             self.manager.clouds,
-             f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
-             NoSplit(), 
-             NoEncrypt(), 
+            shared_with,
+            self.manager.clouds,
+            f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
+            NoSplit(), 
+            NoEncrypt(), 
         )
         self.session_manager.add_session(new_session)
+        print(f"New shared session created: {folder_name}")
         return True
 
+
     def get_shared_folders(self):
-        folders = {}
-        for session in self.session_manager.sessions:
-            folder_name =  session.root_folder
-            files_of_folder = session.get_file_list() # Sould return tuple of files and folders under the curr folder
-            folders[folder_name] = files_of_folder
-        return folders
+        """
+        Returns the list of shared folders
+        @return: list of shared folders names
+        """
+        return self.session_manager.sessions.keys()
+
 
     #def share_file(self):
     #    pass
 
-    #def share_folder(self):
-    #    pass
 
-    def unshare_folder(self):
-        pass
+    #def unshare_folder(self):
+        #pass
 
     #def unshare_file(self):
     #    pass
