@@ -19,6 +19,7 @@ class SessionManager():
         """
         Adds a new shared session to the sessions list
         """
+        session.authenticate()
         self.sessions[session.root_folder] = session
 
     def end_session(self, session : SharedCloudManager):
@@ -43,15 +44,17 @@ class SessionManager():
         new_sessions = {}
         for cloud in self.main_session.clouds:
             shared_folders = cloud.list_shared_folders()
+            if shared_folders is None:
+                return
             for folder in shared_folders:
                 if not SharedCloudManager.is_valid_session_root(cloud, folder):
                     continue
-                for session in self.sessions:
-                    if session.root_folder == folder["path"]:
+                for session in self.sessions.keys():
+                    if session == folder.path:
                         continue
-                temp = new_sessions.get(folder["path"]) if new_sessions.get(folder["path"]) else []
+                temp = new_sessions.get(folder.path) if new_sessions.get(folder.path) else []
                 temp.append(cloud)
-                new_sessions[folder["path"]] = temp
+                new_sessions[folder.path] = temp
         for folder,clouds in new_sessions.items():
             self.add_session(SharedCloudManager(None, clouds, folder, self.main_session.split, self.main_session.encrypt))
         self.sync_known_sessions()
@@ -65,7 +68,7 @@ class SessionManager():
         """
         Goes through all sessions in self.sessions and calls share_keys
         """
-        for session in self.sessions:
+        for folder,session in self.sessions.items():
             session.share_keys()
 
 
@@ -75,6 +78,6 @@ class SessionManager():
         @param root optional, if given only checks the specific shared session with this root folder if one exists, if None checks all sessions
         @return success, False if at least one session is inactive, True otherwise 
         """
-        for session in self.sessions:
+        for folder,session in self.sessions.keys():
             if not session.test_access():
                 self.end_session(session)

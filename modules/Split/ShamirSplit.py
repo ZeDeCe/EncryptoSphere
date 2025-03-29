@@ -50,7 +50,7 @@ class ShamirSplit(Split):
         except Exception:
             raise Exception("Shamir: error during reconstruction")
 
-
+"""
 def test():
     print("1. Split a file into parts")
     print("2. Merge parts into the original file")
@@ -74,4 +74,5 @@ def test():
             split.merge_parts(data)
 
     elif choice == '3':
-        print("Exiting...")
+        print("Exiting...")"
+"""
