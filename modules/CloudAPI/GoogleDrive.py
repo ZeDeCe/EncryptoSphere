@@ -1,5 +1,6 @@
 import os
 import io
+import httplib2
 from dotenv import load_dotenv
 import webbrowser
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -346,10 +347,10 @@ class GoogleDrive(CloudService):
             print(f"Error while fetching folder path: {e}")
             raise
 
-    def create_folder(self, folder_path: str) -> str:
+    def create_folder(self, folder_path: str) -> CloudService.Folder:
         """
         Create folder on Google Drive and return its full path
-        If folder exists, return its existing path
+        Returns the folder object
         """
         try:
             path_parts = folder_path.strip('/').split('/')
@@ -389,7 +390,7 @@ class GoogleDrive(CloudService):
                 else:
                     current_folder_id = folders[0]['id']
             
-            return full_path
+            return CloudService.Folder(id=current_folder_id, path=full_path)
 
         except Exception as e:
             raise Exception(f"Error creating folder: {e}")
@@ -408,7 +409,7 @@ class GoogleDrive(CloudService):
 
                 # Share the folder
                 self.drive_service.permissions().create(
-                    fileId=folder['id'],
+                    fileId=folder.id,
                     body=permission,
                     fields='id'
                 ).execute()

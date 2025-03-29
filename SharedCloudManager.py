@@ -87,7 +87,7 @@ class SharedCloudManager(CloudManager):
             if members == False: # even if members is empty, the FEK should be there if we made the session
                 # The folder exists but is not shared, we are transforming a regular session or folder
                 # to a shared session.
-                cloud.share_folder(self.root_folder, self.emails_by_cloud[cloud.get_name()])
+                cloud.share_folder(folder, self.emails_by_cloud[cloud.get_name()])
             else:
                 # The folder is already shared, this is already a shared session
                 raise Exception("Attempting to create a shared session from an already existing shared root folder")

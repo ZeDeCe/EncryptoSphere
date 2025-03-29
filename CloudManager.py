@@ -331,7 +331,7 @@ class CloudManager:
         """
         def sync_task():
             while not self.stop_event.is_set():  # Check if stop_event is set
-                self.sync_to_clouds()
+                #self.sync_to_clouds()
                 time.sleep(SYNC_TIME)  
 
         # Start the sync task in a separate thread
