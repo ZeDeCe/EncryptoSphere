@@ -23,6 +23,8 @@ class Split(ABC):
         @return the merged file bytes
         """
         pass
+    def copy(self):
+        return self.__class__()
     
     @staticmethod
     @abstractmethod

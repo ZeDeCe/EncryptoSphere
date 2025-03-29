@@ -71,10 +71,10 @@ class GoogleDrive(CloudService):
 
             # If folder is specified, get its ID
             if folder != '/':
-                folder_id = self.get_folder(folder)  # Get folder ID based on folder name
-                if not folder_id:  # If folder not found, raise an error
+                folder_obj = self.get_folder(folder)  # Get folder ID based on folder name
+                if not folder_obj:  # If folder not found, raise an error
                     raise Exception(f"Error: Folder '{folder}' not found.")
-                query = f"'{folder_id}' in parents"
+                query = f"'{folder_obj.id}' in parents"
 
             # Fetch files from Google Drive
             while True:

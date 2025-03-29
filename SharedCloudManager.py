@@ -108,10 +108,10 @@ class SharedCloudManager(CloudManager):
         for cloud in self.clouds:
             folder = cloud.get_folder(self.root_folder)
             if folder:
-                try: # check it is shared with people
-                    cloud.get_members_shared(folder)
-                except:
-                    continue
+                # try: # check it is shared with people
+                #     cloud.get_members_shared(folder)
+                # except:
+                #     continue
                 # This might have FEK
                 key = self.check_key_status(cloud)
                 if key:

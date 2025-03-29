@@ -152,10 +152,10 @@ class Gateway:
             
         new_session = SharedCloudManager(
             shared_with,
-            self.manager.clouds,
+            list(self.manager.clouds),
             f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
-            self.manager.split,
-            self.manager.encrypt, 
+            self.manager.split.copy(),
+            self.manager.encrypt.copy(),
         )
 
         self.session_manager.add_session(new_session)
@@ -168,6 +168,7 @@ class Gateway:
         Returns the list of shared folders
         @return: list of shared folders names
         """
+        self.session_manager.sync_new_sessions() #this will probably slow everything down but needed
         return self.session_manager.sessions.keys()
 
     #TODO: Advanced sharing options
