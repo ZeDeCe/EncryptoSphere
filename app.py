@@ -27,6 +27,7 @@ class App(ctk.CTk):
     def __init__(self, gateway):
         
         ctk.CTk.__init__(self)
+        ctk.set_appearance_mode("dark")
         self.title("EncryptoSphere")
 
         # As of now we are using specific sizing, on the advanced ui we will need to make dynamic sizing
