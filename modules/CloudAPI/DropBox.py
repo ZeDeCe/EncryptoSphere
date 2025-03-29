@@ -105,7 +105,7 @@ class DropBox(CloudService):
             path = f"{path}/{file_name}"
             metadata, res = self.dbx.files_download(path)
             file_data = res.content
-            print(f"DropBox     : file {file_name} downloaded successfully.")
+            print(f"DropBox     : file {path} downloaded successfully.")
             return file_data
         
         except dropbox.exceptions.ApiError as e:

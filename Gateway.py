@@ -72,7 +72,7 @@ class Gateway:
         """
         @return: list of files in the current session in the FD format
         """
-        return self.manager.get_items_in_folder(path)
+        return self.current_session.get_items_in_folder(path)
     
     def download_file(self, file_id):
         """
