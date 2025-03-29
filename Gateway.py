@@ -47,7 +47,7 @@ class Gateway:
         status = self.manager.authenticate()
         print(f"Status: {status}")
         self.current_session = self.manager 
-        self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
+        #self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
         return status
     
     def change_session(self, path=None):
