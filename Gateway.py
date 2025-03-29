@@ -1,5 +1,6 @@
 """
 This is the main file that runs the the entire program
+Runs the GUI and handles the requests from the GUI to the backend
 """
 import os
 from dotenv import load_dotenv
@@ -51,14 +52,23 @@ class Gateway:
         return status
     
     def change_session(self, path=None):
+        """
+        Change the current session to the one specified by path
+        @param path: the path to the session to change to
+        """
         if path:
            self.current_session = self.session_manager.get_session(path)
         else:
             self.current_session = self.session_manager.main_session
-        
+    """ 
     def get_files(self):
         return self.current_session.get_file_list()
+    """ 
+    
     def get_files(self, path="/"):
+        """
+        @return: list of files in the current session in the FD format
+        """
         return self.manager.get_items_in_folder(path)
     
     def download_file(self, file_id):
@@ -183,6 +193,7 @@ class Gateway:
 def main():
     """
     Encryptosphere main program
+    Creates Gateway object and starts the GUI
     """
     gateway = Gateway()
     gui = app.App(gateway)
