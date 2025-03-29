@@ -141,13 +141,20 @@ class DropBox(CloudService):
                 return None
             
             metadata = self.dbx.files_get_metadata(folder_path)
-            
+            print(metadata)
             # Ensure it's a folder, not a file
             if isinstance(metadata, dropbox.files.FolderMetadata):
-                folder_id = metadata.id
                 folder_path = metadata.path_display
-                folder_obj = CloudService.Folder(id=folder_id, path=folder_path, shared=False, members_shared=None)
-                return folder_obj
+                if metadata.shared_folder_id:
+                    folder_id = metadata.shared_folder_id
+                    shared = True
+                    folder_obj = CloudService.Folder(id=folder_id, path=folder_path, shared=True, members_shared=None)
+                    members_shared = self.get_members_shared(folder_obj)
+                    folder_obj.members_shared = members_shared
+                    return folder_obj
+                else:
+                    folder_obj = CloudService.Folder(id=metadata.id, path=folder_path, shared=False, members_shared=None)
+                    return folder_obj
             else:
                 print(f"Error: {folder_path} is not a folder.")
                 return None
