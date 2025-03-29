@@ -34,8 +34,8 @@ class Gateway:
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
         raw_key = b"11111111111111111111111111111111"
-        dropbox1 = DropBox("rexope3919@evluence.com")
-        drive1 = GoogleDrive("shaqedmov@gmail.com")
+        dropbox1 = DropBox(email)
+        drive1 = GoogleDrive(email)
         encrypt = AESEncrypt(raw_key)
         # Everything here is for testing
         self.manager = CloudManager(
