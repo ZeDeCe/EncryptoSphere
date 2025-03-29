@@ -100,7 +100,7 @@ class GoogleDrive(CloudService):
 
     def upload_file(self, data: bytes, file_name: str, path: str):
         """
-        Upload a file to Google Drive
+        Upload a file to Google Drive, updating it if a file with the same name already exists
         @param data: The file data to upload
         @param file_name: The name of the file
         @param path: The folder path where the file should be uploaded
@@ -112,20 +112,20 @@ class GoogleDrive(CloudService):
                 
             # Split the folder path into parts
             folder_parts = path.strip('/').split('/')
-
+            
             if len(folder_parts) < 1:
                 raise Exception("Invalid folder path")
-
+            
             # Start from the root folder
             current_folder_id = 'root'
-
+            
             # Resolve the folder hierarchy
             for folder in folder_parts:
                 results = self.drive_service.files().list(
                     q=f"mimeType = 'application/vnd.google-apps.folder' and name = '{folder}' and '{current_folder_id}' in parents",
                     fields="files(id, name)"
                 ).execute()
-
+                
                 folders = results.get('files', [])
                 if not folders:
                     # Create folder if it doesn't exist
@@ -138,27 +138,44 @@ class GoogleDrive(CloudService):
                     current_folder_id = folder['id']
                 else:
                     current_folder_id = folders[0]['id']
-
+            
             folder_id = current_folder_id
-
-            # Define file's metadata
-            file_metadata = {
-                "name": file_name,
-                "parents": [folder_id] if folder_id else []
-            }
-
+            
+            # Check if file already exists in the folder
+            results = self.drive_service.files().list(
+                q=f"name = '{file_name}' and '{folder_id}' in parents and trashed = false",
+                fields="files(id, name)"
+            ).execute()
+            
+            existing_files = results.get('files', [])
+            
             # Convert to the right format
             media = MediaIoBaseUpload(io.BytesIO(data), mimetype="application/octet-stream")
-
-            # Upload
-            self.drive_service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields="id"
-            ).execute()
-
-            return True
-
+            
+            if existing_files:
+                # Update the existing file
+                file_id = existing_files[0]['id']
+                updated_file = self.drive_service.files().update(
+                    fileId=file_id,
+                    media_body=media
+                ).execute()
+                return True
+            else:
+                # Define file's metadata for new file
+                file_metadata = {
+                    "name": file_name,
+                    "parents": [folder_id] if folder_id else []
+                }
+                
+                # Upload new file
+                self.drive_service.files().create(
+                    body=file_metadata,
+                    media_body=media,
+                    fields="id"
+                ).execute()
+                
+                return True
+        
         except HttpError as error:
             raise Exception(f"Google Drive: Upload failed - {error}")
         except Exception as error:
