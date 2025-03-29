@@ -48,10 +48,10 @@ class App(ctk.CTk):
         container.pack(side="top", fill="both", expand=True)
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
-        
+        self.container = container
         # Initializing frames to an empty dictionary
         self.frames = {} 
-
+        self.shared_frames = {}
         # List of all context_menus in the app
         self.context_menus = []
         
@@ -66,16 +66,31 @@ class App(ctk.CTk):
         
         # Show the start page (as of this POC, login to the clouds)
         self.show_frame(LoginPage)
+        
 
     def show_frame(self, cont):
         """
         Display the given frame
         @param cont: The frame to be displayed
         """
-        frame = self.frames[cont]
+        if isinstance(cont, SharePageMainPage):
+            frame = cont
+        elif isinstance(cont, str):
+            frame = self.shared_frames[cont]
+        else:
+            frame = self.frames[cont]
+        self.current_frame = frame
         frame.refresh()
         frame.tkraise()
 
+    def get_shared_page(self, path):
+        if path in self.shared_frames:
+            return self.shared_frames[path]
+        frame = SharePageMainPage(self.container, self, path)
+        frame.grid(row=0, column=0, sticky="nsew")
+        self.shared_frames[path] = frame
+        return frame
+    
     def get_api(self):
         """
         Get "backend" api's
@@ -118,7 +133,14 @@ class App(ctk.CTk):
         Change the folder in the main page to the given path
         @param path: The path to the folder to be changed to
         """
-        self.frames[MainPage].change_folder(path)
+        self.current_frame.change_folder(path)
+    
+    def change_session(self, path):
+        """
+        Change the session in the main page to the given path
+        @param path: The path to the session to be changed to
+        """
+        self.api.change_session(path)
         
 
 class LoginPage(ctk.CTkFrame):
@@ -640,6 +662,36 @@ class FolderButton(IconButton):
         else:
             self.context_menu.hide_context_menu()
 
+class SharePageMainPage(MainPage):
+    def __init__(self, parent, controller, path):
+        self.path = path
+        super().__init__(parent, controller)
+        self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+        self.back_button.configure(command=lambda: self.controller.show_frame(SharePage) if self.main_frame.path == "/" else self.change_folder(self.get_previous_window(self.main_frame.path)))
+        self.shared_files_button.pack_forget()
+
+    def change_folder(self, path):
+        """
+        Changes the folder viewed in main_frame
+        @param path: The path to the folder to be changed to
+        """
+        print(f"Current folder: {path}")
+
+        self.main_frame.pack_forget()
+        if path in self.folders:
+            self.main_frame = self.folders[path]
+        else:
+            new_folder = Folder(self, self.controller, path)
+            self.folders[path] = new_folder
+            self.main_frame = new_folder
+
+        self.main_frame.refresh(path)
+        self.main_frame.lift()
+
+        # Reinitialize the context menu when changing folders
+        self.initialize_context_menu()
+
+
 class SharePage(ctk.CTkFrame):
     """
     This class creates the share page frame -  Where the user can share folders with other users and view shared folders.
@@ -871,11 +923,10 @@ class SharedFolderButton(IconButton):
         @param event: The event that triggered this function
         """
         # Add here the correct function
-        self.controller.change_folder(self.full_folder_name)
-        
+        self.controller.change_session(self.full_folder_name)
+        self.controller.show_frame(self.controller.get_shared_page(self.full_folder_name))
 
         
-
     def add_member_on_shared_folder(self):
         pass
 

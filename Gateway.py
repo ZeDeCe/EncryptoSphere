@@ -40,9 +40,10 @@ class Gateway:
         encrypt.set_key(encrypt.generate_key_from_key(master_key))
         # Everything here is for testing
         self.manager = CloudManager(
-            [drive1, dropbox1],
+            [dropbox1],
             "/EncryptoSphere", 
-            ShamirSplit(), 
+            #ShamirSplit(), 
+            NoSplit(),
             encrypt
         )
 
@@ -50,7 +51,7 @@ class Gateway:
         status = self.manager.authenticate()
         print(f"Status: {status}")
         self.current_session = self.manager
-        #self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
+        self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
         return status
     
     def change_session(self, path=None):
@@ -72,7 +73,7 @@ class Gateway:
         """
         @return: list of files in the current session in the FD format
         """
-        return self.manager.get_items_in_folder(path)
+        return self.current_session.get_items_in_folder(path)
     
     def download_file(self, file_id):
         """
