@@ -34,30 +34,20 @@ class Gateway:
     def authenticate(self, email):
         dropbox1 = DropBox(email)
         drive1 = GoogleDrive(email)
-        raw_key = b"11111111111111111111111111111111"
+        encrypt = AESEncrypt()
+        encrypt.set_key(encrypt.generate_key())
         # Everything here is for testing
         self.manager = CloudManager(
             [drive1, dropbox1],
             "/EncryptoSphere", 
             ShamirSplit(), 
-            AESEncrypt(raw_key)
+            encrypt
         )
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         print(f"Status: {status}")
         self.current_session = self.manager 
-       
-        # dropbox2 = DropBox(email)
-        #Testing shared sessions
-        # self.shared_session = SharedCloudManager(
-        #     [{"D":"pokaya6659@cybtric.com"}],
-        #     [dropbox2],
-        #     "/SharedSession", 
-        #     NoSplit(), 
-        #     NoEncrypt(), 
-        # )
-        # self.shared_session.authenticate()
-        # self.shared_session.upload_file(".\\Test\\uploadme.txt")
+        #self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
         return status
     
     def change_session(self, path=None):

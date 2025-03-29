@@ -533,14 +533,14 @@ class GoogleDrive(CloudService):
             print(f"Error while fetching shared folders: {e}")
             raise
 
-    def get_members_shared(self, folder: any):
+    def get_members_shared(self, folder: CloudService.Folder):
         """
         Get a list of email addresses the folder is shared with.
         """
         try:
             # Get the list of permissions for the folder
             permissions = self.drive_service.permissions().list(
-                fileId=folder, 
+                fileId=folder.id, 
                 fields="permissions(emailAddress, role)"
             ).execute()
             
