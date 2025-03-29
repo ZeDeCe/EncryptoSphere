@@ -118,7 +118,7 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def share_folder(self, folder : any, emails : list[str]) -> Folder:
+    def share_folder(self, folder : Folder, emails : list[str]) -> Folder:
         """
         Share a file or folder with a user (read/write permissions)
         @param folder the folder object returned from create_folder (or get_folder)
