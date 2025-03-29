@@ -369,6 +369,7 @@ class MainPage(ctk.CTkFrame):
         if len(parts) == 1 or parts[0] == '':
             return '/'
         # Otherwise, return the first part which is the path without the last segment
+        print(parts[0])
         return parts[0]
 
 class Folder(ctk.CTkFrame):
@@ -381,13 +382,14 @@ class Folder(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, parent)
         self.controller = controller
         self.path = path
-        self.pack(fill = ctk.BOTH, expand = True)
+        
 
 
     def refresh(self):
         """
         Refresh the frame and display all updates
         """
+        self.pack(fill = ctk.BOTH, expand = True)
         file_list, folder_list = self.controller.get_api().get_files(self.path)
         for widget in self.winfo_children():
             widget.after(0, widget.destroy)
