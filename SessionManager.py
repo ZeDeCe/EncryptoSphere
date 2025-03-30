@@ -22,7 +22,7 @@ class SessionManager():
         status = session.authenticate()
         if not status: # if failed to authenticate for any reason don't show (including pending sessions)
             # we might change this later to show pending sessions as a grayed out folder maybe?
-            print("Session authentication failed for session {session.root_folder}")
+            print(f"Session authentication failed for session {session.root_folder}")
             return
         self.sessions[session.root_folder] = session
 
