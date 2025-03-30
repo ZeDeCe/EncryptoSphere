@@ -98,7 +98,14 @@ class CloudManager:
             print(f"Error during authentication: {e}")
             return False
         
-    def upload_file(self, os_filepath, path="/"):
+    def upload_file(self, os_filepath, path="/", sync=True):
+        """
+        Uploads a single file to the cloud.
+        
+        @param os_filepath: The path to the file on the OS.
+        @param path: The root path for the file in EncryptoSphere hierarchy.
+        @param sync: Whether to sync the file descriptor after uploading. Defaults to True.
+        """
         if not os.path.isfile(os_filepath):
             raise OSError()
         
@@ -107,16 +114,16 @@ class CloudManager:
             data = file.read()
         hash = hashlib.md5(data).hexdigest()
         data = self._encrypt(data)
-        data = self._split(data, len(self.clouds))  # Fixed typo: __split -> _split
+        data = self._split(data, len(self.clouds))
 
         file_id = self.fd.get_next_id()
         cloud_file_count = {}
 
-        # data is in the len of 2 clouds, if we want to change it - in ShamoirSplit
-        for cloud_index,f in enumerate(data):
-            cloud_name = self.clouds[cloud_index].get_name()  # Assuming each cloud object has a `name` attribute
+        # Upload file parts to clouds
+        for cloud_index, f in enumerate(data):
+            cloud_name = self.clouds[cloud_index].get_name()
             cloud_file_count[cloud_name] = len(f)
-            for file_index, file_content in enumerate(f):  # Iterate over inner list
+            for file_index, file_content in enumerate(f):
                 try:
                     file_name = f"{file_id}_{file_index+1}"
                     self.clouds[cloud_index].upload_file(file_content, file_name, self.root_folder)
@@ -124,15 +131,20 @@ class CloudManager:
                     print(e)
                     self.fd.delete_file(file_id)
                     raise Exception("Failed to upload one of the files")
-        file_id = self.fd.add_file(
-                os.path.basename(os_filepath),
-                path,
-                cloud_file_count,
-                hash,
-                file_id
-                )
         
-        self.sync_fd()
+        # Add file metadata to the file descriptor
+        file_id = self.fd.add_file(
+            os.path.basename(os_filepath),
+            path,
+            cloud_file_count,
+            hash,
+            file_id
+        )
+        
+        # Sync file descriptor if requested
+        if sync:
+            self.sync_fd()
+        
         return True
             
     def _upload_replicated(self, file_name, data, suffix=False):
@@ -189,22 +201,26 @@ class CloudManager:
     # TODO: error handling
     def upload_folder(self, os_folder, path="/"):
         """
-        This function uploads an entire folder to the cloud
-        Since EncryptoSphere keeps hierarchy only in the FileDescriptor and uploads all files to the same EncryptoSphere
-        root folder, we iterate over the folder and upload each file seperately using self.upload_file
-        @param os_folder the folder path on the OS to upload
-        @param path the root path for the folder in encryptosphere hierarchy
+        This function uploads an entire folder to the cloud.
+        Synchronization is deferred until all files are uploaded.
+        
+        @param os_folder: The folder path on the OS to upload.
+        @param path: The root path for the folder in EncryptoSphere hierarchy.
         """
         os_folder = os.path.abspath(os_folder)
         folder_name = os.path.basename(os_folder)
-        if path[-1] !="/":
+        if path[-1] != "/":
             path = f"{path}/"
+        
+        # Iterate over the folder and upload each file
         for root, _, files in os.walk(os_folder):
             root_arr = root.split(os.sep)
             root_arr = root_arr[root_arr.index(folder_name):]
             encrypto_root = "/".join(root_arr)
             for file in files:
-                self.upload_file(os.path.join(root,file), f"{path}{encrypto_root}")
+                self.upload_file(os.path.join(root, file), f"{path}{encrypto_root}", sync=False)
+        
+        # Sync file descriptor once after all uploads
         self.sync_fd()
         return True
 

@@ -248,9 +248,9 @@ class GoogleDrive(CloudService):
         Delete a file from Google Drive within a specific path.
         """
         try:
-            # If path is a folder ID, we can use it directly.
-            # If not, you will need to convert the path to a folder ID first (e.g., using get_folder).
-            folder_id = self.get_folder(path) if path != '/' else None
+            # Resolve the folder ID from the path
+            folder = self.get_folder(path) if path != '/' else None
+            folder_id = folder.id if folder else None
 
             # Build the query
             query = f"name = '{file_name}'"
@@ -266,7 +266,7 @@ class GoogleDrive(CloudService):
             files = results.get('files', [])
             
             if not files:
-                raise Exception(f"GoogleDrive- File {file_name} not found in Drive under path {path}")
+                raise Exception(f"GoogleDrive- File '{file_name}' not found in Drive under path '{path}'")
             
             # Get the file ID
             file_id = files[0]['id']
@@ -298,7 +298,7 @@ class GoogleDrive(CloudService):
 
             for folder_name in path_parts:
                 results = self.drive_service.files().list(
-                    q=f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{current_folder_id}' in parents",
+                    q=f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{current_folder_id}' in parents and trashed = false",
                     fields="files(id, name, shared, permissions(emailAddress))"
                 ).execute()
                 
@@ -519,8 +519,8 @@ class GoogleDrive(CloudService):
 
     def list_shared_folders(self):
         """
-        List all shared folders in all of the cloud
-        @return a list of folder objects that represent the shared folders
+        List all shared folders in all of the cloud.
+        @return a list of folder objects that represent the shared folders.
         """
         try:
             shared_folders = []
@@ -536,7 +536,7 @@ class GoogleDrive(CloudService):
             while True:
                 results = self.drive_service.files().list(
                     q=query,
-                    fields="nextPageToken, files(id, name, owners, permissions(emailAddress))",
+                    fields="nextPageToken, files(id, name, owners, permissions(emailAddress), parents)",
                     pageToken=page_token
                 ).execute()
 
@@ -562,9 +562,12 @@ class GoogleDrive(CloudService):
                                 if owner_email not in members_shared:
                                     members_shared.append(owner_email)
 
+                            # Get the full path of the folder
+                            full_path = self.get_folder_path(folder_id)
+
                             folder_obj = CloudService.Folder(
                                 id=folder_id,
-                                path=folder_name,
+                                path=full_path,
                                 shared=True,
                                 members_shared=members_shared
                             )
