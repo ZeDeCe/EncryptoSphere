@@ -519,8 +519,8 @@ class GoogleDrive(CloudService):
 
     def list_shared_folders(self):
         """
-        List all shared folders in all of the cloud
-        @return a list of folder objects that represent the shared folders
+        List all shared folders in all of the cloud.
+        @return a list of folder objects that represent the shared folders.
         """
         try:
             shared_folders = []
@@ -536,7 +536,7 @@ class GoogleDrive(CloudService):
             while True:
                 results = self.drive_service.files().list(
                     q=query,
-                    fields="nextPageToken, files(id, name, owners, permissions(emailAddress))",
+                    fields="nextPageToken, files(id, name, owners, permissions(emailAddress), parents)",
                     pageToken=page_token
                 ).execute()
 
@@ -562,9 +562,12 @@ class GoogleDrive(CloudService):
                                 if owner_email not in members_shared:
                                     members_shared.append(owner_email)
 
+                            # Get the full path of the folder
+                            full_path = self.get_folder_path(folder_id)
+
                             folder_obj = CloudService.Folder(
                                 id=folder_id,
-                                path=folder_name,
+                                path=full_path,
                                 shared=True,
                                 members_shared=members_shared
                             )
