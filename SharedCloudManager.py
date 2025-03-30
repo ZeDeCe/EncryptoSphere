@@ -189,7 +189,7 @@ class SharedCloudManager(CloudManager):
                     label=None
                 )
             )
-            shared_secret = self._encrypt(shared_secret)
+            
             try:
                 self._delete_replicated("$TFEK", True)
                 self._delete_replicated("$SHARED", True)
@@ -197,7 +197,7 @@ class SharedCloudManager(CloudManager):
             except:
                 print("Failed to delete temporary files, but successful key share")
             self.sync_fek(shared_secret)
-            return shared_secret
+            return self._encrypt(shared_secret)
         if not (tfek and public_key):
             self.upload_TFEK(cloud)
         return False
