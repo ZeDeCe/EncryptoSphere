@@ -153,9 +153,9 @@ class Gateway:
             
         new_session = SharedCloudManager(
             shared_with,
-            list(self.manager.clouds),
+            [self.manager.clouds[1]],
             f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
-            self.manager.split.copy(),
+            NoSplit(),
             self.manager.encrypt.copy(),
         )
 
