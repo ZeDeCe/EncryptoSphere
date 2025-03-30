@@ -19,7 +19,11 @@ class SessionManager():
         """
         Adds a new shared session to the sessions list
         """
-        session.authenticate()
+        status = session.authenticate()
+        if not status: # if failed to authenticate for any reason don't show (including pending sessions)
+            # we might change this later to show pending sessions as a grayed out folder maybe?
+            print("Session authentication failed for session {session.root_folder}")
+            return
         self.sessions[session.root_folder] = session
 
     def end_session(self, session : SharedCloudManager):
@@ -56,7 +60,7 @@ class SessionManager():
                 temp.append(cloud)
                 new_sessions[folder.path] = temp
         for folder,clouds in new_sessions.items():
-            self.add_session(SharedCloudManager(None, clouds, folder, self.main_session.split, self.main_session.encrypt))
+            self.add_session(SharedCloudManager(None, clouds, folder, self.main_session.split.copy(), self.main_session.encrypt.copy()))
         self.sync_known_sessions()
                 
     def get_session(self, path=None):

@@ -61,8 +61,8 @@ class CloudManager:
         return data
     
     def _decrypt(self, data : bytes):
-        #cleaned_data = data.rstrip(b'\x00')  # Remove only the null byte at the end
-        #clear_data = self.encrypt.decrypt(cleaned_data)
+        if data.endswith(b'\x00'):
+            data = data.rstrip(b'\x00')  # Remove only the null byte at the end
         clear_data = self.encrypt.decrypt(data)
         return clear_data
 

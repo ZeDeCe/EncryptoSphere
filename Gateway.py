@@ -13,6 +13,7 @@ from modules.CloudAPI import *
 from FileDescriptor import FileDescriptor
 from SessionManager import SessionManager
 import customtkinter as ctk
+from threading import Thread
 
 import utils.DialogBox as DialogBox
 import app as app
@@ -168,7 +169,8 @@ class Gateway:
         Returns the list of shared folders
         @return: list of shared folders names
         """
-        self.session_manager.sync_new_sessions() #this will probably slow everything down but needed
+        Thread(target=self.session_manager.sync_new_sessions).start() # this will probably slow everything down but needed
+        #self.session_manager.sync_new_sessions()
         return self.session_manager.sessions.keys()
 
     #TODO: Advanced sharing options
