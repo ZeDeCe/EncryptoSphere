@@ -282,11 +282,35 @@ class GoogleDrive(CloudService):
     def get_folder(self, path: str) -> CloudService.Folder:
         """
         Get a folder object in Google Drive by its full path.
+        First checks if it's a shared folder, if so returns that.
+        Otherwise looks for non-shared folders.
         
         :param path: Full path of the folder (e.g., '/Parent/Child/Folder')
         :return: A CloudService.Folder object representing the folder
         """
         try:
+            path = path.rstrip('/')  # Remove trailing slash if exists
+            
+            # PART 1: Check if it's a simple '/FolderName' path, which might be a shared folder
+            if path.count('/') == 1 and path.startswith('/'):
+                folder_name = path[1:]  # Remove the leading '/'
+                
+                # Get all shared folders
+                try:
+                    shared_folders = self.list_shared_folders()
+                    
+                    # Check if any shared folder matches the name
+                    for shared_folder in shared_folders:
+                        # Extract just the folder name from the path (without the leading '/')
+                        shared_folder_name = shared_folder.path.strip('/')
+                        
+                        if shared_folder_name == folder_name:
+                            return shared_folder
+                except Exception:
+                    # If error occurs while getting shared folders, continue to the regular search
+                    pass
+            
+            # PART 2: If no shared folder was found, look for non-shared folders
             path_parts = path.strip('/').split('/')
             
             # Validate the path
@@ -297,42 +321,59 @@ class GoogleDrive(CloudService):
             current_folder_path = ""
 
             for folder_name in path_parts:
-                results = self.drive_service.files().list(
-                    q=f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{current_folder_id}' in parents and trashed = false",
-                    fields="files(id, name, shared, permissions(emailAddress))"
-                ).execute()
-                
-                folders = results.get('files', [])
-                
-                if not folders:
-                    raise Exception(f"Folder '{folder_name}' not found in path")
-                
-                # Update the current folder ID and path
-                current_folder_id = folders[0]['id']
-                current_folder_path = f"{current_folder_path}/{folder_name}"
+                try:
+                    results = self.drive_service.files().list(
+                        q=f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{current_folder_id}' in parents and trashed = false",
+                        fields="files(id, name, shared, permissions(emailAddress))"
+                    ).execute()
+                    
+                    folders = results.get('files', [])
+                    
+                    if not folders:
+                        raise FileNotFoundError(f"Folder '{folder_name}' not found in path")
+                    
+                    # Update the current folder ID and path
+                    current_folder_id = folders[0]['id']
+                    current_folder_path = f"{current_folder_path}/{folder_name}"
+                except Exception as e:
+                    raise FileNotFoundError(f"Error accessing folder '{folder_name}': {str(e)}")
 
             # Check if the folder is shared and get shared members
-            permissions = self.drive_service.permissions().list(
-                fileId=current_folder_id,
-                fields="permissions(emailAddress)"
-            ).execute()
-            shared_members = [
-                perm["emailAddress"] for perm in permissions.get("permissions", [])
-            ]
+            try:
+                permissions = self.drive_service.permissions().list(
+                    fileId=current_folder_id,
+                    fields="permissions(emailAddress)"
+                ).execute()
+                shared_members = [
+                    perm["emailAddress"] for perm in permissions.get("permissions", [])
+                ]
 
-            # Determine if the folder is shared
-            is_shared = len(shared_members) > 0
+                # Skip shared folders and continue processing
+                if len(shared_members) > 1:
+                    print(f"Folder '{path}' is shared. Skipping.")
+                    # Skip this folder and continue processing
+                    return self.get_folder(current_folder_path)  # Recursively call to continue processing
 
-            # Return the CloudService.Folder object
-            return CloudService.Folder(
-                id=current_folder_id,
-                path=current_folder_path,
-                shared=is_shared,
-                members_shared=shared_members if is_shared else None
-            )
+                # Return the CloudService.Folder object (non-shared)
+                return CloudService.Folder(
+                    id=current_folder_id,
+                    path=current_folder_path,
+                    shared=False,
+                    members_shared=None
+                )
+            except Exception as e:
+                print(f"Error checking permissions for folder '{path}': {str(e)}")
+                # Skip this folder and continue processing
+                return self.get_folder(current_folder_path)  # Recursively call to continue processing
 
+        except FileNotFoundError as e:
+            # Log the error and raise an exception
+            print(f"Folder not found: {str(e)}")
+            raise Exception(f"Folder not found: {str(e)}")
         except Exception as e:
-            raise Exception(f"Error while fetching folder: {e}")
+            # Log all other errors and raise an exception
+            print(f"Error while fetching folder: {str(e)}")
+            raise Exception(f"Error while fetching folder: {str(e)}")
     
 
     def get_folder_path(self, folder: CloudService.Folder) -> str:
@@ -519,52 +560,56 @@ class GoogleDrive(CloudService):
 
     def list_shared_folders(self):
         """
-        List all shared folders in all of the cloud.
+        List all shared folders that are either shared with me or that I've shared with others.
         @return a list of folder objects that represent the shared folders.
         """
         try:
             shared_folders = []
             page_token = None
-
+            
             # Get the authenticated user's email
             about_info = self.drive_service.about().get(fields="user(emailAddress)").execute()
             my_email = about_info["user"]["emailAddress"]
-
-            # Query to find folders that are shared
+            
+            # Query to find all shared folders - both shared with me and ones I shared
             query = "mimeType='application/vnd.google-apps.folder' and (sharedWithMe=true or visibility='limited')"
-
+            
             while True:
                 results = self.drive_service.files().list(
                     q=query,
                     fields="nextPageToken, files(id, name, owners, permissions(emailAddress), parents)",
                     pageToken=page_token
                 ).execute()
-
+                
                 items = results.get('files', [])
                 if items:
                     for item in items:
                         folder_id = item["id"]
                         folder_name = item["name"]
-
-                        # Get the owners of the folder
-                        owners = [owner["emailAddress"] for owner in item.get("owners", [])]
-
-                        # Determine shared members (exclude the owner)
-                        members_shared = [
-                            perm["emailAddress"] for perm in item.get("permissions", [])
-                            if perm["emailAddress"] != my_email
-                        ]
-
-                        # Only include folders that are actually shared (have members other than the owner)
-                        if members_shared:
-                            # Include the owner's email in the members list
+                        
+                        # Check if the folder is actually shared (has members other than myself)
+                        permissions = item.get("permissions", [])
+                        shared_with_others = False
+                        members_shared = []
+                        
+                        for perm in permissions:
+                            if "emailAddress" in perm and perm["emailAddress"] != my_email:
+                                shared_with_others = True
+                                members_shared.append(perm["emailAddress"])
+                        
+                        # Include folders that are genuinely shared
+                        if shared_with_others or item.get("sharedWithMe", False):
+                            # Get the owners of the folder
+                            owners = [owner.get("emailAddress") for owner in item.get("owners", [])]
+                            
+                            # Include the owner's email in the members list if not already there
                             for owner_email in owners:
-                                if owner_email not in members_shared:
+                                if owner_email and owner_email not in members_shared:
                                     members_shared.append(owner_email)
-
+                            
                             # Get the full path of the folder
-                            full_path = self.get_folder_path(folder_id)
-
+                            full_path = "/"+folder_name
+                            
                             folder_obj = CloudService.Folder(
                                 id=folder_id,
                                 path=full_path,
@@ -572,13 +617,13 @@ class GoogleDrive(CloudService):
                                 members_shared=members_shared
                             )
                             shared_folders.append(folder_obj)
-
+                
                 page_token = results.get('nextPageToken')
                 if not page_token:
                     break
-
+            
             return shared_folders
-
+        
         except Exception as e:
             print(f"Error while fetching shared folders: {e}")
             raise
@@ -611,6 +656,7 @@ class GoogleDrive(CloudService):
         except HttpError as error:
             print(f"Error getting shared members: {error}")
             return False  # Return False if an error occurs
+        
     
     def get_name(self):
         """
@@ -618,7 +664,7 @@ class GoogleDrive(CloudService):
         """
         return "G"  #G for Google Drive
 
-"""
+
 # Main function to interact with the user
 def main():
     print("Google POC")
@@ -690,9 +736,16 @@ def main():
             folder_path = input("Enter the folder path to share: ")
             recipient_email = input("Enter email to share with: ")
 
-            folder_id = google.get_folder(folder_path)  # Get the ID of the folder
-            folder = google.share_folder({'id': folder_id}, [recipient_email])
-            print(folder)
+            try:
+                # Get the folder object using the `get_folder` method
+                folder = google.get_folder(folder_path)  # This returns a CloudService.Folder object
+
+                # Share the folder using the CloudService.Folder object
+                shared_folder = google.share_folder(folder, [recipient_email])
+
+                print(f"Folder shared successfully: {shared_folder}")
+            except Exception as e:
+                print(f"Error sharing folder: {e}")
         elif choice == '8':
             delete_file = input("Enter the file name to delete: ")
             folder_path = input("Enter the folder path to delete from (default is '/'): ") or '/'
@@ -799,4 +852,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-"""
