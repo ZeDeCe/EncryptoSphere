@@ -116,32 +116,40 @@ class GoogleDrive(CloudService):
 
             if len(folder_parts) < 1:
                 raise Exception("Google Drive- Invalid folder path")
-
             # Start from the root folder
-            current_folder_id = 'root'
+            # current_folder_id = 'root'
 
-            # Resolve the folder hierarchy
-            for folder in folder_parts:
-                results = self.drive_service.files().list(
-                    q=f"mimeType = 'application/vnd.google-apps.folder' and name = '{folder}' and '{current_folder_id}' in parents",
-                    fields="files(id, name)"
-                ).execute()
+            # # Resolve the folder hierarchy
+            # for folder in folder_parts:
+            #     results = self.drive_service.files().list(
+            #         q=f"mimeType = 'application/vnd.google-apps.folder' and name = '{folder}' and '{current_folder_id}' in parents",
+            #         fields="files(id, name)"
+            #     ).execute()
 
-                folders = results.get('files', [])
-                if not folders:
-                    # Create folder if it doesn't exist
-                    print(f"Google Drive: Creating folder '{folder}'")
-                    folder_metadata = {
-                        'name': folder,
-                        'mimeType': 'application/vnd.google-apps.folder',
-                        'parents': [current_folder_id]
-                    }
-                    folder = self.drive_service.files().create(body=folder_metadata, fields="id").execute()
-                    current_folder_id = folder['id']
-                else:
-                    current_folder_id = folders[0]['id']
+            #     folders = results.get('files', [])
+            #     if not folders:
+            #         # Create folder if it doesn't exist
+            #         print(f"Google Drive: Creating folder '{folder}'")
+            #         folder_metadata = {
+            #             'name': folder,
+            #             'mimeType': 'application/vnd.google-apps.folder',
+            #             'parents': [current_folder_id]
+            #         }
+            #         folder = self.drive_service.files().create(body=folder_metadata, fields="id").execute()
+            #         current_folder_id = folder['id']
+            #     else:
+            #         current_folder_id = folders[0]['id']
+            folder = None
+            try:
+                folder = self.get_folder(path)
+            except:
+                print(f"Google Drive: Folder does not exist, creating folder '{folder}'")
+                folder = self.create_folder(path)
+            if not folder:
+                print(f"Google Drive: Folder does not exist, creating folder '{folder}'")
+                folder = self.create_folder(path)
 
-            folder_id = current_folder_id
+            folder_id = folder.id
 
             # Check if file already exists in the folder
             results = self.drive_service.files().list(
@@ -197,22 +205,22 @@ class GoogleDrive(CloudService):
             if len(folder_parts) < 1:
                 raise Exception("GoogleDrive- Invalid folder path")
 
-            # Start from the root folder
-            current_folder_id = 'root'
+            # # Start from the root folder
+            # current_folder_id = 'root'
 
-            # Resolve the folder hierarchy
-            for folder in folder_parts:
-                results = self.drive_service.files().list(
-                    q=f"mimeType = 'application/vnd.google-apps.folder' and name = '{folder}' and '{current_folder_id}' in parents",
-                    fields="files(id, name)"
-                ).execute()
+            # # Resolve the folder hierarchy
+            # for folder in folder_parts:
+            #     results = self.drive_service.files().list(
+            #         q=f"mimeType = 'application/vnd.google-apps.folder' and name = '{folder}' and '{current_folder_id}' in parents",
+            #         fields="files(id, name)"
+            #     ).execute()
 
-                folders = results.get('files', [])
-                if not folders:
-                    raise Exception(f"Folder '{folder}' not found in path")
+            #     folders = results.get('files', [])
+            #     if not folders:
+            #         raise Exception(f"Folder '{folder}' not found in path")
 
-                current_folder_id = folders[0]['id']
-
+            #     current_folder_id = folders[0]['id']
+            current_folder_id = self.get_folder(path).id
             # Query for the file in the resolved folder
             results = self.drive_service.files().list(
                 q=f"name = '{file_name}' and '{current_folder_id}' in parents",
@@ -665,190 +673,190 @@ class GoogleDrive(CloudService):
         return "G"  #G for Google Drive
 
 
-# Main function to interact with the user
-def main():
-    print("Google POC")
-    email = input("Enter your Google Drive email address: ")
-    print(f"Authenticating {email}'s Google Drive account...")
-    google = GoogleDrive(email)
+# # Main function to interact with the user
+# def main():
+#     print("Google POC")
+#     email = input("Enter your Google Drive email address: ")
+#     print(f"Authenticating {email}'s Google Drive account...")
+#     google = GoogleDrive(email)
     
-    if not google.is_authenticated():
-        print("Authentication failed.")
-        return
+#     if not google.is_authenticated():
+#         print("Authentication failed.")
+#         return
 
-    while True:
-        print("\nSelect an action:")
-        print("1. List all files")
-        print("2. Upload a file")
-        print("3. Download a file")
-        print("5. List shared files")
-        print("6. Create new folder")
-        print("7. Share folder")
-        print("8. Delete file")
-        print("9. Unshare folder")
-        print("10. Exit")
-        print("11. Create shared folder")
-        print("12. List all files in specific folder")
-        print("13. Unshare folder from specific emails")
-        print("14. Get members shared")
-        print("15. List shared folders")
-        print("16. Test get path")
+#     while True:
+#         print("\nSelect an action:")
+#         print("1. List all files")
+#         print("2. Upload a file")
+#         print("3. Download a file")
+#         print("5. List shared files")
+#         print("6. Create new folder")
+#         print("7. Share folder")
+#         print("8. Delete file")
+#         print("9. Unshare folder")
+#         print("10. Exit")
+#         print("11. Create shared folder")
+#         print("12. List all files in specific folder")
+#         print("13. Unshare folder from specific emails")
+#         print("14. Get members shared")
+#         print("15. List shared folders")
+#         print("16. Test get path")
 
-        choice = input("Enter your choice: ")
+#         choice = input("Enter your choice: ")
 
-        if choice == '1':
-            files = google.list_files()
-            print("Files:", files)
-        elif choice == '2':
-            file_path = input("Enter the file path to upload: ")
-            with open(file_path, 'rb') as f:
-                data = f.read()
-            dropbox_dest_path = input("Enter the destination path in Google Drive: ")
-            google.upload_file(data, os.path.basename(file_path), dropbox_dest_path)
-        elif choice == '3':
-            dropbox_file_path = input("Enter the full path of the file to download (e.g., /Folder/Subfolder/filename): ")
+#         if choice == '1':
+#             files = google.list_files()
+#             print("Files:", files)
+#         elif choice == '2':
+#             file_path = input("Enter the file path to upload: ")
+#             with open(file_path, 'rb') as f:
+#                 data = f.read()
+#             dropbox_dest_path = input("Enter the destination path in Google Drive: ")
+#             google.upload_file(data, os.path.basename(file_path), dropbox_dest_path)
+#         elif choice == '3':
+#             dropbox_file_path = input("Enter the full path of the file to download (e.g., /Folder/Subfolder/filename): ")
             
-            # אם הנתיב לא נמצא, תחזור לברירת מחדל
-            if dropbox_file_path == '':
-                dropbox_file_path = '/'
+#             # אם הנתיב לא נמצא, תחזור לברירת מחדל
+#             if dropbox_file_path == '':
+#                 dropbox_file_path = '/'
             
-            downloaded_data = google.download_file(dropbox_file_path, '/')
+#             downloaded_data = google.download_file(dropbox_file_path, '/')
             
-            # אם התוכן שהוחזר לא ריק (bytes), אז נכתוב את הקובץ
-            if downloaded_data:
-                file_name = dropbox_file_path.split('/')[-1]  # Extract the file name from the path
-                with open(file_name, 'wb') as f:
-                    f.write(downloaded_data)
-                print(f"File '{file_name}' downloaded successfully.")
-            else:
-                print(f"Failed to download the file from '{dropbox_file_path}'.")
-        elif choice == '5':
-            shared_files = google.list_shared_files()
-            print("Shared files:", shared_files)
-        elif choice == '6':
-            folder_path = input("Enter full path of folder to create (e.g., Parent/Child/NewFolder): ")
-            try:
-                created_folder_path = google.create_folder(folder_path)
-                print(f"Folder created/found: {created_folder_path}")
-            except Exception as e:
-                print(f"Error: {e}")
-        elif choice == '7':
-            folder_path = input("Enter the folder path to share: ")
-            recipient_email = input("Enter email to share with: ")
+#             # אם התוכן שהוחזר לא ריק (bytes), אז נכתוב את הקובץ
+#             if downloaded_data:
+#                 file_name = dropbox_file_path.split('/')[-1]  # Extract the file name from the path
+#                 with open(file_name, 'wb') as f:
+#                     f.write(downloaded_data)
+#                 print(f"File '{file_name}' downloaded successfully.")
+#             else:
+#                 print(f"Failed to download the file from '{dropbox_file_path}'.")
+#         elif choice == '5':
+#             shared_files = google.list_shared_files()
+#             print("Shared files:", shared_files)
+#         elif choice == '6':
+#             folder_path = input("Enter full path of folder to create (e.g., Parent/Child/NewFolder): ")
+#             try:
+#                 created_folder_path = google.create_folder(folder_path)
+#                 print(f"Folder created/found: {created_folder_path}")
+#             except Exception as e:
+#                 print(f"Error: {e}")
+#         elif choice == '7':
+#             folder_path = input("Enter the folder path to share: ")
+#             recipient_email = input("Enter email to share with: ")
 
-            try:
-                # Get the folder object using the `get_folder` method
-                folder = google.get_folder(folder_path)  # This returns a CloudService.Folder object
+#             try:
+#                 # Get the folder object using the `get_folder` method
+#                 folder = google.get_folder(folder_path)  # This returns a CloudService.Folder object
 
-                # Share the folder using the CloudService.Folder object
-                shared_folder = google.share_folder(folder, [recipient_email])
+#                 # Share the folder using the CloudService.Folder object
+#                 shared_folder = google.share_folder(folder, [recipient_email])
 
-                print(f"Folder shared successfully: {shared_folder}")
-            except Exception as e:
-                print(f"Error sharing folder: {e}")
-        elif choice == '8':
-            delete_file = input("Enter the file name to delete: ")
-            folder_path = input("Enter the folder path to delete from (default is '/'): ") or '/'
-            try:
-                success = google.delete_file(delete_file, folder_path)
-                if success:
-                    print(f"File '{delete_file}' deleted successfully.")
-                else:
-                    print(f"Failed to delete '{delete_file}'.")
-            except Exception as e:
-                print(f"Error: {e}")
-        elif choice == '9':
-            unshare_folder_path = input("Enter the folder path to unshare: ")
-            try:
-                folder_id = google.get_folder(unshare_folder_path)  # Get the ID of the folder
-                success = google.unshare_folder(folder_id)  # Unshare folder with its ID
-                if success:
-                    print(f"Folder '{unshare_folder_path}' has been unshared successfully.")
-                else:
-                    print(f"Failed to unshare '{unshare_folder_path}'.")
-            except Exception as e:
-                print(f"Error unsharing folder: {e}")
-        elif choice == '10':
-            print("Exiting...")
-            break
-        elif choice == '11':
-            folder_path = input("Enter the folder path to create share: ")
-            recipient_email = input("Enter email to share with: ")
+#                 print(f"Folder shared successfully: {shared_folder}")
+#             except Exception as e:
+#                 print(f"Error sharing folder: {e}")
+#         elif choice == '8':
+#             delete_file = input("Enter the file name to delete: ")
+#             folder_path = input("Enter the folder path to delete from (default is '/'): ") or '/'
+#             try:
+#                 success = google.delete_file(delete_file, folder_path)
+#                 if success:
+#                     print(f"File '{delete_file}' deleted successfully.")
+#                 else:
+#                     print(f"Failed to delete '{delete_file}'.")
+#             except Exception as e:
+#                 print(f"Error: {e}")
+#         elif choice == '9':
+#             unshare_folder_path = input("Enter the folder path to unshare: ")
+#             try:
+#                 folder_id = google.get_folder(unshare_folder_path)  # Get the ID of the folder
+#                 success = google.unshare_folder(folder_id)  # Unshare folder with its ID
+#                 if success:
+#                     print(f"Folder '{unshare_folder_path}' has been unshared successfully.")
+#                 else:
+#                     print(f"Failed to unshare '{unshare_folder_path}'.")
+#             except Exception as e:
+#                 print(f"Error unsharing folder: {e}")
+#         elif choice == '10':
+#             print("Exiting...")
+#             break
+#         elif choice == '11':
+#             folder_path = input("Enter the folder path to create share: ")
+#             recipient_email = input("Enter email to share with: ")
 
-            try:
-                # Create the folder and get the CloudService.Folder object
-                folder = google.create_folder(folder_path)
+#             try:
+#                 # Create the folder and get the CloudService.Folder object
+#                 folder = google.create_folder(folder_path)
 
-                # Share the folder using the CloudService.Folder object
-                shared_folder = google.share_folder(folder, [recipient_email])
+#                 # Share the folder using the CloudService.Folder object
+#                 shared_folder = google.share_folder(folder, [recipient_email])
 
-                print(f"Folder shared successfully: {shared_folder}")
-                print(google.get_members_shared(folder))  # Print the members shared with the folder
-            except Exception as e:
-                print(f"Error creating and sharing folder: {e}")
+#                 print(f"Folder shared successfully: {shared_folder}")
+#                 print(google.get_members_shared(folder))  # Print the members shared with the folder
+#             except Exception as e:
+#                 print(f"Error creating and sharing folder: {e}")
 
-        elif choice == '12':
-            folder = input("Enter the folder to list: ")
-            files = google.list_files(folder)
-            print("Files:", files)
+#         elif choice == '12':
+#             folder = input("Enter the folder to list: ")
+#             files = google.list_files(folder)
+#             print("Files:", files)
         
-        elif choice == '13':
-            unshare_folder_path = input("Enter the folder path to unshare: ")
-            emails = input("Enter comma-separated emails to unshare with: ").split(',')
+#         elif choice == '13':
+#             unshare_folder_path = input("Enter the folder path to unshare: ")
+#             emails = input("Enter comma-separated emails to unshare with: ").split(',')
             
-            try:
-                folder_id = google.get_folder(unshare_folder_path)  # Get the folder ID
-                success = google.unshare_by_email(folder_id, emails)  # Unshare with specific emails
-                if success:
-                    print(f"Folder '{unshare_folder_path}' has been unshared from the specified emails.")
-                else:
-                    print(f"Failed to unshare '{unshare_folder_path}' from the specified emails.")
-            except Exception as e:
-                print(f"Error unsharing folder from emails: {e}")
+#             try:
+#                 folder_id = google.get_folder(unshare_folder_path)  # Get the folder ID
+#                 success = google.unshare_by_email(folder_id, emails)  # Unshare with specific emails
+#                 if success:
+#                     print(f"Folder '{unshare_folder_path}' has been unshared from the specified emails.")
+#                 else:
+#                     print(f"Failed to unshare '{unshare_folder_path}' from the specified emails.")
+#             except Exception as e:
+#                 print(f"Error unsharing folder from emails: {e}")
 
-        elif choice == '14':
-            unshare_folder_path = input("Enter the folder path to check members shared: ")
-            try:
-                folder_id = google.get_folder(unshare_folder_path)  # Get the folder ID
-                shared_members = google.get_members_shared(folder_id)  # Get shared members using folder ID
+#         elif choice == '14':
+#             unshare_folder_path = input("Enter the folder path to check members shared: ")
+#             try:
+#                 folder_id = google.get_folder(unshare_folder_path)  # Get the folder ID
+#                 shared_members = google.get_members_shared(folder_id)  # Get shared members using folder ID
                 
-                if shared_members == False:
-                    print("Not shared")
-                elif shared_members:
-                    print(f"Shared members of folder '{unshare_folder_path}':")
-                    for email in shared_members:
-                        print(email)
-                else:
-                    print(f"No members shared the folder '{unshare_folder_path}'.")
-            except Exception as e:
-                print(f"Error getting shared members: {e}")
+#                 if shared_members == False:
+#                     print("Not shared")
+#                 elif shared_members:
+#                     print(f"Shared members of folder '{unshare_folder_path}':")
+#                     for email in shared_members:
+#                         print(email)
+#                 else:
+#                     print(f"No members shared the folder '{unshare_folder_path}'.")
+#             except Exception as e:
+#                 print(f"Error getting shared members: {e}")
         
-        elif choice == '15':
-            print("Fetching shared folders...")
-            try:
-                shared_folders = google.list_shared_folders()
+#         elif choice == '15':
+#             print("Fetching shared folders...")
+#             try:
+#                 shared_folders = google.list_shared_folders()
                 
-                if not shared_folders:
-                    print("No shared folders found.")
-                else:
-                    print("Shared folders:")
-                    for folder in shared_folders:
-                        print(f"Folder Name: {folder.path}, ID: {folder.id}, Shared: {folder.shared}, Members: {', '.join(folder.members_shared) if folder.members_shared else 'No members'}")
+#                 if not shared_folders:
+#                     print("No shared folders found.")
+#                 else:
+#                     print("Shared folders:")
+#                     for folder in shared_folders:
+#                         print(f"Folder Name: {folder.path}, ID: {folder.id}, Shared: {folder.shared}, Members: {', '.join(folder.members_shared) if folder.members_shared else 'No members'}")
             
-            except Exception as e:
-                print(f"Error fetching shared folders: {e}")
+#             except Exception as e:
+#                 print(f"Error fetching shared folders: {e}")
         
-        elif choice == '16':
-            folder_path = input("Enter the folder name to get its path: ")
-            try:
-                folder = google.get_folder(folder_path)  # מקבל את אובייקט התיקייה (ID)
-                folder_full_path = google.get_folder_path(folder)  # קורא לפונקציה החדשה
-                print(f"Full path of '{folder_path}': {folder_full_path}")
-            except Exception as e:
-                print(f"Error getting folder path: {e}")
+#         elif choice == '16':
+#             folder_path = input("Enter the folder name to get its path: ")
+#             try:
+#                 folder = google.get_folder(folder_path)  # מקבל את אובייקט התיקייה (ID)
+#                 folder_full_path = google.get_folder_path(folder)  # קורא לפונקציה החדשה
+#                 print(f"Full path of '{folder_path}': {folder_full_path}")
+#             except Exception as e:
+#                 print(f"Error getting folder path: {e}")
         
-        else:
-            print("Invalid choice, please try again.")
+#         else:
+#             print("Invalid choice, please try again.")
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
