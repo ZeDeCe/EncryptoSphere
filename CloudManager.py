@@ -129,7 +129,6 @@ class CloudManager:
                     self.clouds[cloud_index].upload_file(file_content, file_name, self.root_folder)
                 except Exception as e:
                     print(e)
-                    self.fd.delete_file(file_id)
                     raise Exception("Failed to upload one of the files")
         
         # Add file metadata to the file descriptor
@@ -183,7 +182,7 @@ class CloudManager:
         for cloud in self.clouds:
             suffix = f"_{cloud.get_email()}" if suffix else ""
             try:
-                cloud.download_file(f"{file_name}{suffix}", self.root_folder)
+                cloud.delete_file(f"{file_name}{suffix}", self.root_folder)
             except Exception as e:
                 continue
     

@@ -53,9 +53,13 @@ class SessionManager():
             for folder in shared_folders:
                 if not SharedCloudManager.is_valid_session_root(cloud, folder):
                     continue
+                flag = False
                 for session in self.sessions.keys():
                     if session == folder.path:
-                        continue
+                        flag = True
+                        break
+                if flag:
+                    continue
                 temp = new_sessions.get(folder.path) if new_sessions.get(folder.path) else []
                 temp.append(cloud)
                 new_sessions[folder.path] = temp
