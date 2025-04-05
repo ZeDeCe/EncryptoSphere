@@ -170,10 +170,12 @@ class SharedCloudManager(CloudManager):
             tfek = cloud.download_file(f"$TFEK_{cloud.get_email()}", self.root_folder)
         except:
             pass
-        try:
-            public_key = cloud.download_file(f"$PUBLIC_{cloud.get_email()}", self.root_folder)
-        except:
-            pass
+        # Don't download public key if we have shared key
+        if not shared_secret:
+            try:
+                public_key = cloud.download_file(f"$PUBLIC_{cloud.get_email()}", self.root_folder)
+            except:
+                pass
 
         if shared_secret and tfek:
             private = self._decrypt(tfek)
