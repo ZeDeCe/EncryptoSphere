@@ -10,7 +10,6 @@ import FileDescriptor
 import concurrent.futures
 import time
 import threading
-from functools import wraps
 
 SYNC_TIME = 300  # Sync time in seconds
 FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary

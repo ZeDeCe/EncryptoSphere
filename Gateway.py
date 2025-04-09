@@ -14,6 +14,10 @@ from FileDescriptor import FileDescriptor
 from SessionManager import SessionManager
 import customtkinter as ctk
 from threading import Thread
+import concurrent.futures
+import time
+import threading
+from functools import wraps
 
 import utils.DialogBox as DialogBox
 import app as app
@@ -31,6 +35,7 @@ class Gateway:
     def __init__(self):
         self.manager = None
         self.session_manager = None
+        self.executor = concurrent.futures.ThreadPoolExecutor()
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
@@ -54,6 +59,15 @@ class Gateway:
         self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
         return status
     
+    def promise(func):
+        @wraps(func)
+        def wrapper(self, callback, *args, **kwargs):
+            future : concurrent.futures.Future = self.executor.submit(func, self, *args, **kwargs)
+            if not callback is None:
+                future.add_done_callback(callback)
+            return future
+        return wrapper
+
     def change_session(self, path=None):
         """
         Change the current session to the one specified by path
@@ -75,6 +89,7 @@ class Gateway:
         """
         return self.current_session.get_items_in_folder(path)
     
+    @promise
     def download_file(self, file_id):
         """
         Download file function
@@ -88,7 +103,7 @@ class Gateway:
         self.current_session.download_folder(folder_id)
         return True # TODO: Handle correctly!!
     """
-    
+    @promise
     def upload_file(self, file_path, path):
         """
         Upload file function
@@ -99,7 +114,7 @@ class Gateway:
         print(f"Upload file selected: {file_path}")
         return self.current_session.upload_file(file_path, path)
 
-    
+    @promise
     def upload_folder(self, folder_path, path):
         """
         Upload folder function
@@ -110,7 +125,7 @@ class Gateway:
         print(f"Upload folder selected {folder_path}")
         return self.current_session.upload_folder(folder_path, path)
 
-    
+    @promise
     def delete_file(self, file_id):
         """
         Delete file function
@@ -120,7 +135,7 @@ class Gateway:
         print(f"Delete file selected {file_id}")
         return self.current_session.delete_file(file_id)
 
-    
+    @promise
     def delete_folder(self, path):
         """
         Delete folder function
@@ -129,7 +144,7 @@ class Gateway:
         """
         return self.current_session.delete_folder(path)
     
-
+    @promise
     def create_shared_session(self, folder_name, emails):
         """
         Create new shared session
@@ -169,7 +184,7 @@ class Gateway:
         Returns the list of shared folders
         @return: list of shared folders names
         """
-        Thread(target=self.session_manager.sync_new_sessions).start() # this will probably slow everything down but needed
+        self.executor.submit(target=self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
         #self.session_manager.sync_new_sessions()
         return self.session_manager.sessions.keys()
 
