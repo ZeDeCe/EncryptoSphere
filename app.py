@@ -468,9 +468,12 @@ class Folder(ctk.CTkFrame):
             if folder not in self.folder_list:
                 self.folder_list[folder] = FolderButton(self, width=120, height=120, folder_path=folder, controller=self.controller)
 
-        self.pack_forget()
         self.pack(fill=ctk.BOTH, expand=True)
         columns = 6
+
+        # Forget all existing files and folders
+        for widget in self.winfo_children():
+            widget.grid_forget()
 
         for col in range(columns):
             self.grid_columnconfigure(col, weight=1, uniform="file_grid")
