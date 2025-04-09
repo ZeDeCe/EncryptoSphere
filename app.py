@@ -385,7 +385,7 @@ class MainPage(ctk.CTkFrame):
         @param folder_path: The path of the folder to be uploaded
         """
         self.controller.get_api().upload_folder(os.path.normpath(folder_path), self.main_frame.path)
-        self.main_frame.refresh(self.main_frame.path)
+        self.main_frame.refresh()
 
     def change_folder(self, path):
         """
@@ -444,36 +444,50 @@ class Folder(ctk.CTkFrame):
         self.path = path
         self.pack(fill = ctk.BOTH, expand = True)
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
-
+        
+        self.file_list = {}
+        self.folder_list = {}
+        
+    
     def refresh(self):
         """
         Refresh the frame and display all updates
         """
-        self.pack(fill = ctk.BOTH, expand = True)
+        #for widget in self.winfo_children():
+        #    widget.after(0, widget.destroy)
+
         file_list, folder_list = self.controller.get_api().get_files(self.path)
-        for widget in self.winfo_children():
-            widget.after(0, widget.destroy)
+
+        # Add new files to self.file_list
+        for file in file_list:
+            if file["name"] not in self.file_list:
+                self.file_list[file["name"]] = FileButton(self, width=120, height=120, file_data=file, controller=self.controller)
+
+        # Add new folders to self.folder_list
+        for folder in folder_list:
+            if folder not in self.folder_list:
+                self.folder_list[folder] = FolderButton(self, width=120, height=120, folder_path=folder, controller=self.controller)
+
+        self.pack_forget()
+        self.pack(fill=ctk.BOTH, expand=True)
         columns = 6
-        cell_size = 120
 
         for col in range(columns):
             self.grid_columnconfigure(col, weight=1, uniform="file_grid")
         index = 0
-        for folder in folder_list:
+
+        for folder in self.folder_list.values():
             row = index // columns  
             col = index % columns   
 
-            file_frame = FolderButton(self, width=cell_size, height=cell_size, folder_path=folder, controller=self.controller)
-            file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-            
+            folder.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
 
-        for file in file_list:
+        for file in self.file_list.values():
             row = index // columns  
             col = index % columns   
 
-            file_frame = FileButton(self, width=cell_size, height=cell_size, file_data=file, controller=self.controller)
-            file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            file.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
          
         # Create a label that will display current location
@@ -533,31 +547,32 @@ class FileButton(IconButton):
             {
                 "label": "Download File",
                 "color": "blue",
-                "event": lambda: Thread(target=self.download_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
+                "event": lambda: Thread(target=self.download_file_from_cloud, args=(self.file_data,), daemon=True).start()
              },
              {
                  "label": "Delete File",
                  "color": "red",
-                 "event": lambda: Thread(target=self.delete_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
+                 "event": lambda: Thread(target=self.delete_file_from_cloud, args=(self.file_data,), daemon=True).start()
              }
         ])
 
         self.controller.register_context_menu(self.context_menu)
 
-    def download_file_from_cloud(self, file_id):
+    def download_file_from_cloud(self, file_data):
         """
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
-        self.controller.get_api().download_file(file_id)
-        self.master.master.refresh()
+        self.controller.get_api().download_file(file_data["id"])
 
-    def delete_file_from_cloud(self, file_id):
+
+    def delete_file_from_cloud(self, file_data):
         """
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        self.controller.get_api().delete_file(file_id)
+        self.controller.get_api().delete_file(file_data["id"])
+        del self.master.file_list[file_data["name"]]
         self.master.master.refresh()
 
     def on_button1_click(self, event=None):
