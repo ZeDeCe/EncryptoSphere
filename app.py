@@ -208,7 +208,7 @@ class LoginPage(ctk.CTkFrame):
         # Start animation
         self.frame_iterator = itertools.cycle(self.frames)
         self.gif_animation_id = None  # Initialize the animation ID
-        self.update_gif()
+        Thread(target=self.update_gif()).start()
 
         email = self.entry.get()
         result = self.controller.get_api().authenticate(email)
@@ -368,7 +368,7 @@ class MainPage(ctk.CTkFrame):
         @param file_path: The path of the file to be uploaded
         """
         self.controller.get_api().upload_file(os.path.normpath(file_path), self.main_frame.path)
-        self.main_frame.refresh(self.main_frame.path)
+        self.main_frame.refresh()
 
     def upload_folder(self):
         """
@@ -406,7 +406,7 @@ class MainPage(ctk.CTkFrame):
             self.folders[path] = new_folder
             self.main_frame = new_folder
 
-        self.main_frame.refresh(path)
+        self.main_frame.refresh()
         self.main_frame.lift()
 
         # Reinitialize the context menu when changing folders
@@ -445,7 +445,7 @@ class Folder(ctk.CTkFrame):
         self.pack(fill = ctk.BOTH, expand = True)
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
-    def refresh(self, path='/'):
+    def refresh(self):
         """
         Refresh the frame and display all updates
         """
@@ -477,7 +477,7 @@ class Folder(ctk.CTkFrame):
             index += 1
          
         # Create a label that will display current location
-        self.url_label = ctk.CTkLabel(self, text=path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label = ctk.CTkLabel(self, text=self.path, anchor="e", fg_color="gray30", corner_radius=10)
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
 
 class IconButton(ctk.CTkFrame):
