@@ -367,8 +367,9 @@ class MainPage(ctk.CTkFrame):
         Upload file to the cloud and refresh the page
         @param file_path: The path of the file to be uploaded
         """
-        self.controller.get_api().upload_file(os.path.normpath(file_path), self.main_frame.path)
-        self.main_frame.refresh()
+        # Can play with the callback here more, refresh at the end but show a loading ui when uploading
+        self.controller.get_api().upload_file(lambda f: self.main_frame.refresh(), os.path.normpath(file_path), self.main_frame.path)
+        
 
     def upload_folder(self):
         """
@@ -377,15 +378,15 @@ class MainPage(ctk.CTkFrame):
         folder_path = filedialog.askdirectory()
         self.context_menu.hide_context_menu()
         if folder_path:
-            Thread(target=self.upload_folder_to_cloud, args=(folder_path,), daemon=True).start()
+            self.upload_folder_to_cloud(folder_path) # This function returns immediately
 
     def upload_folder_to_cloud(self, folder_path):
         """
         Upload folder to the cloud and refresh the page
         @param folder_path: The path of the folder to be uploaded
         """
-        self.controller.get_api().upload_folder(os.path.normpath(folder_path), self.main_frame.path)
-        self.main_frame.refresh()
+        self.controller.get_api().upload_folder(lambda f: self.main_frame.refresh(), os.path.normpath(folder_path), self.main_frame.path)
+        
 
     def change_folder(self, path):
         """
@@ -449,13 +450,24 @@ class Folder(ctk.CTkFrame):
         self.folder_list = {}
         
     
+    def load_files(self):
+        file_list, folder_list = self.controller.get_api().get_files(self.path)
+                # Add new files to self.file_list
+        for file in file_list:
+            if file["name"] not in self.file_list:
+                self.file_list[file["name"]] = FileButton(self, width=120, height=120, file_data=file, controller=self.controller)
+
+        # Add new folders to self.folder_list
+        for folder in folder_list:
+            if folder not in self.folder_list:
+                self.folder_list[folder] = FolderButton(self, width=120, height=120, folder_path=folder, controller=self.controller)
+        self.refresh()
+    
     def refresh(self):
         """
         Refresh the frame and display all updates
         """
-        #for widget in self.winfo_children():
-        #    widget.after(0, widget.destroy)
-
+        self.pack(fill = ctk.BOTH, expand = True)
         file_list, folder_list = self.controller.get_api().get_files(self.path)
 
         # Add new files to self.file_list
@@ -566,7 +578,7 @@ class FileButton(IconButton):
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
-        self.controller.get_api().download_file(file_data["id"])
+        self.controller.get_api().download_file(lambda f: self.master.master.refresh(), file_data["id"])
 
 
     def delete_file_from_cloud(self, file_data):
@@ -574,9 +586,11 @@ class FileButton(IconButton):
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        self.controller.get_api().delete_file(file_data["id"])
+        self.controller.get_api().delete_file(lambda f: self.master.master.refresh(), file_data["id"])
         del self.master.file_list[file_data["name"]]
         self.master.master.refresh()
+        
+
 
     def on_button1_click(self, event=None):
         """
@@ -653,15 +667,33 @@ class FolderButton(IconButton):
             {
                 "label": "Download Folder",
                 "color": "blue",
-                "event": lambda: self.controller.get_api().download_folder(self.folder_path)
+                "event": lambda: self.download_folder()
              },
              {
                  "label": "Delete Folder",
                  "color": "red",
-                 "event": lambda: self.controller.get_api().delete_folder(self.folder_path) # maybe add "ARE YOU SURE?"
+                 "event": lambda: self.delete_folder() # maybe add "ARE YOU SURE?"
              }
         ])
         self.controller.register_context_menu(self.context_menu)
+    
+    
+    def delete_folder(self):
+        """
+        Delete folder from the cloud and refresh the page
+        @param folder_path: The path of the folder to be deleted
+        """
+        # The callback here might need to just check that it didn't fail and we should instead delete the folder immediately
+        self.controller.get_api().delete_folder(lambda f: self.master.master.refresh(), self.folder_path)
+    
+    
+    def download_folder(self):
+        """
+        Download folder from the cloud and refresh the page
+        @param folder_path: The path of the folder to be downloaded
+        """
+        # Can add a callback to notify user that the download is complete
+        self.controller.get_api().download_folder(None, self.folder_path)
 
     def on_double_click(self, event=None):
         """
@@ -859,8 +891,8 @@ class SharePage(ctk.CTkFrame):
         @param folder_name: The name of the folder to be shared
         @param emails: List of emails to share the folder with
         """
-        self.controller.get_api().create_shared_session(folder_name, emails)
-        self.refresh()
+        self.controller.get_api().create_shared_session(lambda f: self.refresh(), folder_name, emails)
+
     
     def refresh(self):
         """
