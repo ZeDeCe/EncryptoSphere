@@ -7,8 +7,9 @@ from modules import Encrypt
 from modules.CloudAPI import CloudService
 import FileDescriptor
 
-import threading
+import concurrent.futures
 import time
+import threading
 
 SYNC_TIME = 300  # Sync time in seconds
 FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
@@ -40,6 +41,31 @@ class CloudManager:
         self.sync_thread = None
         self.stop_event = threading.Event()  # Event to signal
         self.lock_session()
+        self.executor = concurrent.futures.ThreadPoolExecutor()
+
+    def __del__(self):
+        self.executor.shutdown(wait=True)
+
+    def _complete_cloud_threads(self, futures: dict[concurrent.futures.Future, str]):
+        """
+        Waits for all threads to finish and returns the results
+        @param futures a dictionary of futures and their corresponding cloud names {future: cloud_name, ...}
+        @return a tuple containing: (success, a list of tuples (cloud_name, result))
+        """
+        results = []
+        success = True
+        for future in concurrent.futures.as_completed(futures):
+            cloud_name = futures[future]
+            try:
+                result = future.result()
+                results.append((cloud_name, result))
+                print(f"Successfully executed task for cloud {cloud_name}.")
+            except Exception as e:
+                success = False
+                results.append((cloud_name, e))
+                print(f"Error executing task to {cloud_name}: {e}")
+        return results, success
+
 
     def lock_session(self):
         """
@@ -120,16 +146,17 @@ class CloudManager:
         cloud_file_count = {}
 
         # Upload file parts to clouds
+        futures = {}
         for cloud_index, f in enumerate(data):
             cloud_name = self.clouds[cloud_index].get_name()
             cloud_file_count[cloud_name] = len(f)
             for file_index, file_content in enumerate(f):
-                try:
-                    file_name = f"{file_id}_{file_index+1}"
-                    self.clouds[cloud_index].upload_file(file_content, file_name, self.root_folder)
-                except Exception as e:
-                    print(e)
-                    raise Exception("Failed to upload one of the files")
+                file_name = f"{file_id}_{file_index+1}"
+                futures[self.executor.submit(self.clouds[cloud_index].upload_file, file_content, file_name, self.root_folder)] = cloud_name
+     
+        results, success = self._complete_cloud_threads(futures)
+        if not success:
+            raise Exception("Failed to upload file parts to clouds.")
         
         # Add file metadata to the file descriptor
         file_id = self.fd.add_file(
@@ -144,7 +171,8 @@ class CloudManager:
         if sync:
             self.sync_fd()
         
-        return True
+        return self.fd.get_file_data(file_id)
+    
             
     def _upload_replicated(self, file_name, data, suffix=False):
         """
@@ -154,10 +182,15 @@ class CloudManager:
         @param data the data to be written
         @param suffix, optional if True will add the email of the user to the file name at the end
         """
+        futures = {}
         for cloud in self.clouds:
             print(f"Uploading to {cloud.get_name()}")
             suffix = f"_{cloud.get_email()}" if suffix else ""
-            cloud.upload_file(data, f"{file_name}{suffix}", self.root_folder)
+            futures[self.executor.submit(cloud.upload_file, data, f"{file_name}{suffix}", self.root_folder)] = cloud.get_name()
+        results, success = self._complete_cloud_threads(futures)
+        if not success:
+            raise Exception("Failed to upload replicated file to all clouds.")
+        return True
 
     def _download_replicated(self, file_name, suffix=False):
         """
@@ -179,12 +212,11 @@ class CloudManager:
         return None  # Return None if all clouds fail
     
     def _delete_replicated(self, file_name, suffix=False):
+        futures = {}
         for cloud in self.clouds:
             suffix = f"_{cloud.get_email()}" if suffix else ""
-            try:
-                cloud.delete_file(f"{file_name}{suffix}", self.root_folder)
-            except Exception as e:
-                continue
+            self.executor.submit(cloud.delete_file, f"{file_name}{suffix}", self.root_folder)
+        # we don't even wait for the results
     
     def _check_replicated_integrity(self, replicated : list[bytes]):
         """
@@ -212,12 +244,16 @@ class CloudManager:
             path = f"{path}/"
         
         # Iterate over the folder and upload each file
+        futures = {}
         for root, _, files in os.walk(os_folder):
             root_arr = root.split(os.sep)
             root_arr = root_arr[root_arr.index(folder_name):]
             encrypto_root = "/".join(root_arr)
             for file in files:
-                self.upload_file(os.path.join(root, file), f"{path}{encrypto_root}", sync=False)
+                futures[self.executor.submit(self.upload_file, os.path.join(root, file), f"{path}{encrypto_root}", False)] = None
+        results, success = self._complete_cloud_threads(futures)
+        if not success:
+            raise Exception("Failed to upload folder contents to clouds.")
         
         # Sync file descriptor once after all uploads
         self.sync_fd()
@@ -239,21 +275,24 @@ class CloudManager:
                 raise ValueError(f"No parts found for file_id {file_id} in the file descriptor.")
 
             data = []
-
+            futures = {}
             # Iterate over clouds and download file parts
             for cloud_name, part_count in parts.items():
+                cloud = next((cloud for cloud in self.clouds if cloud.get_name() == cloud_name), None)
+                if cloud is None:
+                    raise ValueError(f"Cloud {cloud_name} not found in the current session.")
                 for part_number in range(1, part_count + 1):
                     file_name = f"{file_id}_{part_number}"
-                    for cloud in self.clouds:
-                        if cloud.get_name() == cloud_name:
-                            try:
-                                file_content = cloud.download_file(file_name, self.root_folder)
-                                if file_content is None:
-                                    raise FileNotFoundError(f"File part {file_name} not found in {cloud_name}.")
-                                data.append(file_content)
-                            except Exception as e:
-                                print(f"Error downloading {file_name} from {cloud_name}: {e}")
-                                raise
+                    if cloud is None:
+                        raise ValueError(f"Cloud {cloud_name} not found in the current session.")
+                    futures[self.executor.submit(cloud.download_file, file_name, self.root_folder)] = cloud_name
+                    
+            # Wait for all download threads to complete
+            results, success = self._complete_cloud_threads(futures)
+            if not success:
+                raise FileNotFoundError(f"File part {file_name} not found in {cloud_name}.")
+            
+            data = [res[1] for res in results if isinstance(res[1], bytes)]
 
             # Merge and decrypt the data
             if not data:
@@ -306,13 +345,18 @@ class CloudManager:
         """
         file_data = self.fd.get_file_data(file_id)
         parts = file_data['parts']
-        for cloud_name, part_count in parts.items():  # Iterate over clouds
-            for part_number in range(1, part_count + 1):  # Generate file parts
-                file_name = f"{file_id}_{part_number}"
-                for cloud in self.clouds:
-                    if cloud.get_name() == cloud_name:                        
-                        cloud.delete_file(file_name, self.root_folder)
-        self.fd.delete_file(file_id)    
+        futures = {}
+        for cloud_name, part_count in parts.items():
+            cloud = next((cloud for cloud in self.clouds if cloud.get_name() == cloud_name), None)
+            if cloud is None:
+                raise ValueError(f"Cloud {cloud_name} not found in the current session.")    
+            for part_number in range(1, part_count + 1): 
+                futures[self.executor.submit(cloud.delete_file, f"{file_id}_{part_number}", self.root_folder)] = cloud_name
+        results, success = self._complete_cloud_threads(futures)
+        if not success:
+            raise Exception("Failed to delete file parts from clouds.")
+        
+        self.fd.delete_file(file_id)
         self.sync_fd()
         return True
 
@@ -337,9 +381,9 @@ class CloudManager:
         """
         data, metadata = self.fd.serialize()
         if metadata:
-            self._upload_replicated("$FD_META", metadata)
+            self.executor.submit(self._upload_replicated, "$FD_META", metadata)
         if data:
-            self._upload_replicated("$FD", self._encrypt(data))
+            self.executor.submit(self._upload_replicated, "$FD", self._encrypt(data))
         print("FDs Synced to clouds")
 
     def start_sync_thread(self):

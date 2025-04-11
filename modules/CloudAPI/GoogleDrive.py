@@ -1,14 +1,16 @@
 import os
 import io
-import httplib2
 from dotenv import load_dotenv
 import webbrowser
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseUpload, HttpRequest
 from google.auth.transport.requests import Request
 from modules.CloudAPI.CloudService import CloudService
+from google_auth_httplib2 import AuthorizedHttp
+import httplib2
+
 
 load_dotenv()
 # Set up Google Drive API
@@ -17,16 +19,6 @@ API_KEY = os.getenv("GOOGLE_API_KEY")
 SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
 
 class GoogleDrive(CloudService):
-
-    def __init__(self, email: str):
-        """
-        Initialization method 
-        """
-        super().__init__(email)  # Call parent __init__
-        
-        # If not authenticated, try to authenticate
-        if not self.authenticated:
-            self.authenticate_cloud()
 
     def authenticate_cloud(self):
         """
@@ -40,8 +32,13 @@ class GoogleDrive(CloudService):
             # Let the user log in and obtain new credentials every time
             flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
             creds = flow.run_local_server(port=0)
-            
-            self.drive_service = build('drive', 'v3', credentials=creds)
+
+            # Thread safety of httplib https://github.com/googleapis/google-api-python-client/blob/main/docs/thread_safety.md
+            def build_request(http, *args, **kwargs):
+                new_http = AuthorizedHttp(creds, http=httplib2.Http())
+                return HttpRequest(new_http, *args, **kwargs)
+            authorized_http = AuthorizedHttp(creds, http=httplib2.Http())
+            self.drive_service = build('drive', 'v3', requestBuilder=build_request, http=authorized_http)
             
             # Verify the email matches
             user_info = self.drive_service.about().get(fields="user").execute()
