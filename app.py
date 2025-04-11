@@ -869,7 +869,7 @@ class SharePage(ctk.CTkFrame):
             emails = [email.get() for email in email_inputs]
             print(f"Creating share with folder: {folder_name} and emails: {emails}")
             # Call a new function with the folder and emails (replace this with your logic)
-            Thread(target=self.create_shared_session_on_cloud, args=(folder_name, emails,), daemon=True).start()
+            self.controller.get_api().create_shared_session(lambda f: self.refresh(), folder_name, emails)
             # Close the new window
             new_window.destroy()
 
@@ -880,13 +880,6 @@ class SharePage(ctk.CTkFrame):
         # Adjust the scrollbar to make it thinner (no slider_length argument)
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
     
-    def create_shared_session_on_cloud(self, folder_name, emails):
-        """
-        Create a new shared session on the cloud with the given folder name and emails
-        @param folder_name: The name of the folder to be shared
-        @param emails: List of emails to share the folder with
-        """
-        self.controller.get_api().create_shared_session(lambda f: self.refresh(), folder_name, emails)
 
     
     def refresh(self):
