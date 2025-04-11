@@ -171,7 +171,7 @@ class CloudManager:
         if sync:
             self.sync_fd()
         
-        return True
+        return self.fd.get_file_data(file_id)
     
             
     def _upload_replicated(self, file_name, data, suffix=False):
