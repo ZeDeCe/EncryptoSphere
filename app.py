@@ -307,6 +307,8 @@ class MainPage(ctk.CTkFrame):
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
+        self.uploading_label= ctk.CTkLabel(self, anchor="w", fg_color="gray30", corner_radius=10)
+
         # Initialize the context menu
         self.initialize_context_menu()
 
@@ -360,15 +362,31 @@ class MainPage(ctk.CTkFrame):
         self.context_menu.hide_context_menu()
         print(file_path)
         if file_path:
-            Thread(target=self.upload_file_to_cloud, args=(file_path,), daemon=True).start()
+            self.upload_file_to_cloud(file_path)
 
     def upload_file_to_cloud(self, file_path):
         """
         Upload file to the cloud and refresh the page
         @param file_path: The path of the file to be uploaded
         """
-        # Can play with the callback here more, refresh at the end but show a loading ui when uploading
-        self.controller.get_api().upload_file(lambda f: self.main_frame.refresh(), os.path.normpath(file_path), self.main_frame.path)
+        # Display a message on the bottom right indicating the file is being uploaded
+        filename = os.path.basename(file_path)
+        self.uploading_label.configure(text=f"Uploading {filename}...")
+        self.uploading_label.place(relx=0.0, rely=1.0, x=self.main_frame.winfo_x() + 10, y=-10, anchor="sw")
+        self.uploading_label.lift()  # Ensure the label is on top of all frames
+
+        # Call the API to upload the file and use finish_uploading as the callback
+        self.controller.get_api().upload_file(lambda f: self.finish_uploading(), os.path.normpath(file_path), self.main_frame.path)
+    
+    def finish_uploading(self):
+        """
+        Remove the uploading message and refresh the page
+        """
+        if hasattr(self, 'uploading_label'):
+            self.uploading_label.place_forget()
+            self.main_frame.refresh()
+
+        
         
 
     def upload_folder(self):
@@ -414,6 +432,7 @@ class MainPage(ctk.CTkFrame):
 
         self.main_frame.refresh()
         self.main_frame.lift()
+        self.uploading_label.lift()  # Ensure the label is on top of all frames
 
         # Reinitialize the context menu when changing folders
         self.initialize_context_menu()
