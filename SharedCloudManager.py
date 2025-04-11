@@ -156,6 +156,9 @@ class SharedCloudManager(CloudManager):
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
             if futures[future] == "fek" and isinstance(result, bytes):
+                for f in futures:
+                    if not f.done():
+                        f.cancel()
                 return result
             if isinstance(result, Exception):
                 print(f"File not found: {result}")
