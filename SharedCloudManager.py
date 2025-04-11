@@ -7,7 +7,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric import rsa,padding
 from cryptography.hazmat.primitives import hashes,serialization
 import re
-import os
+import concurrent.futures
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -21,8 +21,6 @@ class SharedCloudManager(CloudManager):
         @param shared_with a list of dictionaries as such: [{"Cloud1Name":"email", "Cloud2Name":"email", ...}, ...] or None for an existing session
         """
         super().__init__(*args, **kwargs)
-        self.tfek = None
-        self.public_key = None
         self.users = None
         self.loaded = False
         if shared_with:
@@ -65,7 +63,7 @@ class SharedCloudManager(CloudManager):
             self.fd.set_files(self._decrypt(files_enc))
         if key:
             self.loaded = True
-            self.share_keys() # Can happen on a different thread now
+            self.share_keys()
             return True
         return False
     
@@ -105,39 +103,38 @@ class SharedCloudManager(CloudManager):
         my_key = None
         
         # Try finding the key
+        futures = []
         for cloud in self.clouds:
             folder = cloud.get_folder(self.root_folder)
             if folder:
-                # try: # check it is shared with people
-                #     cloud.get_members_shared(folder)
-                # except:
-                #     continue
-                # This might have FEK
-                key = self.check_key_status(cloud)
-                if key:
-                    my_key = key
-                    break
+                futures.append(self.executor.submit(self.check_key_status, cloud))
             else:
                 print(f"Cloud {cloud.get_name()} does not have the shared folder {self.root_folder}. Ignoring cloud for session.")
                 self.clouds.pop(self.clouds.index(cloud)) # pop cloud from clouds list
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                result = future.result()
+                if result and isinstance(result, bytes):
+                    # First key we get we break
+                    my_key = result
+                    break
+            except Exception as e:
+                pass
         if my_key:
             # We have at least a single FEK
             key = self._decrypt(my_key)
+            self.sync_fek(key)
             return key
         return False
 
     def sync_fek(self, key : bytes) -> None:
-        self._upload_replicated("$FEK", self._encrypt(key), True)
-
-        # Try deleting excess files - can happen on new thread
-        try:
-            self._delete_replicated(f"$TFEK", True)
-        except:
-            print("Failed to delete TFEK")
-        try:
-            self._delete_replicated(f"$PUBLIC", True)
-        except:
-            print("Failed to delete PUBLIC")
+        futures = [
+            self.executor.submit(self._upload_replicated, "$FEK", self._encrypt(key), True),
+            self.executor.submit(self._delete_replicated, "$TFEK", True),
+            self.executor.submit(self._delete_replicated, "$PUBLIC", True)
+        ]
+        for future in futures:
+            future.add_done_callback(lambda f: print(f"Error: {f.exception()}") if f.exception() else None)
 
     def check_key_status(self, cloud : CloudService) -> bytes | bool:
         """
@@ -149,42 +146,33 @@ class SharedCloudManager(CloudManager):
         @param cloud the cloud to use
         @return the encrypted key if found, if not then False
         """
-        fek = None
-        try:
-            fek = cloud.download_file(f"$FEK_{cloud.get_email()}", self.root_folder)
-        except:
-            pass
-        if fek:
-            return fek
-        
-        shared_secret = None
-        tfek = None
-        public_key = None
+        futures = {
+            self.executor.submit(cloud.download_file, f"$FEK_{cloud.get_email()}", self.root_folder) : "fek",
+            self.executor.submit(cloud.download_file, f"$SHARED_{cloud.get_email()}", self.root_folder) : "shared_secret",
+            self.executor.submit(cloud.download_file, f"$TFEK_{cloud.get_email()}", self.root_folder) : "tfek",
+            self.executor.submit(cloud.download_file, f"$PUBLIC_{cloud.get_email()}", self.root_folder) : "public"
+        }
+        files = {}
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if futures[future] == "fek" and isinstance(result, bytes):
+                for f in futures:
+                    if not f.done():
+                        f.cancel()
+                return result
+            if isinstance(result, Exception):
+                print(f"File not found: {result}")
+                result = None
+            files[futures[future]] = result
 
-        # download_file raises errors if it fails
-        try:
-            shared_secret = cloud.download_file(f"$SHARED_{cloud.get_email()}", self.root_folder)
-        except:
-            pass
-        try:
-            tfek = cloud.download_file(f"$TFEK_{cloud.get_email()}", self.root_folder)
-        except:
-            pass
-        # Don't download public key if we have shared key
-        if not shared_secret:
-            try:
-                public_key = cloud.download_file(f"$PUBLIC_{cloud.get_email()}", self.root_folder)
-            except:
-                pass
-
-        if shared_secret and tfek:
-            private = self._decrypt(tfek)
+        if files.get("shared_secret") and files.get("tfek"):
+            private = self._decrypt(files.get("tfek"))
             private = serialization.load_pem_private_key(
                 private,
                 password=None
             )
             shared_secret = private.decrypt(
-                shared_secret,
+                files.get("shared_secret"),
                 padding.OAEP(
                     mgf=padding.MGF1(algorithm=hashes.SHA256()),
                     algorithm=hashes.SHA256(),
@@ -192,71 +180,72 @@ class SharedCloudManager(CloudManager):
                 )
             )
             
-            try:
-                self._delete_replicated("$TFEK", True)
-                self._delete_replicated("$SHARED", True)
-                self._delete_replicated("$PUBLIC", True)
-            except:
-                print("Failed to delete temporary files, but successful key share")
-            self.sync_fek(shared_secret)
             return self._encrypt(shared_secret)
-        if not (tfek and public_key):
-            self.upload_TFEK(cloud)
+        if not (files.get("tfek") and files.get("public")):
+            self.executor.submit(self.upload_TFEK, cloud)
         return False
         
     def upload_TFEK(self, cloud : CloudService):
         """
         Uploads the TFEK and public key files to the shared folder to await answer
+        Generates a different key per cloud
         @param cloud the cloud to use
         """
-        if not self.tfek:
-            private_key = rsa.generate_private_key(
-                public_exponent=65537,
-                key_size=2048,
-            )
-            private_pem = private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            )
-            self.tfek = self._encrypt(private_pem)
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+        private_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        tfek = self._encrypt(private_pem)
         
-        if not self.public_key:
-            public_key = private_key.public_key()
-            self.public_key = public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-        cloud.upload_file(self.tfek, f"$TFEK_{cloud.get_email()}", self.root_folder)
-        cloud.upload_file(self.public_key, f"$PUBLIC_{cloud.get_email()}", self.root_folder)
+        public_key = private_key.public_key()
+        public_key = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        cloud.upload_file(tfek, f"$TFEK_{cloud.get_email()}", self.root_folder)
+        cloud.upload_file(public_key, f"$PUBLIC_{cloud.get_email()}", self.root_folder)
     
+    def __share_keys_from_public(self, keyname : bytes, cloud : CloudService):
+        shared_key = self.encrypt.get_key()
+        username = keyname[8:]
+        if username == "":
+            return False
+        
+        # Check if the username is actually shared
+        pem = cloud.download_file(keyname, self.root_folder)
+        public = serialization.load_pem_public_key(
+            pem
+        )
+        response = public.encrypt(
+            shared_key,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
+        cloud.upload_file(response, f"$SHARED_{username}", self.root_folder)
+
+    def __share_keys_cloud(self, cloud : CloudService):
+        public_keynames = filter(lambda name: name.startswith("$PUBLIC_"), cloud.list_files(self.root_folder))
+
+        for keyname in public_keynames:
+            self.executor.submit(self.__share_keys_from_public, keyname, cloud)
+
     def share_keys(self):
         """
-        Look if there is a temporary public key file uploaded by a valid user
+        Look if there is a public key file uploaded by a valid user
         share the shared key with that user by creating a temporary shared key
         """
         if self.loaded == False:
             return
-        shared_key = self.encrypt.get_key()
         for cloud in self.clouds:
-            public_keynames = filter(lambda name: name.startswith("$PUBLIC_"), cloud.list_files(self.root_folder))
-            for keyname in public_keynames:
-                username = keyname[8:]
-                if username == "":
-                    continue
-                pem = cloud.download_file(keyname, self.root_folder)
-                public = serialization.load_pem_public_key(
-                    pem
-                )
-                response = public.encrypt(
-                    shared_key,
-                    padding.OAEP(
-                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                        algorithm=hashes.SHA256(),
-                        label=None
-                    )
-                )
-                cloud.upload_file(response, f"$SHARED_{username}", self.root_folder)
+            self.executor.submit(self.__share_keys_cloud, cloud)
 
     def test_access(self) -> bool:
         """
@@ -265,11 +254,7 @@ class SharedCloudManager(CloudManager):
         """
         for cloud in self.clouds:
             folder = cloud.get_folder(self.root_folder)
-            if folder:
-                try: # check it is shared with people
-                    cloud.get_members_shared(folder)
-                except:
-                    continue
+            if folder and folder.shared:
                 return True
         return False
     
@@ -342,15 +327,15 @@ class SharedCloudManager(CloudManager):
         if not root.endswith("_ENCRYPTOSPHERE_SHARE") or not root.startswith("/"):
             print(f"Folder {root} is not a valid session root, does not match pattern")
             return False
-        try:            
-            members = cloud.get_members_shared(folder)
-            print(f"Members: {members}")
-            if not members or len(members) < 2:
-                print(f"Folder {root} is not a valid session root, does not have at least 2 members shared")
-                return False
-        except Exception as e:
-            print(f"Error checking shared status for folder {root}: {e}")
-            return False
+        # try:            
+        #     members = cloud.get_members_shared(folder)
+        #     print(f"Members: {members}")
+        #     if not members or len(members) < 2:
+        #         print(f"Folder {root} is not a valid session root, does not have at least 2 members shared")
+        #         return False
+        # except Exception as e:
+        #     print(f"Error checking shared status for folder {root}: {e}")
+        #     return False
 
         try:
             files = cloud.list_files(root)
