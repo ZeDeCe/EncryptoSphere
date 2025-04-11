@@ -107,21 +107,20 @@ class CloudManager:
             # Authenticate all clouds
             for cloud in self.clouds:
                 cloud.authenticate_cloud()
-
+        except Exception as e:
+            print(f"Error during cloud authentication: {e}")
+            return False
+        
+        try:
             # Attempt to load the file descriptor
             fd_loaded = self.load_fd()
             if not fd_loaded:
                 print("Failed to load file descriptor.")
                 return False
 
-            # Start the sync thread if not already running
-            if not self.sync_thread or not self.sync_thread.is_alive():
-                self.start_sync_thread()
-
             return True  # Authentication and file descriptor loading succeeded
-
         except Exception as e:
-            print(f"Error during authentication: {e}")
+            print(f"Error during authentication, loading of file descriptor: {e}")
             return False
         
     def upload_file(self, os_filepath, path="/", sync=True):
@@ -410,8 +409,9 @@ class CloudManager:
         """
         Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor
         """
-        data = self._download_replicated("$FD")
+        data_future = self.executor.submit(self._download_replicated, "$FD")
         metadata = self._download_replicated("$FD_META")
+        data = data_future.result()
         # Technically supposed to pull encryption decryption from cloud or at least check it matches
         # TODO: Check here if a version is still in desktop, means corruption
         self.fd = FileDescriptor.FileDescriptor(None if data == None else self._decrypt(data), metadata, self.encrypt.get_name(), self.split.get_name())
