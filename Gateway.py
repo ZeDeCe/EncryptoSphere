@@ -188,7 +188,7 @@ class Gateway:
         Returns the list of shared folders
         @return: list of shared folders names
         """
-        self.executor.submit(target=self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
+        #self.executor.submit(target=self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
         #self.session_manager.sync_new_sessions()
         return self.session_manager.sessions.keys()
 

@@ -265,8 +265,8 @@ class MainPage(ctk.CTkFrame):
         self.side_bar.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
         # Add the EncryptoSphere label to the side bar
-        encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
-        encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
+        self.encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
+        self.encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         # Create the upload button and shared files button
         self.upload_button = ctk.CTkButton(self.side_bar, text="Upload",
@@ -387,6 +387,15 @@ class MainPage(ctk.CTkFrame):
         """
         self.controller.get_api().upload_folder(lambda f: self.main_frame.refresh(), os.path.normpath(folder_path), self.main_frame.path)
         
+    def change_back_button(self, path):
+        """
+        Change the back button to go back to the previous folder
+        @param path: The path to the folder to be changed to
+        """
+        if path == "/":
+            self.back_button.pack_forget()
+        else:
+            self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
 
     def change_folder(self, path):
         """
@@ -394,11 +403,7 @@ class MainPage(ctk.CTkFrame):
         @param path: The path to the folder to be changed to
         """
         print(f"Current folder: {path}")
-        if path != "/":
-            self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
-        else:
-            self.back_button.pack_forget()
-
+        self.change_back_button(path)
         self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
@@ -449,25 +454,11 @@ class Folder(ctk.CTkFrame):
         self.file_list = {}
         self.folder_list = {}
         
-    
-    def load_files(self):
-        file_list, folder_list = self.controller.get_api().get_files(self.path)
-                # Add new files to self.file_list
-        for file in file_list:
-            if file["name"] not in self.file_list:
-                self.file_list[file["name"]] = FileButton(self, width=120, height=120, file_data=file, controller=self.controller)
-
-        # Add new folders to self.folder_list
-        for folder in folder_list:
-            if folder not in self.folder_list:
-                self.folder_list[folder] = FolderButton(self, width=120, height=120, folder_path=folder, controller=self.controller)
-        self.refresh()
-    
+      
     def refresh(self):
         """
         Refresh the frame and display all updates
         """
-        self.pack(fill = ctk.BOTH, expand = True)
         file_list, folder_list = self.controller.get_api().get_files(self.path)
 
         # Add new files to self.file_list
@@ -578,7 +569,7 @@ class FileButton(IconButton):
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
-        self.controller.get_api().download_file(lambda f: self.master.master.refresh(), file_data["id"])
+        self.controller.get_api().download_file(None, file_data["id"])
 
 
     def delete_file_from_cloud(self, file_data):
@@ -588,9 +579,6 @@ class FileButton(IconButton):
         """
         self.controller.get_api().delete_file(lambda f: self.master.master.refresh(), file_data["id"])
         del self.master.file_list[file_data["name"]]
-        self.master.master.refresh()
-        
-
 
     def on_button1_click(self, event=None):
         """
@@ -716,6 +704,9 @@ class SharePageMainPage(MainPage):
         self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
         self.back_button.configure(command=lambda: self.controller.show_frame(SharePage) if self.main_frame.path == "/" else self.change_folder(self.get_previous_window(self.main_frame.path)))
         self.shared_files_button.pack_forget()
+        parsed_path = path.replace("_ENCRYPTOSPHERE_SHARE", "")
+        parsed_path = parsed_path.split("/")[-1]
+        self.encryptosphere_label.configure(text=parsed_path)
 
     def change_folder(self, path):
         """
@@ -732,11 +723,13 @@ class SharePageMainPage(MainPage):
             self.folders[path] = new_folder
             self.main_frame = new_folder
 
-        self.main_frame.refresh(path)
+        self.main_frame.refresh()
         self.main_frame.lift()
 
         # Reinitialize the context menu when changing folders
         self.initialize_context_menu()
+
+
 
 
 class SharePage(ctk.CTkFrame):
@@ -754,29 +747,31 @@ class SharePage(ctk.CTkFrame):
         self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
 
         # Add the EncryptoSphere label to the side bar
-        encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
+        encryptosphere_label = ctk.CTkLabel(self.side_bar, text="Shared Folders", font=("Verdana", 15))
         encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand = False)
 
         # Create the upload button and create share buttons
+        self.share_folder_button = ctk.CTkButton(self.side_bar, text="New Share",
+                                      command=lambda: self.open_sharing_window(),
+                                      width=120, height=30, fg_color="gray25", hover=False)
+        self.share_folder_button.pack(anchor="nw", padx=10, pady=5, expand = False)
+
+        self.share_folder_button.bind("<Enter>", lambda e: self.set_bold(self.share_folder_button))
+        self.share_folder_button.bind("<Leave>", lambda e: self.set_normal(self.share_folder_button))
         self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
                                                  command=lambda: self.back_to_main_window(),
                                                  width=120, height=30, fg_color="gray25", hover=False)
-        self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+        self.back_button.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         self.back_button.bind("<Enter>", lambda e: self.set_bold(self.back_button))
         self.back_button.bind("<Leave>", lambda e: self.set_normal(self.back_button))
 
-        self.share_folder_button = ctk.CTkButton(self.side_bar, text="New Share",
-                                      command=lambda: self.open_sharing_window(),
-                                      width=120, height=30, fg_color="gray25", hover=False)
-        self.share_folder_button.pack(anchor="nw", padx=10, pady=10, expand = False)
-
-        self.share_folder_button.bind("<Enter>", lambda e: self.set_bold(self.share_folder_button))
-        self.share_folder_button.bind("<Leave>", lambda e: self.set_normal(self.share_folder_button))
 
         
         self.main_frame = ctk.CTkFrame(self, corner_radius=0)
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
+
+        self.shared_folder_list = {}
 
 
     def set_bold(self, button):
@@ -899,23 +894,31 @@ class SharePage(ctk.CTkFrame):
         Refresh the frame and display all updates
         """
         folder_list = self.controller.get_api().get_shared_folders()
-        folder_list = list(folder_list)
-        for widget in self.main_frame.winfo_children():
-            widget.after(0, widget.destroy)
-        self.buttons = []
+        
+        for folder in folder_list:
+            if folder not in self.shared_folder_list:
+                self.shared_folder_list[folder] = SharedFolderButton(self.main_frame, width=120, height=120, folder_name=folder, controller=self.controller)
+
         columns = 6
         cell_size = 120
+
+        for widget in self.main_frame.winfo_children():
+            widget.grid_forget()
+        
 
         for col in range(columns):
             self.main_frame.grid_columnconfigure(col, weight=1, uniform="file_grid")
 
-        for i, folder_name in enumerate(folder_list):
-            row = i // columns  
-            col = i % columns   
+        index = 0
+        for folder in self.shared_folder_list.values():
+            row = index // columns  
+            col = index % columns   
+            folder.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            index +=1
+        
 
-            file_frame = SharedFolderButton(self.main_frame, width=cell_size, height=cell_size, folder_name=folder_name, controller=self.controller)
-            file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-            self.buttons.append(file_frame)
+
+
 
 
 class SharedFolderButton(IconButton):
