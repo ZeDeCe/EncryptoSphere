@@ -60,6 +60,10 @@ class Gateway:
         return status
     
     def promise(func):
+        """
+        Decorator to run a function in a separate thread and return a Future object
+        Also attaches a callback to the function if given
+        """
         @wraps(func)
         def wrapper(self, callback, *args, **kwargs):
             future : concurrent.futures.Future = self.executor.submit(func, self, *args, **kwargs)
