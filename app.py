@@ -299,7 +299,9 @@ class MainPage(ctk.CTkFrame):
                                          width=120, height=30, fg_color="gray25", hover=False)
         self.back_button.pack_forget()
 
-        
+        # Create messages pannel
+        self.messages_pannel = ctk.CTkFrame(self, fg_color="transparent")
+        self.messages_pannel.place(rely=1.0, x=self.main_frame.winfo_x(), anchor="sw")
         
         # Create a label that will display current location
         self.curr_path = "/"
@@ -307,7 +309,7 @@ class MainPage(ctk.CTkFrame):
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
-        self.uploading_label= {}
+        self.uploading_labels= {}
 
         # Initialize the context menu
         self.initialize_context_menu()
@@ -370,15 +372,13 @@ class MainPage(ctk.CTkFrame):
         @param file_path: The path of the file to be uploaded
         """
         # Create a new label for the uploading file
-        # Store the label in a dictionary with the file path as the key
-        if not hasattr(self, 'uploading_labels'):
-            self.uploading_labels = {}
-        self.uploading_labels[file_path] = uploading_label
+        self.messages_pannel.lift()
         filename = os.path.basename(file_path)
-        uploading_label = ctk.CTkLabel(self, text=f"Uploading {filename}...", anchor="w", fg_color="gray30", corner_radius=10)
-        # Place the new label at the bottom left of the main frame
-        uploading_label.place(x=self.main_frame.winfo_x() + 10, y=self.main_frame.winfo_height() - 30 - (len(self.uploading_labels) * 30), anchor="sw")
+        uploading_label = ctk.CTkLabel(self.messages_pannel, text=f"Uploading {filename}...", anchor="w", fg_color="gray30", corner_radius=10, padx=10, pady=5)
+        uploading_label.pack(side="bottom", pady=2, padx=10, anchor="w")
         uploading_label.lift()  # Ensure the label is on top of all frames
+
+        self.uploading_labels[file_path] = uploading_label
 
         # Call the API to upload the file and use finish_uploading as the callback
         self.controller.get_api().upload_file(lambda f: self.finish_uploading(file_path), os.path.normpath(file_path), self.main_frame.path)
@@ -388,19 +388,17 @@ class MainPage(ctk.CTkFrame):
         Remove the uploading message for the completed file and reorder the labels
         @param file_path: The path of the file that finished uploading
         """
+
         if hasattr(self, 'uploading_labels') and file_path in self.uploading_labels:
             # Forget the label for the completed file
-            self.uploading_labels[file_path].pack_forget()
-            del self.uploading_labels[file_path]
-
-        # Reorder the remaining labels
-        for label in self.uploading_labels.values():
-            label.pack(side="bottom", fill="x", pady=2, padx=10, anchor="sw")
-
+            #self.uploading_labels[file_path].pack_forget()
+            #del self.uploading_labels[file_path]
+            pass
         # Refresh the main frame
         self.main_frame.refresh()
 
         
+
     def upload_folder(self):
         """
         If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder
@@ -444,8 +442,11 @@ class MainPage(ctk.CTkFrame):
 
         self.main_frame.refresh()
         self.main_frame.lift()
-        for label in self.uploading_labels.values():
-            label.lift()  # Ensure all active uploading labels are on top of all frames
+        self.messages_pannel.lift()
+        if hasattr(self, 'uploading_labels'):
+            for label in self.uploading_labels.values():
+                label.lift()  # Ensure the label is on top of all frames
+
 
         # Reinitialize the context menu when changing folders
         self.initialize_context_menu()
