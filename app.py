@@ -279,15 +279,18 @@ class MainPage(ctk.CTkFrame):
                                                  width=120, height=30, fg_color="gray25", hover=False)
         self.shared_files_button.pack(anchor="nw", padx=10, pady=5, expand=False)
 
-        ## Bind hover events to the buttons (to change font to bold)
+        # Bind hover events to the buttons (to change font to bold)
         self.upload_button.bind("<Enter>", lambda e: self.set_bold(self.upload_button))
         self.upload_button.bind("<Leave>", lambda e: self.set_normal(self.upload_button))
 
         self.shared_files_button.bind("<Enter>", lambda e: self.set_bold(self.shared_files_button))
         self.shared_files_button.bind("<Leave>", lambda e: self.set_normal(self.shared_files_button))
 
-        ## Create the main frame that will display the files and folders
-        root_folder = Folder(self, controller, "/")
+        self.container = ctk.CTkFrame(self, fg_color="transparent")
+        self.container.pack(fill = ctk.BOTH, expand = True)
+        
+        # Create the main frame that will display the files and folders
+        root_folder = Folder(self.container, controller, "/")
         self.folders = {"/": root_folder}
         self.main_frame = root_folder
         self.main_frame.pack(fill=ctk.BOTH, expand=True)
@@ -300,8 +303,8 @@ class MainPage(ctk.CTkFrame):
         self.back_button.pack_forget()
 
         # Create messages pannel
-        self.messages_pannel = ctk.CTkFrame(self, fg_color="transparent")
-        self.messages_pannel.place(rely=1.0, x=self.main_frame.winfo_x(), anchor="sw")
+        self.messages_pannel = ctk.CTkFrame(self.container, fg_color="transparent")
+        self.messages_pannel.place(rely=1.0, anchor="sw")
         
         # Create a label that will display current location
         self.curr_path = "/"
@@ -310,6 +313,10 @@ class MainPage(ctk.CTkFrame):
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
         self.uploading_labels= {}
+
+        self.main_frame.lift()
+        self.messages_pannel.lift()
+
 
         # Initialize the context menu
         self.initialize_context_menu()
@@ -582,7 +589,7 @@ class FileButton(IconButton):
         print(self.file_data["id"])
 
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
-        self.context_menu = OptionMenu(master.master, self.controller, [
+        self.context_menu = OptionMenu(master.master.master, self.controller, [
             {
                 "label": "Download File",
                 "color": "blue",
@@ -610,7 +617,7 @@ class FileButton(IconButton):
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        self.controller.get_api().delete_file(lambda f: self.master.master.refresh(), file_data["id"])
+        self.controller.get_api().delete_file(lambda f: self.master.master.master.refresh(), file_data["id"])
         del self.master.file_list[file_data["name"]]
 
     def on_button1_click(self, event=None):
@@ -684,7 +691,7 @@ class FolderButton(IconButton):
         self.master = master
 
         # Create a context menu using CTkFrame for folder operations (As of now we don't suport these operations)
-        self.context_menu = OptionMenu(master.master, self.controller, [
+        self.context_menu = OptionMenu(master.master.master, self.controller, [
             {
                 "label": "Download Folder",
                 "color": "blue",
@@ -705,7 +712,7 @@ class FolderButton(IconButton):
         @param folder_path: The path of the folder to be deleted
         """
         # The callback here might need to just check that it didn't fail and we should instead delete the folder immediately
-        self.controller.get_api().delete_folder(lambda f: self.master.master.refresh(), self.folder_path)
+        self.controller.get_api().delete_folder(lambda f: self.master.master.master.refresh(), self.folder_path)
     
     
     def download_folder(self):
@@ -726,7 +733,7 @@ class FolderButton(IconButton):
     def on_button3_click(self, event=None):
         if self.context_menu.context_hidden:
             self.context_menu.lift()
-            self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.master.winfo_rooty())
+            self.context_menu.show_context_menu(event.x_root - self.master.master.winfo_rootx(), event.y_root - self.master.master.master.winfo_rooty())
         else:
             self.context_menu.hide_context_menu()
 
@@ -968,7 +975,7 @@ class SharedFolderButton(IconButton):
         
 
         # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
-        self.context_menu = OptionMenu(master.master, self.controller, [
+        self.context_menu = OptionMenu(master.master.master, self.controller, [
             {
                 "label": "Add Member",
                 "color": "green4",
