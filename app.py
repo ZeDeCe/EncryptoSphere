@@ -259,6 +259,7 @@ class MainPage(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, parent)
         self.prev_window = None
 
+
         # Create the side bar
         self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
         self.side_bar.pack(side=ctk.LEFT, fill="y", expand=False)
@@ -303,8 +304,7 @@ class MainPage(ctk.CTkFrame):
         self.back_button.pack_forget()
 
         # Create messages pannel
-        self.messages_pannel = ctk.CTkFrame(self.container, fg_color="transparent")
-        self.messages_pannel.place(rely=1.0, anchor="sw")
+        self.messages_pannel = ctk.CTkFrame(self.container, fg_color="transparent", corner_radius=10)
         
         # Create a label that will display current location
         self.curr_path = "/"
@@ -379,6 +379,7 @@ class MainPage(ctk.CTkFrame):
         @param file_path: The path of the file to be uploaded
         """
         # Create a new label for the uploading file
+        self.messages_pannel.place(rely=1.0, anchor="sw")
         self.messages_pannel.lift()
         filename = os.path.basename(file_path)
         uploading_label = ctk.CTkLabel(self.messages_pannel, text=f"Uploading {filename}...", anchor="w", fg_color="gray30", corner_radius=10, padx=10, pady=5)
@@ -398,9 +399,11 @@ class MainPage(ctk.CTkFrame):
 
         if hasattr(self, 'uploading_labels') and file_path in self.uploading_labels:
             # Forget the label for the completed file
-            #self.uploading_labels[file_path].pack_forget()
-            #del self.uploading_labels[file_path]
-            pass
+            self.uploading_labels[file_path].pack_forget()
+            del self.uploading_labels[file_path]
+        if not self.uploading_labels:
+            self.messages_pannel.place_forget()
+
         # Refresh the main frame
         self.main_frame.refresh()
 
@@ -443,7 +446,7 @@ class MainPage(ctk.CTkFrame):
         if path in self.folders:
             self.main_frame = self.folders[path]
         else:
-            new_folder = Folder(self, self.controller, path)
+            new_folder = Folder(self.container, self.controller, path)
             self.folders[path] = new_folder
             self.main_frame = new_folder
 
