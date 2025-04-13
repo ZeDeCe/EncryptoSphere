@@ -370,16 +370,15 @@ class MainPage(ctk.CTkFrame):
         @param file_path: The path of the file to be uploaded
         """
         # Create a new label for the uploading file
+        # Store the label in a dictionary with the file path as the key
+        if not hasattr(self, 'uploading_labels'):
+            self.uploading_labels = {}
+        self.uploading_labels[file_path] = uploading_label
         filename = os.path.basename(file_path)
         uploading_label = ctk.CTkLabel(self, text=f"Uploading {filename}...", anchor="w", fg_color="gray30", corner_radius=10)
         # Place the new label at the bottom left of the main frame
         uploading_label.place(x=self.main_frame.winfo_x() + 10, y=self.main_frame.winfo_height() - 30 - (len(self.uploading_labels) * 30), anchor="sw")
         uploading_label.lift()  # Ensure the label is on top of all frames
-
-        # Store the label in a dictionary with the file path as the key
-        if not hasattr(self, 'uploading_labels'):
-            self.uploading_labels = {}
-        self.uploading_labels[file_path] = uploading_label
 
         # Call the API to upload the file and use finish_uploading as the callback
         self.controller.get_api().upload_file(lambda f: self.finish_uploading(file_path), os.path.normpath(file_path), self.main_frame.path)
