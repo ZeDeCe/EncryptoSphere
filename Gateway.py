@@ -57,6 +57,7 @@ class Gateway:
         print(f"Status: {status}")
         self.current_session = self.manager
         self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
+        self.manager.start_sync_thread()
         return status
     
     def promise(func):

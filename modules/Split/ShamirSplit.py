@@ -27,11 +27,8 @@ class ShamirSplit(Split):
         num_parts= clouds_num * 2
         min_parts=3
         sharenums = []
-        if (len(data) != num_parts):
-            print(len(data))
-            raise Exception("Shamir: Number of parts does not match data given!")
         if len(data) < min_parts:
-            raise Exception(f"Shamir: At least {min_parts} parts are required to reconstruct the file.")
+            raise Exception(f"Shamir split: At least {min_parts} parts are required to reconstruct the file, got {len(data)} parts")
         
         for i in range(0, num_parts):
             sharenums.append(i)

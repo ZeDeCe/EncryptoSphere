@@ -375,35 +375,60 @@ class CloudManager:
 
     def sync_to_clouds(self):
         """
-        Uploads the filedescriptor to the clouds encrypted using self.encrypt
-        This function should use upload_replicated
+        Uploads the file descriptor to the clouds encrypted using self.encrypt.
+        This function uses the thread pool to manage upload tasks.
         """
-        data, metadata = self.fd.serialize()
-        if metadata:
-            self.executor.submit(self._upload_replicated, "$FD_META", metadata)
-        if data:
-            self.executor.submit(self._upload_replicated, "$FD", self._encrypt(data))
-        print("FDs Synced to clouds")
+        print("Syncing FDs to clouds...")
+        try:
+            data, metadata = self.fd.serialize()
+            futures = []
+
+            # Submit metadata upload task to the thread pool
+            if metadata:
+                futures.append(self.executor.submit(self._upload_replicated, "$FD_META", metadata))
+
+            # Submit data upload task to the thread pool
+            if data:
+                futures.append(self.executor.submit(self._upload_replicated, "$FD", self._encrypt(data)))
+
+            # Wait for all tasks to complete
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()  # Raise any exceptions that occurred during execution
+                except Exception as e:
+                    print(f"Error during sync_to_clouds: {e}")
+
+            print("FDs Synced to clouds")
+        except Exception as e:
+            print(f"Unexpected error in sync_to_clouds: {e}")
+
 
     def start_sync_thread(self):
         """
-        Starts a background thread to run sync_to_clouds every 5 minutes.
+        Starts a background thread to run sync_to_clouds every 5 minutes using the thread pool.
         """
         def sync_task():
             while not self.stop_event.is_set():  # Check if stop_event is set
-                #self.sync_to_clouds()
-                time.sleep(SYNC_TIME)  
+                try:
+                    self.sync_to_clouds()
+                except Exception as e:
+                    print(f"Error during periodic sync: {e}")
+                time.sleep(SYNC_TIME)  # Wait for the next sync interval
 
         # Start the sync task in a separate thread
-        self.sync_thread = threading.Thread(target=sync_task, daemon=True)
-        self.sync_thread.start()
-    
+        if not self.sync_thread or not self.sync_thread.is_alive():
+            self.sync_thread = threading.Thread(target=sync_task, daemon=True)
+            self.sync_thread.start()
+            print("Sync thread started.")
+
+
     def stop_sync_thread(self):
         """
-        Stops the background sync thread.
+        Stops the background sync thread and waits for it to terminate.
         """
         if self.sync_thread and self.sync_thread.is_alive():
             self.stop_event.set()  # Signal the thread to stop
+            print("Sync thread stopped.")
 
     def load_fd(self):
         """
