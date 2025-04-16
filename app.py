@@ -308,11 +308,10 @@ class MainPage(ctk.CTkFrame):
         
         # Create a label that will display current location
         self.curr_path = "/"
-        self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
-        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
+
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
-        self.uploading_labels= {}
+        self.uploading_labels= []
 
         self.main_frame.lift()
         self.messages_pannel.lift()
@@ -363,6 +362,7 @@ class MainPage(ctk.CTkFrame):
         else:
             self.context_menu.hide_context_menu()
 
+
     def upload_file(self):
         """
         If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file
@@ -379,35 +379,41 @@ class MainPage(ctk.CTkFrame):
         @param file_path: The path of the file to be uploaded
         """
         # Create a new label for the uploading file
+        label = self.add_message_label(f"Uploading {file_path.split('/')[-1]}")
+
+        # Call the API to upload the file and use remove_message as the callback
+        self.controller.get_api().upload_file(lambda f: self.remove_message(label), os.path.normpath(file_path), self.main_frame.path)
+
+    def add_message_label(self, message):
+        # Create a new label for the uploading file
         self.messages_pannel.place(rely=1.0, anchor="sw")
         self.messages_pannel.lift()
-        filename = os.path.basename(file_path)
-        uploading_label = ctk.CTkLabel(self.messages_pannel, text=f"Uploading {filename}...", anchor="w", fg_color="gray30", corner_radius=10, padx=10, pady=5)
+        
+        uploading_label = ctk.CTkLabel(self.messages_pannel, text=message, anchor="w", fg_color="gray30", corner_radius=10, padx=10, pady=5)
         uploading_label.pack(side="bottom", pady=2, padx=10, anchor="w")
         uploading_label.lift()  # Ensure the label is on top of all frames
 
-        self.uploading_labels[file_path] = uploading_label
-
-        # Call the API to upload the file and use finish_uploading as the callback
-        self.controller.get_api().upload_file(lambda f: self.finish_uploading(file_path), os.path.normpath(file_path), self.main_frame.path)
-
-    def finish_uploading(self, file_path):
+        self.uploading_labels.append(uploading_label)
+        return uploading_label
+    
+    def remove_message(self, label):
         """
         Remove the uploading message for the completed file and reorder the labels
         @param file_path: The path of the file that finished uploading
         """
 
-        if hasattr(self, 'uploading_labels') and file_path in self.uploading_labels:
+        if hasattr(self, 'uploading_labels') and label and label in self.uploading_labels:
             # Forget the label for the completed file
-            self.uploading_labels[file_path].pack_forget()
-            del self.uploading_labels[file_path]
+            label.pack_forget()
+            self.uploading_labels.remove(label)
+        else:
+            print("Label not found in uploading_labels")
+            return
         if not self.uploading_labels:
             self.messages_pannel.place_forget()
 
         # Refresh the main frame
         self.main_frame.refresh()
-
-        
 
     def upload_folder(self):
         """
@@ -454,7 +460,7 @@ class MainPage(ctk.CTkFrame):
         self.main_frame.lift()
         self.messages_pannel.lift()
         if hasattr(self, 'uploading_labels'):
-            for label in self.uploading_labels.values():
+            for label in self.uploading_labels:
                 label.lift()  # Ensure the label is on top of all frames
 
 
@@ -496,7 +502,9 @@ class Folder(ctk.CTkFrame):
         
         self.file_list = {}
         self.folder_list = {}
-        
+
+        self.url_label = ctk.CTkLabel(self, text=self.path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
       
     def refresh(self):
         """
@@ -539,9 +547,6 @@ class Folder(ctk.CTkFrame):
             file.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
          
-        # Create a label that will display current location
-        self.url_label = ctk.CTkLabel(self, text=self.path, anchor="e", fg_color="gray30", corner_radius=10)
-        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
 
 class IconButton(ctk.CTkFrame):
     """
