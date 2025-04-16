@@ -140,7 +140,6 @@ class CloudManager:
         hash = hashlib.md5(data).hexdigest()
         data = self._encrypt(data)
         data = self._split(data, len(self.clouds))
-
         file_id = self.fd.get_next_id()
         cloud_file_count = {}
 
@@ -273,25 +272,34 @@ class CloudManager:
             if not parts:
                 raise ValueError(f"No parts found for file_id {file_id} in the file descriptor.")
 
-            data = []
+            data = [None] * sum(parts.values())  # Preallocate the list to ensure correct order
             futures = {}
+
             # Iterate over clouds and download file parts
+            current_index = 0
             for cloud_name, part_count in parts.items():
                 cloud = next((cloud for cloud in self.clouds if cloud.get_name() == cloud_name), None)
                 if cloud is None:
                     raise ValueError(f"Cloud {cloud_name} not found in the current session.")
                 for part_number in range(1, part_count + 1):
                     file_name = f"{file_id}_{part_number}"
-                    if cloud is None:
-                        raise ValueError(f"Cloud {cloud_name} not found in the current session.")
-                    futures[self.executor.submit(cloud.download_file, file_name, self.root_folder)] = cloud_name
-                    
+                    futures[self.executor.submit(cloud.download_file, file_name, self.root_folder)] = (cloud_name, current_index)
+                    current_index += 1
+
             # Wait for all download threads to complete
             results, success = self._complete_cloud_threads(futures)
             if not success:
                 raise FileNotFoundError(f"File part {file_name} not found in {cloud_name}.")
-            
-            data = [res[1] for res in results if isinstance(res[1], bytes)]
+
+            # Iterate over the results and place them in the correct order
+            for (cloud_name, index), result in results:
+                if isinstance(result, bytes):
+                    # Use the index from the metadata to place the part in the correct position
+                    data[index] = result
+
+            # Ensure all parts are downloaded
+            if None in data:
+                raise ValueError(f"Missing parts for file_id {file_id}.")
 
             # Merge and decrypt the data
             if not data:
