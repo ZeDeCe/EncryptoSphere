@@ -379,7 +379,7 @@ class MainPage(ctk.CTkFrame):
         @param file_path: The path of the file to be uploaded
         """
         # Create a new label for the uploading file
-        label = self.add_message_label(f"Uploading {file_path.split('/')[-1]}")
+        label = self.add_message_label(f"Uploading file {file_path.split('/')[-1]}")
 
         # Call the API to upload the file and use remove_message as the callback
         self.controller.get_api().upload_file(lambda f: self.remove_message(label), os.path.normpath(file_path), self.main_frame.path)
@@ -429,7 +429,10 @@ class MainPage(ctk.CTkFrame):
         Upload folder to the cloud and refresh the page
         @param folder_path: The path of the folder to be uploaded
         """
-        self.controller.get_api().upload_folder(lambda f: self.main_frame.refresh(), os.path.normpath(folder_path), self.main_frame.path)
+        # Create a new label for the uploading file
+        label = self.add_message_label(f"Uploading folder {folder_path.split('/')[-1]}")
+
+        self.controller.get_api().upload_folder(lambda f: self.remove_message(label), os.path.normpath(folder_path), self.main_frame.path)
         
     def change_back_button(self, path):
         """
@@ -601,12 +604,12 @@ class FileButton(IconButton):
             {
                 "label": "Download File",
                 "color": "blue",
-                "event": lambda: Thread(target=self.download_file_from_cloud, args=(self.file_data,), daemon=True).start()
+                "event": lambda: self.download_file_from_cloud(self.file_data)
              },
              {
                  "label": "Delete File",
                  "color": "red",
-                 "event": lambda: Thread(target=self.delete_file_from_cloud, args=(self.file_data,), daemon=True).start()
+                 "event": lambda: self.delete_file_from_cloud(self.file_data)
              }
         ])
 
@@ -617,7 +620,10 @@ class FileButton(IconButton):
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
-        self.controller.get_api().download_file(None, file_data["id"])
+        
+        label = self.master.master.master.add_message_label(f"Uploading file {file_data['name']}")
+
+        self.controller.get_api().download_file(lambda f: self.remove_message(label), file_data["id"])
 
 
     def delete_file_from_cloud(self, file_data):
@@ -625,7 +631,8 @@ class FileButton(IconButton):
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        self.controller.get_api().delete_file(lambda f: self.master.master.master.refresh(), file_data["id"])
+        label = self.master.master.master.add_message_label(f"Delete file {file_data['name']}")
+        self.controller.get_api().delete_file(lambda f: self.master.master.master.remove_message(label), file_data["id"])
         del self.master.file_list[file_data["name"]]
 
     def on_button1_click(self, event=None):
