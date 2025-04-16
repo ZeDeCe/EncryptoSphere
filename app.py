@@ -304,7 +304,7 @@ class MainPage(ctk.CTkFrame):
         self.back_button.pack_forget()
 
         # Create messages pannel
-        self.messages_pannel = ctk.CTkFrame(self.container, fg_color="transparent", corner_radius=10)
+        self.messages_pannel = ctk.CTkFrame(self.container)
         
         # Create a label that will display current location
         self.curr_path = "/"
@@ -443,14 +443,16 @@ class MainPage(ctk.CTkFrame):
             self.back_button.pack_forget()
         else:
             self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
-
     def change_folder(self, path):
+        self.change_back_button(path)
+        self._change_folder(path)
+
+    def _change_folder(self, path):
         """
         Changes the folder viewed in main_frame
         @param path: The path to the folder to be changed to
         """
         print(f"Current folder: {path}")
-        self.change_back_button(path)
         self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
@@ -768,21 +770,7 @@ class SharePageMainPage(MainPage):
         Changes the folder viewed in main_frame
         @param path: The path to the folder to be changed to
         """
-        print(f"Current folder: {path}")
-
-        self.main_frame.pack_forget()
-        if path in self.folders:
-            self.main_frame = self.folders[path]
-        else:
-            new_folder = Folder(self, self.controller, path)
-            self.folders[path] = new_folder
-            self.main_frame = new_folder
-
-        self.main_frame.refresh()
-        self.main_frame.lift()
-
-        # Reinitialize the context menu when changing folders
-        self.initialize_context_menu()
+        self._change_folder(path)
 
 
 
