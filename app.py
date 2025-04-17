@@ -100,15 +100,12 @@ class App(ctk.CTk):
     def on_closing(self):
         """
         Ensure proper cleanup before closing the application
-        """
+        """    
+        self.destroy() 
         if self.api.manager:
-            self.api.manager.sync_to_clouds()
-        if messagebox.askokcancel("Quit", "Are you sure you want to exit?"):
-            if self.api.manager:
-                self.api.manager.delete_fd()
-                self.api.manager.stop_sync_thread()
-            # Close the window properly    
-            self.destroy()  
+            self.api.manager.sync_to_clouds() 
+            self.api.manager.delete_fd()
+            self.api.manager.stop_sync_thread()
     
     def register_context_menu(self, context_menu):
         """
@@ -211,7 +208,7 @@ class LoginPage(ctk.CTkFrame):
         # Start animation
         self.frame_iterator = itertools.cycle(self.frames)
         self.gif_animation_id = None  # Initialize the animation ID
-        self.update_gif()
+        Thread(target=self.update_gif()).start()
 
         email = self.entry.get()
         result = self.controller.get_api().authenticate(email)
@@ -262,14 +259,15 @@ class MainPage(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, parent)
         self.prev_window = None
 
+
         # Create the side bar
         self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
         self.side_bar.pack(side=ctk.LEFT, fill="y", expand=False)
         self.side_bar.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
         # Add the EncryptoSphere label to the side bar
-        encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
-        encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
+        self.encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
+        self.encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         # Create the upload button and shared files button
         self.upload_button = ctk.CTkButton(self.side_bar, text="Upload",
@@ -282,15 +280,26 @@ class MainPage(ctk.CTkFrame):
                                                  width=120, height=30, fg_color="gray25", hover=False)
         self.shared_files_button.pack(anchor="nw", padx=10, pady=5, expand=False)
 
-        ## Bind hover events to the buttons (to change font to bold)
+        # Bind hover events to the buttons (to change font to bold)
         self.upload_button.bind("<Enter>", lambda e: self.set_bold(self.upload_button))
         self.upload_button.bind("<Leave>", lambda e: self.set_normal(self.upload_button))
 
         self.shared_files_button.bind("<Enter>", lambda e: self.set_bold(self.shared_files_button))
         self.shared_files_button.bind("<Leave>", lambda e: self.set_normal(self.shared_files_button))
 
-        ## Create the main frame that will display the files and folders
-        root_folder = Folder(self, controller, "/")
+        self.container = ctk.CTkFrame(self, fg_color="transparent")
+        self.container.pack(fill = ctk.BOTH, expand = True)
+
+        self.search_bar = ctk.CTkFrame(self.container, fg_color="gray25", height=50, corner_radius=0)
+        self.search_bar.pack(side=ctk.TOP, fill=ctk.X)
+
+        # Add refresh button to the search bar
+        refresh_icon = ctk.CTkImage(light_image=Image.open("resources/refresh_icon.png"), size=(20, 20))
+        self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.sync_to_clouds(), width=20, height=20, corner_radius=10, fg_color="gray30", hover_color="gray40")
+        self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
+        
+        # Create the main frame that will display the files and folders
+        root_folder = Folder(self.container, controller, "/")
         self.folders = {"/": root_folder}
         self.main_frame = root_folder
         self.main_frame.pack(fill=ctk.BOTH, expand=True)
@@ -302,13 +311,19 @@ class MainPage(ctk.CTkFrame):
                                          width=120, height=30, fg_color="gray25", hover=False)
         self.back_button.pack_forget()
 
-        
+        # Create messages pannel
+        self.messages_pannel = ctk.CTkFrame(self.container)
         
         # Create a label that will display current location
         self.curr_path = "/"
-        self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
-        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
+
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
+
+        self.uploading_labels= []
+
+        self.main_frame.lift()
+        self.messages_pannel.lift()
+
 
         # Initialize the context menu
         self.initialize_context_menu()
@@ -344,6 +359,13 @@ class MainPage(ctk.CTkFrame):
         """
         button.configure(font=("Verdana", 13))
 
+    def sync_to_clouds(self):
+        """
+        Sync the current folder to the clouds
+        """
+        self.controller.get_api().sync_fd_to_clouds(lambda f: self.main_frame.refresh())
+        
+
     def open_upload_menu(self):
         """
         This function opens the upload menu using the context menu
@@ -355,6 +377,7 @@ class MainPage(ctk.CTkFrame):
         else:
             self.context_menu.hide_context_menu()
 
+
     def upload_file(self):
         """
         If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file
@@ -363,16 +386,49 @@ class MainPage(ctk.CTkFrame):
         self.context_menu.hide_context_menu()
         print(file_path)
         if file_path:
-            Thread(target=self.upload_file_to_cloud, args=(file_path,), daemon=True).start()
+            self.upload_file_to_cloud(file_path)
 
     def upload_file_to_cloud(self, file_path):
         """
         Upload file to the cloud and refresh the page
         @param file_path: The path of the file to be uploaded
         """
-        # Can play with the callback here more, refresh at the end but show a loading ui when uploading
-        self.controller.get_api().upload_file(lambda f: self.main_frame.refresh(self.main_frame.path), os.path.normpath(file_path), self.main_frame.path)
+        # Create a new label for the uploading file
+        label = self.add_message_label(f"Uploading file {file_path.split('/')[-1]}")
+
+        # Call the API to upload the file and use remove_message as the callback
+        self.controller.get_api().upload_file(lambda f: self.remove_message(label), os.path.normpath(file_path), self.main_frame.path)
+
+    def add_message_label(self, message):
+        # Create a new label for the uploading file
+        self.messages_pannel.place(rely=1.0, anchor="sw")
+        self.messages_pannel.lift()
         
+        uploading_label = ctk.CTkLabel(self.messages_pannel, text=message, anchor="w", fg_color="gray30", corner_radius=10, padx=10, pady=5)
+        uploading_label.pack(side="bottom", pady=2, padx=10, anchor="w")
+        uploading_label.lift()  # Ensure the label is on top of all frames
+
+        self.uploading_labels.append(uploading_label)
+        return uploading_label
+    
+    def remove_message(self, label):
+        """
+        Remove the uploading message for the completed file and reorder the labels
+        @param file_path: The path of the file that finished uploading
+        """
+
+        if hasattr(self, 'uploading_labels') and label and label in self.uploading_labels:
+            # Forget the label for the completed file
+            label.pack_forget()
+            self.uploading_labels.remove(label)
+        else:
+            print("Label not found in uploading_labels")
+            return
+        if not self.uploading_labels:
+            self.messages_pannel.place_forget()
+
+        # Refresh the main frame
+        self.main_frame.refresh()
 
     def upload_folder(self):
         """
@@ -388,30 +444,45 @@ class MainPage(ctk.CTkFrame):
         Upload folder to the cloud and refresh the page
         @param folder_path: The path of the folder to be uploaded
         """
-        self.controller.get_api().upload_folder(lambda f: self.main_frame.refresh(self.main_frame.path), os.path.normpath(folder_path), self.main_frame.path)
-        
+        # Create a new label for the uploading file
+        label = self.add_message_label(f"Uploading folder {folder_path.split('/')[-1]}")
 
+        self.controller.get_api().upload_folder(lambda f: self.remove_message(label), os.path.normpath(folder_path), self.main_frame.path)
+        
+    def change_back_button(self, path):
+        """
+        Change the back button to go back to the previous folder
+        @param path: The path to the folder to be changed to
+        """
+        if path == "/":
+            self.back_button.pack_forget()
+        else:
+            self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
     def change_folder(self, path):
+        self.change_back_button(path)
+        self._change_folder(path)
+
+    def _change_folder(self, path):
         """
         Changes the folder viewed in main_frame
         @param path: The path to the folder to be changed to
         """
         print(f"Current folder: {path}")
-        if path != "/":
-            self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
-        else:
-            self.back_button.pack_forget()
-
         self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
         else:
-            new_folder = Folder(self, self.controller, path)
+            new_folder = Folder(self.container, self.controller, path)
             self.folders[path] = new_folder
             self.main_frame = new_folder
 
-        self.main_frame.refresh(path)
+        self.main_frame.refresh()
         self.main_frame.lift()
+        self.messages_pannel.lift()
+        if hasattr(self, 'uploading_labels'):
+            for label in self.uploading_labels:
+                label.lift()  # Ensure the label is on top of all frames
+
 
         # Reinitialize the context menu when changing folders
         self.initialize_context_menu()
@@ -448,41 +519,54 @@ class Folder(ctk.CTkFrame):
         self.path = path
         self.pack(fill = ctk.BOTH, expand = True)
         self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
+        
+        self.file_list = {}
+        self.folder_list = {}
 
-    def refresh(self, path='/'):
+        self.url_label = ctk.CTkLabel(self, text=self.path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
+      
+    def refresh(self):
         """
         Refresh the frame and display all updates
         """
-        self.pack(fill = ctk.BOTH, expand = True)
         file_list, folder_list = self.controller.get_api().get_files(self.path)
-        for widget in self.winfo_children():
-            widget.after(0, widget.destroy)
+
+        # Add new files to self.file_list
+        for file in file_list:
+            if file["name"] not in self.file_list:
+                self.file_list[file["name"]] = FileButton(self, width=120, height=120, file_data=file, controller=self.controller)
+
+        # Add new folders to self.folder_list
+        for folder in folder_list:
+            if folder not in self.folder_list:
+                self.folder_list[folder] = FolderButton(self, width=120, height=120, folder_path=folder, controller=self.controller)
+
+        self.pack(fill=ctk.BOTH, expand=True)
         columns = 6
-        cell_size = 120
+
+        # Forget all existing files and folders
+        for widget in self.winfo_children():
+            widget.grid_forget()
 
         for col in range(columns):
             self.grid_columnconfigure(col, weight=1, uniform="file_grid")
         index = 0
-        for folder in folder_list:
+
+        for folder in self.folder_list.values():
             row = index // columns  
             col = index % columns   
 
-            file_frame = FolderButton(self, width=cell_size, height=cell_size, folder_path=folder, controller=self.controller)
-            file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-            
+            folder.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
 
-        for file in file_list:
+        for file in self.file_list.values():
             row = index // columns  
             col = index % columns   
 
-            file_frame = FileButton(self, width=cell_size, height=cell_size, file_data=file, controller=self.controller)
-            file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            file.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
          
-        # Create a label that will display current location
-        self.url_label = ctk.CTkLabel(self, text=path, anchor="e", fg_color="gray30", corner_radius=10)
-        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
 
 class IconButton(ctk.CTkFrame):
     """
@@ -533,35 +617,40 @@ class FileButton(IconButton):
         print(self.file_data["id"])
 
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
-        self.context_menu = OptionMenu(master.master, self.controller, [
+        self.context_menu = OptionMenu(master.master.master, self.controller, [
             {
                 "label": "Download File",
                 "color": "blue",
-                "event": lambda: Thread(target=self.download_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
+                "event": lambda: self.download_file_from_cloud(self.file_data)
              },
              {
                  "label": "Delete File",
                  "color": "red",
-                 "event": lambda: Thread(target=self.delete_file_from_cloud, args=(self.file_data["id"],), daemon=True).start()
+                 "event": lambda: self.delete_file_from_cloud(self.file_data)
              }
         ])
 
         self.controller.register_context_menu(self.context_menu)
 
-    def download_file_from_cloud(self, file_id):
+    def download_file_from_cloud(self, file_data):
         """
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
-        self.controller.get_api().download_file(lambda f: self.master.master.refresh(), file_id)
+        
+        label = self.master.master.master.add_message_label(f"Uploading file {file_data['name']}")
 
-    def delete_file_from_cloud(self, file_id):
+        self.controller.get_api().download_file(lambda f: self.remove_message(label), file_data["id"])
+
+
+    def delete_file_from_cloud(self, file_data):
         """
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        self.controller.get_api().delete_file(lambda f: self.master.master.refresh(), file_id)
-
+        label = self.master.master.master.add_message_label(f"Delete file {file_data['name']}")
+        self.controller.get_api().delete_file(lambda f: self.master.master.master.remove_message(label), file_data["id"])
+        del self.master.file_list[file_data["name"]]
 
     def on_button1_click(self, event=None):
         """
@@ -634,7 +723,7 @@ class FolderButton(IconButton):
         self.master = master
 
         # Create a context menu using CTkFrame for folder operations (As of now we don't suport these operations)
-        self.context_menu = OptionMenu(master.master, self.controller, [
+        self.context_menu = OptionMenu(master.master.master, self.controller, [
             {
                 "label": "Download Folder",
                 "color": "blue",
@@ -655,7 +744,7 @@ class FolderButton(IconButton):
         @param folder_path: The path of the folder to be deleted
         """
         # The callback here might need to just check that it didn't fail and we should instead delete the folder immediately
-        self.controller.get_api().delete_folder(lambda f: self.master.master.refresh(), self.folder_path)
+        self.controller.get_api().delete_folder(lambda f: self.master.master.master.refresh(), self.folder_path)
     
     
     def download_folder(self):
@@ -676,7 +765,7 @@ class FolderButton(IconButton):
     def on_button3_click(self, event=None):
         if self.context_menu.context_hidden:
             self.context_menu.lift()
-            self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.master.winfo_rooty())
+            self.context_menu.show_context_menu(event.x_root - self.master.master.winfo_rootx(), event.y_root - self.master.master.master.winfo_rooty())
         else:
             self.context_menu.hide_context_menu()
 
@@ -687,27 +776,24 @@ class SharePageMainPage(MainPage):
         self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
         self.back_button.configure(command=lambda: self.controller.show_frame(SharePage) if self.main_frame.path == "/" else self.change_folder(self.get_previous_window(self.main_frame.path)))
         self.shared_files_button.pack_forget()
+        parsed_path = path.replace("_ENCRYPTOSPHERE_SHARE", "")
+        parsed_path = parsed_path.split("/")[-1]
+        self.encryptosphere_label.configure(text=parsed_path)
+
+    def sync_to_clouds(self):
+        """
+        Sync the current folder to the clouds
+        """
+        self.controller.get_api().refresh_shared_folder(lambda f: self.main_frame.refresh())
 
     def change_folder(self, path):
         """
         Changes the folder viewed in main_frame
         @param path: The path to the folder to be changed to
         """
-        print(f"Current folder: {path}")
+        self._change_folder(path)
 
-        self.main_frame.pack_forget()
-        if path in self.folders:
-            self.main_frame = self.folders[path]
-        else:
-            new_folder = Folder(self, self.controller, path)
-            self.folders[path] = new_folder
-            self.main_frame = new_folder
 
-        self.main_frame.refresh(path)
-        self.main_frame.lift()
-
-        # Reinitialize the context menu when changing folders
-        self.initialize_context_menu()
 
 
 class SharePage(ctk.CTkFrame):
@@ -725,29 +811,41 @@ class SharePage(ctk.CTkFrame):
         self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
 
         # Add the EncryptoSphere label to the side bar
-        encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
+        encryptosphere_label = ctk.CTkLabel(self.side_bar, text="Shared Folders", font=("Verdana", 15))
         encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand = False)
 
         # Create the upload button and create share buttons
+        self.share_folder_button = ctk.CTkButton(self.side_bar, text="New Share",
+                                      command=lambda: self.open_sharing_window(),
+                                      width=120, height=30, fg_color="gray25", hover=False)
+        self.share_folder_button.pack(anchor="nw", padx=10, pady=5, expand = False)
+
+        self.share_folder_button.bind("<Enter>", lambda e: self.set_bold(self.share_folder_button))
+        self.share_folder_button.bind("<Leave>", lambda e: self.set_normal(self.share_folder_button))
         self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
                                                  command=lambda: self.back_to_main_window(),
                                                  width=120, height=30, fg_color="gray25", hover=False)
-        self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+        self.back_button.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         self.back_button.bind("<Enter>", lambda e: self.set_bold(self.back_button))
         self.back_button.bind("<Leave>", lambda e: self.set_normal(self.back_button))
 
-        self.share_folder_button = ctk.CTkButton(self.side_bar, text="New Share",
-                                      command=lambda: self.open_sharing_window(),
-                                      width=120, height=30, fg_color="gray25", hover=False)
-        self.share_folder_button.pack(anchor="nw", padx=10, pady=10, expand = False)
+        self.container = ctk.CTkFrame(self, fg_color="transparent")
+        self.container.pack(fill = ctk.BOTH, expand = True)
 
-        self.share_folder_button.bind("<Enter>", lambda e: self.set_bold(self.share_folder_button))
-        self.share_folder_button.bind("<Leave>", lambda e: self.set_normal(self.share_folder_button))
+        self.search_bar = ctk.CTkFrame(self.container, fg_color="gray25", height=50, corner_radius=0)
+        self.search_bar.pack(side=ctk.TOP, fill=ctk.X)
+
+        # Add refresh button to the search bar
+        refresh_icon = ctk.CTkImage(light_image=Image.open("resources/refresh_icon.png"), size=(20, 20))
+        self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.sync_to_clouds(), width=20, height=20, corner_radius=10, fg_color="gray30", hover_color="gray40")
+        self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
 
         
-        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
+        self.main_frame = ctk.CTkFrame(self.container, corner_radius=0)
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
+
+        self.shared_folder_list = {}
 
 
     def set_bold(self, button):
@@ -770,6 +868,12 @@ class SharePage(ctk.CTkFrame):
         """
         self.controller.get_api().change_session()
         self.controller.show_frame(MainPage)
+
+    def sync_to_clouds(self):
+        """
+        Sync the current folder to the clouds
+        """
+        self.controller.get_api().sync_new_sessions(lambda f: self.refresh())
 
     def open_sharing_window(self):
         """
@@ -845,7 +949,7 @@ class SharePage(ctk.CTkFrame):
             emails = [email.get() for email in email_inputs]
             print(f"Creating share with folder: {folder_name} and emails: {emails}")
             # Call a new function with the folder and emails (replace this with your logic)
-            Thread(target=self.create_shared_session_on_cloud, args=(folder_name, emails,), daemon=True).start()
+            self.controller.get_api().create_shared_session(lambda f: self.refresh(), folder_name, emails)
             # Close the new window
             new_window.destroy()
 
@@ -856,37 +960,38 @@ class SharePage(ctk.CTkFrame):
         # Adjust the scrollbar to make it thinner (no slider_length argument)
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
     
-    def create_shared_session_on_cloud(self, folder_name, emails):
-        """
-        Create a new shared session on the cloud with the given folder name and emails
-        @param folder_name: The name of the folder to be shared
-        @param emails: List of emails to share the folder with
-        """
-        self.controller.get_api().create_shared_session(lambda f: self.refresh(), folder_name, emails)
-        self.refresh()
+
     
     def refresh(self):
         """
         Refresh the frame and display all updates
         """
         folder_list = self.controller.get_api().get_shared_folders()
-        folder_list = list(folder_list)
-        for widget in self.main_frame.winfo_children():
-            widget.after(0, widget.destroy)
-        self.buttons = []
+        
+        for folder in folder_list:
+            if folder not in self.shared_folder_list:
+                self.shared_folder_list[folder] = SharedFolderButton(self.main_frame, width=120, height=120, folder_name=folder, controller=self.controller)
+
         columns = 6
         cell_size = 120
+
+        for widget in self.main_frame.winfo_children():
+            widget.grid_forget()
+        
 
         for col in range(columns):
             self.main_frame.grid_columnconfigure(col, weight=1, uniform="file_grid")
 
-        for i, folder_name in enumerate(folder_list):
-            row = i // columns  
-            col = i % columns   
+        index = 0
+        for folder in self.shared_folder_list.values():
+            row = index // columns  
+            col = index % columns   
+            folder.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            index +=1
+        
 
-            file_frame = SharedFolderButton(self.main_frame, width=cell_size, height=cell_size, folder_name=folder_name, controller=self.controller)
-            file_frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-            self.buttons.append(file_frame)
+
+
 
 
 class SharedFolderButton(IconButton):
@@ -910,7 +1015,7 @@ class SharedFolderButton(IconButton):
         
 
         # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
-        self.context_menu = OptionMenu(master.master, self.controller, [
+        self.context_menu = OptionMenu(master.master.master, self.controller, [
             {
                 "label": "Add Member",
                 "color": "green4",
