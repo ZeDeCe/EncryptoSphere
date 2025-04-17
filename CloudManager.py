@@ -377,13 +377,15 @@ class CloudManager:
         """
         Uploads the filedescriptor to the clouds encrypted using self.encrypt
         This function should use upload_replicated
+        @return a tuple of two futures (future1, future2) where future1 is the metadata and future2 is the FD data
         """
         data, metadata = self.fd.serialize()
         if metadata:
-            self.executor.submit(self._upload_replicated, "$FD_META", metadata)
+            future1 = self.executor.submit(self._upload_replicated, "$FD_META", metadata)
         if data:
-            self.executor.submit(self._upload_replicated, "$FD", self._encrypt(data))
+            future2 = self.executor.submit(self._upload_replicated, "$FD", self._encrypt(data))
         print("FDs Synced to clouds")
+        return (future1, future2)
 
     def start_sync_thread(self):
         """

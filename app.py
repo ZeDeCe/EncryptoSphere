@@ -289,6 +289,14 @@ class MainPage(ctk.CTkFrame):
 
         self.container = ctk.CTkFrame(self, fg_color="transparent")
         self.container.pack(fill = ctk.BOTH, expand = True)
+
+        self.search_bar = ctk.CTkFrame(self.container, fg_color="gray25", height=50, corner_radius=0)
+        self.search_bar.pack(side=ctk.TOP, fill=ctk.X)
+
+        # Add refresh button to the search bar
+        refresh_icon = ctk.CTkImage(light_image=Image.open("resources/refresh_icon.png"), size=(20, 20))
+        self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.sync_to_clouds(), width=20, height=20, corner_radius=10, fg_color="gray30", hover_color="gray40")
+        self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
         
         # Create the main frame that will display the files and folders
         root_folder = Folder(self.container, controller, "/")
@@ -350,6 +358,13 @@ class MainPage(ctk.CTkFrame):
         @param button: The button to be changed
         """
         button.configure(font=("Verdana", 13))
+
+    def sync_to_clouds(self):
+        """
+        Sync the current folder to the clouds
+        """
+        self.controller.get_api().sync_fd_to_clouds(lambda f: self.main_frame.refresh())
+        
 
     def open_upload_menu(self):
         """
@@ -765,6 +780,12 @@ class SharePageMainPage(MainPage):
         parsed_path = parsed_path.split("/")[-1]
         self.encryptosphere_label.configure(text=parsed_path)
 
+    def sync_to_clouds(self):
+        """
+        Sync the current folder to the clouds
+        """
+        self.controller.get_api().refresh_shared_folder(lambda f: self.main_frame.refresh())
+
     def change_folder(self, path):
         """
         Changes the folder viewed in main_frame
@@ -809,9 +830,19 @@ class SharePage(ctk.CTkFrame):
         self.back_button.bind("<Enter>", lambda e: self.set_bold(self.back_button))
         self.back_button.bind("<Leave>", lambda e: self.set_normal(self.back_button))
 
+        self.container = ctk.CTkFrame(self, fg_color="transparent")
+        self.container.pack(fill = ctk.BOTH, expand = True)
+
+        self.search_bar = ctk.CTkFrame(self.container, fg_color="gray25", height=50, corner_radius=0)
+        self.search_bar.pack(side=ctk.TOP, fill=ctk.X)
+
+        # Add refresh button to the search bar
+        refresh_icon = ctk.CTkImage(light_image=Image.open("resources/refresh_icon.png"), size=(20, 20))
+        self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.sync_to_clouds(), width=20, height=20, corner_radius=10, fg_color="gray30", hover_color="gray40")
+        self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
 
         
-        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
+        self.main_frame = ctk.CTkFrame(self.container, corner_radius=0)
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
 
         self.shared_folder_list = {}
@@ -837,6 +868,12 @@ class SharePage(ctk.CTkFrame):
         """
         self.controller.get_api().change_session()
         self.controller.show_frame(MainPage)
+
+    def sync_to_clouds(self):
+        """
+        Sync the current folder to the clouds
+        """
+        self.controller.get_api().sync_new_sessions(lambda f: self.refresh())
 
     def open_sharing_window(self):
         """
