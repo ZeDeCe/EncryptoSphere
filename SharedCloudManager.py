@@ -278,7 +278,44 @@ class SharedCloudManager(CloudManager):
         If it is the last user, converts to a normal session
         @param users a dictionary in the format: {"cloudname": "email", ...}
         """
-        pass
+        for cloud_name, email in users.items():
+            # Find the cloud service by name
+            cloud = next((c for c in self.clouds if c.get_name() == cloud_name), None)
+            if not cloud:
+                print(f"Cloud {cloud_name} not found in the current session.")
+                continue
+
+            try:
+                # Unshare the folder with the specified user
+                folder = cloud.get_folder(self.root_folder)
+                cloud.unshare_by_email(folder, [email])
+                print(f"User {email} revoked from share session on {cloud_name}.")
+
+                # Delete the user's specific FEK file
+                fek_file_name = f"$FEK_{email}"
+                try:
+                    cloud.delete_file(fek_file_name, self.root_folder)
+                    print(f"Deleted FEK file '{fek_file_name}' for user {email} on {cloud_name}.")
+                except Exception as e:
+                    print(f"Failed to delete FEK file '{fek_file_name}' for user {email} on {cloud_name}: {e}")
+
+                # Remove the user from the shared session
+                if self.users:
+                    self.users = [
+                        user for user in self.users if not (cloud_name in user and user[cloud_name] == email)
+                    ]
+
+                # Check if there are any remaining shared users
+                remaining_members = cloud.get_members_shared(folder)
+                if not remaining_members or len(remaining_members) < 2:
+                    # If no more shared users, delete the global FEK and convert to a normal session
+                    print(f"No more shared users in the session for {cloud_name}. Converting to a normal session.")
+                    cloud.delete_file("$FEK", self.root_folder)  # Delete the global FEK file
+                    cloud.unshare_folder(folder)  # Unshare the folder completely
+                    print(f"Session on {cloud_name} converted to a normal session.")
+
+            except Exception as e:
+                print(f"Failed to add user {email} to shared session on {cloud_name}: {e}")
     
     def add_user_to_share(self, users):
         """
