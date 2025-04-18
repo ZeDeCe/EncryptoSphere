@@ -259,7 +259,6 @@ class MainPage(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, parent)
         self.prev_window = None
 
-
         # Create the side bar
         self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
         self.side_bar.pack(side=ctk.LEFT, fill="y", expand=False)
@@ -287,7 +286,7 @@ class MainPage(ctk.CTkFrame):
         self.shared_files_button.bind("<Enter>", lambda e: self.set_bold(self.shared_files_button))
         self.shared_files_button.bind("<Leave>", lambda e: self.set_normal(self.shared_files_button))
 
-        self.container = ctk.CTkFrame(self, fg_color="transparent")
+        self.container = ctk.CTkFrame(self, corner_radius=0)
         self.container.pack(fill = ctk.BOTH, expand = True)
 
         self.search_bar = ctk.CTkFrame(self.container, fg_color="gray25", height=50, corner_radius=0)
@@ -312,7 +311,7 @@ class MainPage(ctk.CTkFrame):
         self.back_button.pack_forget()
 
         # Create messages pannel
-        self.messages_pannel = ctk.CTkFrame(self.container)
+        self.messages_pannel = ctk.CTkFrame(self.container, corner_radius=0)
         
         # Create a label that will display current location
         self.curr_path = "/"
@@ -404,7 +403,7 @@ class MainPage(ctk.CTkFrame):
         self.messages_pannel.place(rely=1.0, anchor="sw")
         self.messages_pannel.lift()
         
-        uploading_label = ctk.CTkLabel(self.messages_pannel, text=message, anchor="w", fg_color="gray30", corner_radius=10, padx=10, pady=5)
+        uploading_label = ctk.CTkLabel(self.messages_pannel, text=message, anchor="w", corner_radius=0, padx=10, pady=5)
         uploading_label.pack(side="bottom", pady=2, padx=10, anchor="w")
         uploading_label.lift()  # Ensure the label is on top of all frames
 
@@ -514,7 +513,7 @@ class Folder(ctk.CTkFrame):
     """
 
     def __init__(self, parent, controller : App, path):
-        ctk.CTkFrame.__init__(self, parent)
+        ctk.CTkFrame.__init__(self, parent, corner_radius=0)
         self.controller = controller
         self.path = path
         self.pack(fill = ctk.BOTH, expand = True)
@@ -673,7 +672,7 @@ class OptionMenu(ctk.CTkFrame):
         """
         @param buttons list of dictionaries as such: [{"label" : str, "color": str, "event": function}]
         """
-        ctk.CTkFrame.__init__(self, master, corner_radius=5, fg_color="gray25")
+        ctk.CTkFrame.__init__(self, master, corner_radius=0, fg_color="gray25")
         self.controller = controller
         self.context_hidden = True
         self.buttons = []
