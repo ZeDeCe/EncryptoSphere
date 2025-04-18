@@ -26,6 +26,8 @@ import app as app
 # This is temporary:
 from cryptography.fernet import Fernet
 
+SYNC_TIME = 600 # 10 minutes
+
 class Gateway:
     """
     This class creates EncryptoSphere process and handles UI requests.
@@ -60,7 +62,8 @@ class Gateway:
         print(f"Status: {status}")
         self.current_session = self.manager
         self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
-        self.manager.start_sync_thread()
+        self.executor.submit(self.manager.start_sync_thread())
+        self.executor.submit(self.start_sync_new_sessions_task())
         return status
     
     def promise(func):
@@ -285,6 +288,22 @@ class Gateway:
             share_with.append(user_dict)
         share.revoke_user_from_share(share_with)
 
+    def start_sync_new_sessions_task(self):
+        """
+        Starts a background task to call sync_new_sessions every 10 minutes using the thread pool.
+        """
+        def sync_task():
+            while True:
+                try:
+                    print("Running sync_new_sessions...")
+                    self.sync_new_sessions()
+                except Exception as e:
+                    print(f"Error during sync_new_sessions: {e}")
+                time.sleep(SYNC_TIME)  # Wait for 10 minutes (600 seconds)
+
+        # Submit the sync task to the thread pool
+        self.executor.submit(sync_task)
+        print("sync_new_sessions task submitted to thread pool.")
 
 def main():
     """
