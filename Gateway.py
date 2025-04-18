@@ -59,11 +59,12 @@ class Gateway:
 
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
-        print(f"Status: {status}")
         self.current_session = self.manager
         self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
         self.executor.submit(self.manager.start_sync_thread())
         self.executor.submit(self.start_sync_new_sessions_task())
+        self.executor.submit(self.manager.lock_session())
+        print(f"Status: {status}")
         return status
     
     def promise(func):
@@ -298,7 +299,7 @@ class Gateway:
             while not self.stop_event.is_set():  # Check if stop_event is set
                 try:
                     print("Running sync_new_sessions...")
-                    self.sync_new_sessions()
+                    self.sync_new_sessions(None)
                 except Exception as e:
                     print(f"Error during sync_new_sessions: {e}")
                 # Wait for the next sync interval, but check stop_event periodically

@@ -40,7 +40,7 @@ class CloudManager:
         #file_descriptor if file_descriptor else self.sync_from_clouds()
         self.sync_thread = None
         self.stop_event = threading.Event()  # Event to signal
-        self.lock_session()
+        #self.lock_session()
         self.executor = concurrent.futures.ThreadPoolExecutor()
 
     def __del__(self):
@@ -66,14 +66,41 @@ class CloudManager:
                 print(f"Error executing task to {cloud_name}: {e}")
         return results, success
 
-
     def lock_session(self):
         """
         Checks if a session file is active on the cloud
         If it is raise error.
         If not then place one to lock the session
         """
-        pass
+        for cloud in self.clouds:
+            session_file_name = f"SESSION_ACTIVE_{cloud.get_email()}"
+            try:
+                # Check if the session file already exists
+                existing_file = cloud.download_file(session_file_name, self.root_folder)
+                if existing_file is not None:
+                    print(f"Session is already active for user {cloud.get_email()} on cloud {cloud.get_name()}.")
+                    raise Exception(f"Session is already active for user {cloud.get_email()} on cloud {cloud.get_name()}.")
+
+                # Create the session file
+                cloud.upload_file(b"SESSION ACTIVE", session_file_name, self.root_folder)
+                print(f"Session locked for user {cloud.get_email()} on cloud {cloud.get_name()}.")
+            except Exception as e:
+                print(f"Error locking session for cloud {cloud.get_name()}: {e}")
+                raise
+    
+    def unlock_session(self):
+        """
+        Removes the "SESSION ACTIVE" file from the root directory of each cloud to unlock the session.
+        """
+        for cloud in self.clouds:
+            session_file_name = f"SESSION_ACTIVE_{cloud.get_email()}"
+            try:
+                # Delete the session file
+                cloud.delete_file(session_file_name, self.root_folder)
+                print(f"Session unlocked for user {cloud.get_email()} on cloud {cloud.get_name()}.")
+            except Exception as e:
+                print(f"Error unlocking session for cloud {cloud.get_name()}: {e}")
+                raise
 
     def _split(self, data : bytes, clouds : int):
         return self.split.split(data, clouds)
@@ -178,7 +205,7 @@ class CloudManager:
         
         return self.fd.get_file_data(file_id)
     
-            
+     
     def _upload_replicated(self, file_name, data, suffix=False):
         """
         Uploads the given file to all platforms without splitting.
