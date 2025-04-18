@@ -397,7 +397,7 @@ class CloudManager:
 
     def start_sync_thread(self):
         """
-        Starts a background thread to run sync_to_clouds every 5 minutes using the thread pool.
+        Starts a background task to run sync_to_clouds every 5 minutes using the thread pool.
         """
         def sync_task():
             while not self.stop_event.is_set():  # Check if stop_event is set
@@ -407,11 +407,10 @@ class CloudManager:
                     print(f"Error during periodic sync: {e}")
                 time.sleep(SYNC_TIME)  # Wait for the next sync interval
 
-        # Start the sync task in a separate thread
-        if not self.sync_thread or not self.sync_thread.is_alive():
-            self.sync_thread = threading.Thread(target=sync_task, daemon=True)
-            self.sync_thread.start()
-            print("Sync thread started.")
+        # Submit the sync task to the thread pool
+        if not self.sync_thread or not self.sync_thread.running():
+            self.sync_thread = self.executor.submit(sync_task)
+            print("Sync task submitted to thread pool.")
 
 
     def stop_sync_thread(self):
