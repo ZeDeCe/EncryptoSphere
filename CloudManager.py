@@ -405,22 +405,32 @@ class CloudManager:
                     self.sync_to_clouds()
                 except Exception as e:
                     print(f"Error during periodic sync: {e}")
-                time.sleep(SYNC_TIME)  # Wait for the next sync interval
 
-        # Submit the sync task to the thread pool
+                # Wait for the next sync interval, but check stop_event periodically
+                for _ in range(SYNC_TIME):  # SYNC_TIME is the total wait time in seconds
+                    if self.stop_event.is_set():
+                        return  # Exit the loop if stop_event is set
+                    time.sleep(1)  # Sleep for 1 second and check again
         if not self.sync_thread or not self.sync_thread.running():
             self.sync_thread = self.executor.submit(sync_task)
             print("Sync task submitted to thread pool.")
-
 
     def stop_sync_thread(self):
         """
         Stops the background sync thread and waits for it to terminate.
         """
-        if self.sync_thread and self.sync_thread.is_alive():
-            self.stop_event.set()  # Signal the thread to stop
-            print("Sync thread stopped.")
+        print("Stopping sync thread...")
+        if self.sync_thread:
+            # Signal the thread to stop
+            self.stop_event.set()
 
+            # Wait for the task to complete if it is already running
+            try:
+                self.sync_thread.result()  # Wait for the task to complete
+                print("Sync thread stopped.")
+            except Exception as e:
+                print(f"Error while stopping sync thread: {e}")
+                
     def load_fd(self):
         """
         Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor

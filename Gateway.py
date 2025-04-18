@@ -292,19 +292,34 @@ class Gateway:
         """
         Starts a background task to call sync_new_sessions every 10 minutes using the thread pool.
         """
+        self.stop_event = threading.Event()  # Create a stop event
+
         def sync_task():
-            while True:
+            while not self.stop_event.is_set():  # Check if stop_event is set
                 try:
                     print("Running sync_new_sessions...")
                     self.sync_new_sessions()
                 except Exception as e:
                     print(f"Error during sync_new_sessions: {e}")
-                time.sleep(SYNC_TIME)  # Wait for 10 minutes (600 seconds)
+                # Wait for the next sync interval, but check stop_event periodically
+                for _ in range(SYNC_TIME):  # SYNC_TIME is the total wait time in seconds
+                    if self.stop_event.is_set():
+                        print("Stopping sync_new_sessions task...")
+                        return  # Exit the loop if stop_event is set
+                    time.sleep(1)  # Sleep for 1 second and check again
 
         # Submit the sync task to the thread pool
         self.executor.submit(sync_task)
         print("sync_new_sessions task submitted to thread pool.")
 
+    def stop_sync_new_sessions_task(self):
+        """
+        Stops the sync_new_sessions task.
+        """
+        if hasattr(self, 'stop_event'):
+            self.stop_event.set()  # Signal the task to stop
+            print("sync_new_sessions task stopped.")
+            
 def main():
     """
     Encryptosphere main program

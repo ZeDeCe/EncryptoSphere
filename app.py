@@ -106,6 +106,7 @@ class App(ctk.CTk):
             self.api.manager.sync_to_clouds() 
             self.api.manager.delete_fd()
             self.api.manager.stop_sync_thread()
+            self.api.stop_sync_new_sessions_task()
     
     def register_context_menu(self, context_menu):
         """
