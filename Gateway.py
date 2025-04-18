@@ -36,6 +36,9 @@ class Gateway:
         self.manager = None
         self.session_manager = None
         self.executor = concurrent.futures.ThreadPoolExecutor()
+        self.active_fd_sync = False
+        self.active_sessions_sync = False
+        self.active_shared_folder_sync = False
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
@@ -93,6 +96,38 @@ class Gateway:
         @return: list of files in the current session in the FD format
         """
         return self.current_session.get_items_in_folder(path)
+    @promise
+    def sync_fd_to_clouds(self, callback=None):
+        if not self.active_fd_sync:
+            self.active_fd_sync = True
+            print(f"Syncing FD to clouds")
+            fut1,fut2 = self.manager.sync_to_clouds()
+            fut1.result()
+            fut2.result()
+            ret = True if not fut1.exception() and not fut2.exception() else False
+            self.active_fd_sync = False
+            print(f"Syncing FD to clouds, status: {str(ret)}")
+            return ret
+        
+    @promise    
+    def sync_new_sessions(self):
+        if not self.active_sessions_sync:
+            self.active_sessions_sync = True
+            print(f"Searchinng for new sessions...")
+            ret = self.session_manager.sync_new_sessions()
+            print(f"Finished searching for new sessions")
+            self.active_sessions_sync = False
+            return ret
+        
+        
+    @promise
+    def refresh_shared_folder(self):
+        if not self.active_shared_folder_sync:
+            self.active_shared_folder_sync = True
+            #TODO: Add the functionality to refresh the shared folder
+            self.active_shared_folder_sync = False
+
+        
     
     @promise
     def download_file(self, file_id):
@@ -189,7 +224,7 @@ class Gateway:
         Returns the list of shared folders
         @return: list of shared folders names
         """
-        #self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
+        ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
         #self.session_manager.sync_new_sessions()  
         return self.session_manager.sessions.keys()
 

@@ -383,33 +383,17 @@ class CloudManager:
 
     def sync_to_clouds(self):
         """
-        Uploads the file descriptor to the clouds encrypted using self.encrypt.
-        This function uses the thread pool to manage upload tasks.
+        Uploads the filedescriptor to the clouds encrypted using self.encrypt
+        This function should use upload_replicated
+        @return a tuple of two futures (future1, future2) where future1 is the metadata and future2 is the FD data
         """
-        print("Syncing FDs to clouds...")
-        try:
-            data, metadata = self.fd.serialize()
-            futures = []
-
-            # Submit metadata upload task to the thread pool
-            if metadata:
-                futures.append(self.executor.submit(self._upload_replicated, "$FD_META", metadata))
-
-            # Submit data upload task to the thread pool
-            if data:
-                futures.append(self.executor.submit(self._upload_replicated, "$FD", self._encrypt(data)))
-
-            # Wait for all tasks to complete
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    future.result()  # Raise any exceptions that occurred during execution
-                except Exception as e:
-                    print(f"Error during sync_to_clouds: {e}")
-
-            print("FDs Synced to clouds")
-        except Exception as e:
-            print(f"Unexpected error in sync_to_clouds: {e}")
-
+        data, metadata = self.fd.serialize()
+        if metadata:
+            future1 = self.executor.submit(self._upload_replicated, "$FD_META", metadata)
+        if data:
+            future2 = self.executor.submit(self._upload_replicated, "$FD", self._encrypt(data))
+        print("FDs Synced to clouds")
+        return (future1, future2)
 
     def start_sync_thread(self):
         """
