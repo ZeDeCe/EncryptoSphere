@@ -637,9 +637,9 @@ class FileButton(IconButton):
         @param file_id: The id of the file to be downloaded
         """
         
-        label = self.master.master.master.add_message_label(f"Uploading file {file_data['name']}")
+        label = self.master.master.master.add_message_label(f"Downloading file {file_data['name']}")
 
-        self.controller.get_api().download_file(lambda f: self.remove_message(label), file_data["id"])
+        self.controller.get_api().download_file(lambda f: self.master.master.master.remove_message(label), file_data["id"])
 
 
     def delete_file_from_cloud(self, file_data):
@@ -647,7 +647,7 @@ class FileButton(IconButton):
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        label = self.master.master.master.add_message_label(f"Delete file {file_data['name']}")
+        label = self.master.master.master.add_message_label(f"Deleting file {file_data['name']}")
         self.controller.get_api().delete_file(lambda f: self.master.master.master.remove_message(label), file_data["id"])
         del self.master.file_list[file_data["name"]]
 
