@@ -134,6 +134,13 @@ class CloudManager:
         if not os.path.isfile(os_filepath):
             raise OSError()
         
+        file_name = os.path.basename(os_filepath)
+        existing_files = self.get_file_list()
+        
+        if any(file['name'] == file_name and file['path'] == path for file in existing_files):
+            print(f"Error: A file with the name '{file_name}' already exists in the directory '{path}'.")
+            raise Exception(f"Error: A file with the name '{file_name}' already exists in the directory '{path}'.")
+        
         data = None
         with open(os_filepath, 'rb') as file:
             data = file.read()
