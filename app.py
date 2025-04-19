@@ -394,11 +394,21 @@ class MainPage(ctk.CTkFrame):
         Upload file to the cloud and refresh the page
         @param file_path: The path of the file to be uploaded
         """
-        # Create a new label for the uploading file
-        label = self.add_message_label(f"Uploading file {file_path.split('/')[-1]}")
+        label = None
+        try:
+            # Create a new label for the uploading file
+            label = self.add_message_label(f"Uploading file {file_path.split('/')[-1]}")
 
-        # Call the API to upload the file and use remove_message as the callback
-        self.controller.get_api().upload_file(lambda f: self.remove_message(label), os.path.normpath(file_path), self.main_frame.path)
+            # Call the API to upload the file and use remove_message as the callback
+            self.controller.get_api().upload_file(lambda f: self.remove_message(label), os.path.normpath(file_path), self.main_frame.path)
+        except RuntimeError as e:
+            messagebox.showerror("Encryption Error", f"Error while uploading: {str(e)}")
+            if label:
+                self.remove_message(label)
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error while uploading: {str(e)}")
+            if label:
+                self.remove_message(label)
 
     def add_message_label(self, message):
         # Create a new label for the uploading file
@@ -445,10 +455,20 @@ class MainPage(ctk.CTkFrame):
         Upload folder to the cloud and refresh the page
         @param folder_path: The path of the folder to be uploaded
         """
-        # Create a new label for the uploading file
-        label = self.add_message_label(f"Uploading folder {folder_path.split('/')[-1]}")
+        label = None
+        try:
+            # Create a new label for the uploading file
+            label = self.add_message_label(f"Uploading folder {folder_path.split('/')[-1]}")
 
-        self.controller.get_api().upload_folder(lambda f: self.remove_message(label), os.path.normpath(folder_path), self.main_frame.path)
+            self.controller.get_api().upload_folder(lambda f: self.remove_message(label), os.path.normpath(folder_path), self.main_frame.path)
+        except RuntimeError as e:
+            messagebox.showerror("Encryption Error", f"Error while uploading folder: {str(e)}")
+            if label:
+                self.remove_message(label)
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error while uploading folder: {str(e)}")
+            if label:
+                self.remove_message(label)
         
     def change_back_button(self, path):
         """
@@ -638,10 +658,18 @@ class FileButton(IconButton):
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
-        
-        label = self.master.master.master.add_message_label(f"Downloading file {file_data['name']}")
-
-        self.controller.get_api().download_file(lambda f: self.master.master.master.remove_message(label), file_data["id"])
+        label = None
+        try:
+            label = self.master.master.master.add_message_label(f"Downloading file {file_data['name']}")
+            self.controller.get_api().download_file(lambda f: self.master.master.master.remove_message(label), file_data["id"])
+        except RuntimeError as e:
+            messagebox.showerror("Decryption Error", f"Error while downloading: {str(e)}")
+            if label:
+                self.master.master.master.remove_message(label)
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error while downloading: {str(e)}")
+            if label:
+                self.master.master.master.remove_message(label)
 
 
     def delete_file_from_cloud(self, file_data):
@@ -649,9 +677,19 @@ class FileButton(IconButton):
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        label = self.master.master.master.add_message_label(f"Deleting file {file_data['name']}")
-        self.controller.get_api().delete_file(lambda f: self.master.master.master.remove_message(label), file_data["id"])
-        del self.master.file_list[file_data["name"]]
+        label = None
+        try:
+            label = self.master.master.master.add_message_label(f"Deleting file {file_data['name']}")
+            self.controller.get_api().delete_file(lambda f: self.master.master.master.remove_message(label), file_data["id"])
+            del self.master.file_list[file_data["name"]]
+        except RuntimeError as e:
+            messagebox.showerror("Encryption Error", f"Error while deleting file: {str(e)}")
+            if label:
+                self.master.master.master.remove_message(label)
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error while deleting file: {str(e)}")
+            if label:
+                self.master.master.master.remove_message(label)
 
     def on_button1_click(self, event=None):
         """
@@ -744,8 +782,13 @@ class FolderButton(IconButton):
         Delete folder from the cloud and refresh the page
         @param folder_path: The path of the folder to be deleted
         """
-        # The callback here might need to just check that it didn't fail and we should instead delete the folder immediately
-        self.controller.get_api().delete_folder(lambda f: self.master.master.master.refresh(), self.folder_path)
+        try:
+            # The callback here might need to just check that it didn't fail and we should instead delete the folder immediately
+            self.controller.get_api().delete_folder(lambda f: self.master.master.master.refresh(), self.folder_path)
+        except RuntimeError as e:
+            messagebox.showerror("Encryption Error", f"Error while deleting folder: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error while deleting folder: {str(e)}")
     
     
     def download_folder(self):
