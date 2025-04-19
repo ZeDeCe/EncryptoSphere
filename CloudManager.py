@@ -13,6 +13,7 @@ import threading
 
 SYNC_TIME = 300  # Sync time in seconds
 FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
+MIN_PARTS = 3  # Minimum number of parts required for reconstruction
 
 class CloudManager:
     """
@@ -326,14 +327,15 @@ class CloudManager:
                 raise FileNotFoundError(f"File part {file_name} not found in {cloud_name}.")
 
             # Iterate over the results and place them in the correct order
+            valid_parts = 0
             for (cloud_name, index), result in results:
                 if isinstance(result, bytes):
                     # Use the index from the metadata to place the part in the correct position
                     data[index] = result
-
-            # Ensure all parts are downloaded
-            if None in data:
-                raise ValueError(f"Missing parts for file_id {file_id}.")
+                    valid_parts += 1
+            
+            if valid_parts < MIN_PARTS:  # Allow at most 1 missing part
+                raise ValueError(f"Insufficient valid parts for file_id {file_id}. Valid parts: {valid_parts}/{len(data)}")
 
             # Merge and decrypt the data
             if not data:
