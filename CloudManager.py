@@ -13,6 +13,7 @@ import threading
 
 SYNC_TIME = 300  # Sync time in seconds
 FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
+MIN_PARTS = 3  # Minimum number of parts required for reconstruction
 
 class CloudManager:
     """
@@ -40,7 +41,7 @@ class CloudManager:
         #file_descriptor if file_descriptor else self.sync_from_clouds()
         self.sync_thread = None
         self.stop_event = threading.Event()  # Event to signal
-        self.lock_session()
+        #self.lock_session()
         self.executor = concurrent.futures.ThreadPoolExecutor()
 
     def __del__(self):
@@ -66,14 +67,41 @@ class CloudManager:
                 print(f"Error executing task to {cloud_name}: {e}")
         return results, success
 
-
     def lock_session(self):
         """
         Checks if a session file is active on the cloud
         If it is raise error.
         If not then place one to lock the session
         """
-        pass
+        for cloud in self.clouds:
+            session_file_name = f"SESSION_ACTIVE_{cloud.get_email()}"
+            try:
+                # Check if the session file already exists
+                existing_file = cloud.download_file(session_file_name, self.root_folder)
+                if existing_file is not None:
+                    print(f"Session is already active for user {cloud.get_email()} on cloud {cloud.get_name()}.")
+                    raise Exception(f"Session is already active for user {cloud.get_email()} on cloud {cloud.get_name()}.")
+
+                # Create the session file
+                cloud.upload_file(b"SESSION ACTIVE", session_file_name, self.root_folder)
+                print(f"Session locked for user {cloud.get_email()} on cloud {cloud.get_name()}.")
+            except Exception as e:
+                print(f"Error locking session for cloud {cloud.get_name()}: {e}")
+                raise
+    
+    def unlock_session(self):
+        """
+        Removes the "SESSION ACTIVE" file from the root directory of each cloud to unlock the session.
+        """
+        for cloud in self.clouds:
+            session_file_name = f"SESSION_ACTIVE_{cloud.get_email()}"
+            try:
+                # Delete the session file
+                cloud.delete_file(session_file_name, self.root_folder)
+                print(f"Session unlocked for user {cloud.get_email()} on cloud {cloud.get_name()}.")
+            except Exception as e:
+                print(f"Error unlocking session for cloud {cloud.get_name()}: {e}")
+                raise
 
     def _split(self, data : bytes, clouds : int):
         return self.split.split(data, clouds)
@@ -134,6 +162,13 @@ class CloudManager:
         if not os.path.isfile(os_filepath):
             raise OSError()
         
+        file_name = os.path.basename(os_filepath)
+        existing_files = self.get_file_list()
+        
+        if any(file['name'] == file_name and file['path'] == path for file in existing_files):
+            print(f"Error: A file with the name '{file_name}' already exists in the directory '{path}'.")
+            raise Exception(f"Error: A file with the name '{file_name}' already exists in the directory '{path}'.")
+        
         data = None
         with open(os_filepath, 'rb') as file:
             data = file.read()
@@ -171,7 +206,7 @@ class CloudManager:
         
         return self.fd.get_file_data(file_id)
     
-            
+     
     def _upload_replicated(self, file_name, data, suffix=False):
         """
         Uploads the given file to all platforms without splitting.
@@ -292,14 +327,15 @@ class CloudManager:
                 raise FileNotFoundError(f"File part {file_name} not found in {cloud_name}.")
 
             # Iterate over the results and place them in the correct order
+            valid_parts = 0
             for (cloud_name, index), result in results:
                 if isinstance(result, bytes):
                     # Use the index from the metadata to place the part in the correct position
                     data[index] = result
-
-            # Ensure all parts are downloaded
-            if None in data:
-                raise ValueError(f"Missing parts for file_id {file_id}.")
+                    valid_parts += 1
+            
+            if valid_parts < MIN_PARTS:  # Allow at most 1 missing part
+                raise ValueError(f"Insufficient valid parts for file_id {file_id}. Valid parts: {valid_parts}/{len(data)}")
 
             # Merge and decrypt the data
             if not data:
@@ -405,22 +441,32 @@ class CloudManager:
                     self.sync_to_clouds()
                 except Exception as e:
                     print(f"Error during periodic sync: {e}")
-                time.sleep(SYNC_TIME)  # Wait for the next sync interval
 
-        # Submit the sync task to the thread pool
+                # Wait for the next sync interval, but check stop_event periodically
+                for _ in range(SYNC_TIME):  # SYNC_TIME is the total wait time in seconds
+                    if self.stop_event.is_set():
+                        return  # Exit the loop if stop_event is set
+                    time.sleep(1)  # Sleep for 1 second and check again
         if not self.sync_thread or not self.sync_thread.running():
             self.sync_thread = self.executor.submit(sync_task)
             print("Sync task submitted to thread pool.")
-
 
     def stop_sync_thread(self):
         """
         Stops the background sync thread and waits for it to terminate.
         """
-        if self.sync_thread and self.sync_thread.is_alive():
-            self.stop_event.set()  # Signal the thread to stop
-            print("Sync thread stopped.")
+        print("Stopping sync thread...")
+        if self.sync_thread:
+            # Signal the thread to stop
+            self.stop_event.set()
 
+            # Wait for the task to complete if it is already running
+            try:
+                self.sync_thread.result()  # Wait for the task to complete
+                print("Sync thread stopped.")
+            except Exception as e:
+                print(f"Error while stopping sync thread: {e}")
+                
     def load_fd(self):
         """
         Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor
