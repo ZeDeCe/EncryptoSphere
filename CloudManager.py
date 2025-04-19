@@ -11,8 +11,6 @@ import concurrent.futures
 import time
 import threading
 
-from utils.DialogBox import error_dialog
-
 SYNC_TIME = 300  # Sync time in seconds
 FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
 MIN_PARTS = 3  # Minimum number of parts required for reconstruction

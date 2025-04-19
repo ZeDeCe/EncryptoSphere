@@ -1,89 +1,92 @@
+import os
+from argon2 import PasswordHasher
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+
 class LoginModule:
     """
-    The LoginModule class handles user authentication and secure access to both the application and connected cloud platforms.
-    It ensures high-security key generation using Argon2id and AES encryption without relying on external databases.
+    This class handles secure account creation and login,
+    using Argon2 for password hashing and AES-GCM for encryption.
     """
 
     def __init__(self):
-        """
-        Initializes the LoginModule.
-        Sets up any necessary configurations or dependencies for the login process.
-        """
-        pass
+        self.ph = PasswordHasher()  # Argon2 password hasher
 
-    def create_account(self, password: str):
+    def create_key_from_password(self, password: str, salt: bytes) -> bytes:
         """
-        Creates a new account for the user.
+        Create a 32-byte encryption key from a password using Argon2.
+        The password is hashed and then truncated to 32 bytes.
+        """
+        hashed_password = self.ph.hash(password)
+        return hashed_password.encode()[:32]  # AES-256 requires 32-byte key
 
-        Steps:
-        - Prompts the user to log in to their connected cloud platforms using cloud_credentials via OAuth or similar methods.
-        - Generates a random 256-bit string to serve as the salt for AES encryption.
-        - Uploads the generated salt to all connected cloud platforms in a special file for future access.
-        - Derives the private key by hashing the user-provided password with the salt using the Argon2id algorithm.
-        - Uses the derived private key to encrypt user-specific information.
-        - Ensures no sensitive data is stored locally; the key resides in-memory until the app is closed.
+    def create_account(self, password: str, username: str, email: str):
         """
-        pass
+        Encrypt user data (username + email) using AES-GCM and return the encryption parameters.
+        """
+        salt = os.urandom(16)   # Salt for key derivation
+        nonce = os.urandom(12)  # 12-byte nonce for AES-GCM
 
-    def login_user(self, password: str):
-        """
-        Logs in an existing user.
+        key = self.create_key_from_password(password, salt)
 
-        Steps:
-        - Prompts the user to log in to their connected cloud platforms using cloud_credentials via OAuth or similar methods.
-        - Prompts the user to enter their username and password.
-        - Retrieves the salt from the connected cloud platforms.
-        - Derives the private key using the user-provided password and the retrieved salt via Argon2id.
-        - Attempts to decrypt the FileDescriptor using the derived private key.
-        - Validates the decryption process by checking for the user's email address in the decrypted FileDescriptor.
-        - Completes the login process upon successful decryption, enabling access to the main menu and parsed FileDescriptor.
-        """
-        pass
+        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce), backend=default_backend())
+        encryptor = cipher.encryptor()
 
-    def logout_user(self):
-        """
-        Logs out the current user.
+        user_data = f"Username: {username}\nEmail: {email}".encode()
+        encrypted_data = encryptor.update(user_data) + encryptor.finalize()
 
-        Steps:
-        - Clears any in-memory keys or sensitive data.
-        - Ensures the user is securely logged out of all connected cloud platforms.
-        - Returns the application to the login screen or initial state.
-        """
-        pass
+        return {
+            "salt": salt,
+            "nonce": nonce,
+            "tag": encryptor.tag,
+            "user_data": encrypted_data
+        }
 
-    def retrieve_salt(self):
+    def login(self, input_password: str, salt: bytes, nonce: bytes, tag: bytes, encrypted_data: bytes):
         """
-        Retrieves the salt file from the connected cloud platforms.
+        Attempt to decrypt encrypted user data using the provided password.
+        Returns the decrypted user data if the password is correct.
+        """
+        key = self.create_key_from_password(input_password, salt)
 
-        Steps:
-        - Searches for the special file containing the salt on all connected cloud platforms.
-        - Downloads and returns the salt for use in key derivation.
-        """
-        pass
+        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce, tag), backend=default_backend())
+        decryptor = cipher.decryptor()
 
-    def encrypt_user_data(self, private_key: bytes, data: dict):
-        """
-        Encrypts user-specific information using the derived private key.
+        try:
+            decrypted_data = decryptor.update(encrypted_data) + decryptor.finalize()
+            return decrypted_data.decode()
+        except Exception:
+            raise ValueError("Invalid password or corrupted data.")
 
-        :param private_key: The derived private key for encryption.
-        :param data: A dictionary containing user-specific information to encrypt.
-        """
-        pass
 
-    def decrypt_user_data(self, private_key: bytes, encrypted_data: bytes):
-        """
-        Decrypts user-specific information using the derived private key.
+"""""
+def main():
+    login_module = LoginModule()
 
-        :param private_key: The derived private key for decryption.
-        :param encrypted_data: The encrypted user-specific information.
-        """
-        pass
+    # Create account
+    print("Creating account...")
+    username = "alice"
+    email = "alice@example.com"
+    password = "securepassword123"
 
-    def validate_decryption(self, decrypted_data: dict):
-        """
-        Validates the decrypted data to ensure successful login.
+    account_data = login_module.create_account(password, username, email)
+    print("Account created successfully!")
 
-        :param decrypted_data: The decrypted user-specific information.
-        :return: True if validation is successful, False otherwise.
-        """
-        pass
+    # Try to login
+    print("\nLogging in...")
+    try:
+        decrypted_info = login_module.login(
+            input_password="securepassword123",  # Try changing this to test failure
+            salt=account_data["salt"],
+            nonce=account_data["nonce"],
+            tag=account_data["tag"],
+            encrypted_data=account_data["user_data"]
+        )
+        print("Login successful!\nDecrypted data:")
+        print(decrypted_info)
+    except ValueError as e:
+        print("Login failed:", str(e))
+
+if __name__ == "__main__":
+    main()
+"""""
