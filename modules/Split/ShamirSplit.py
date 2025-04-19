@@ -27,23 +27,23 @@ class ShamirSplit(Split):
         num_parts= clouds_num * 2
         min_parts=3
         sharenums = []
+
+        # Filter out None values and construct sharenums
+        sharenums = [i for i, part in enumerate(data) if part is not None]
+        data = [part for part in data if part is not None]
+
         if len(data) < min_parts:
             raise Exception(f"Shamir split: At least {min_parts} parts are required to reconstruct the file, got {len(data)} parts")
-        
-        for i in range(0, num_parts):
-            sharenums.append(i)
 
         decoder = Decoder(k=min_parts, m=num_parts)
-        data = data[:min_parts]
-        sharenums = sharenums[:min_parts]
+        if len(data) > min_parts:
+            data = data[:min_parts]
+            sharenums = sharenums[:min_parts]
 
         try:
             padlen = 0
             return decoder.decode(data, sharenums, padlen)
-            #decoded_data = decoder.decode(data, sharenums, padlen)
-            #output_file = r"C:\\Users\\hadas\\Desktop\\final_project\\output.txt" #path to the output file
-            #with open(output_file, 'wb') as output:
-            #    output.write(decoded_data)
+
         except Exception:
             raise Exception("Shamir: error during reconstruction")
 
