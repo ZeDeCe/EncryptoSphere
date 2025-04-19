@@ -11,6 +11,8 @@ import concurrent.futures
 import time
 import threading
 
+from utils.DialogBox import error_dialog
+
 SYNC_TIME = 300  # Sync time in seconds
 FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
 
@@ -82,15 +84,53 @@ class CloudManager:
         # TODO: finish function
         return self.split.merge_parts(data, clouds)
     
-    def _encrypt(self, data : bytes):
-        data = self.encrypt.encrypt(data)
-        return data
+    def _encrypt(self, data: bytes) -> bytes:
+        """
+        Encrypts the data using the encryption method provided.
+        Retries on failure and alerts the user if encryption fails.
+        """
+        if data is None:
+            input_dialog("Encryption Error", "Cannot encrypt: data is None.")
+            raise ValueError("Cannot encrypt: data is None.")
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Attempt to encrypt the data
+                encrypted_data = self.encrypt.encrypt(data)
+                return encrypted_data
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Encryption error: {e}. Retrying... (Attempt {attempt + 1}/{max_retries})")
+                else:
+                    error_dialog("Encryption Error", f"Failed to encrypt data after {max_retries} attempts.\nError: {str(e)}")
+                    raise RuntimeError(f"Encryption failed after {max_retries} attempts. Error: {str(e)}")
     
-    def _decrypt(self, data : bytes):
-        if data.endswith(b'\x00'):
-            data = data.rstrip(b'\x00')  # Remove only the null byte at the end
-        clear_data = self.encrypt.decrypt(data)
-        return clear_data
+    def _decrypt(self, data: bytes) -> bytes:
+        """
+        Decrypts the data using the encryption method provided.
+        Retries on failure and alerts the user if decryption fails.
+        """
+        if data is None:
+            input_dialog("Decryption Error", "Cannot decrypt: data is None.")
+            raise ValueError("Cannot decrypt: data is None.")
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Handle potential null bytes at the end of the data
+                if data.endswith(b'\x00'):
+                    data = data.rstrip(b'\x00')
+
+                # Attempt to decrypt the data
+                clear_data = self.encrypt.decrypt(data)
+                return clear_data
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Decryption error: {e}. Retrying... (Attempt {attempt + 1}/{max_retries})")
+                else:
+                    error_dialog("Decryption Error", f"Failed to decrypt data after {max_retries} attempts.\nError: {str(e)}")
+                    raise RuntimeError(f"Decryption failed after {max_retries} attempts. Error: {str(e)}")
 
     def _tempfile_from_path(self, os_filepath):
         file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
@@ -425,13 +465,17 @@ class CloudManager:
         """
         Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor
         """
-        data_future = self.executor.submit(self._download_replicated, "$FD")
-        metadata = self._download_replicated("$FD_META")
-        data = data_future.result()
-        # Technically supposed to pull encryption decryption from cloud or at least check it matches
-        # TODO: Check here if a version is still in desktop, means corruption
-        self.fd = FileDescriptor.FileDescriptor(None if data == None else self._decrypt(data), metadata, self.encrypt.get_name(), self.split.get_name())
-        return True
+        try:
+            data_future = self.executor.submit(self._download_replicated, "$FD")
+            metadata = self._download_replicated("$FD_META")
+            data = data_future.result()
+            # Technically supposed to pull encryption decryption from cloud or at least check it matches
+            # TODO: Check here if a version is still in desktop, means corruption
+            self.fd = FileDescriptor.FileDescriptor(None if data == None else self._decrypt(data), metadata, self.encrypt.get_name(), self.split.get_name())
+            return True
+        except Exception as e:
+            error_dialog("File Descriptor Error", f"Failed to load file descriptor.\nError: {str(e)}")
+            return False
     
     def sync_fd(self):
         """
@@ -456,8 +500,9 @@ class CloudManager:
                 f.write(self._encrypt(data)) 
             with open(os.path.join(fd_file_path, "$FD_META"), "wb") as f:
                 f.write(metadata)
-        except:
-            print("Failed to write to {fd_file_path}")
+        except Exception as e:
+            error_dialog("File Descriptor Error", f"Failed to write file descriptor to disk.\nError: {str(e)}")
+            raise OSError(f"Failed to write file descriptor: {str(e)}")
         
     def delete_fd(self):
         """
