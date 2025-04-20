@@ -2,6 +2,7 @@ import os
 from argon2 import PasswordHasher
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+from argon2.low_level import hash_secret_raw, Type
 
 class LoginModule:
     """
@@ -13,12 +14,15 @@ class LoginModule:
         self.ph = PasswordHasher()  # Argon2 password hasher
 
     def create_key_from_password(self, password: str, salt: bytes) -> bytes:
-        """
-        Create a 32-byte encryption key from a password using Argon2.
-        The password is hashed and then truncated to 32 bytes.
-        """
-        hashed_password = self.ph.hash(password)
-        return hashed_password.encode()[:32]  # AES-256 requires 32-byte key
+        return hash_secret_raw(
+            secret=password.encode(),
+            salt=salt,
+            time_cost=2,
+            memory_cost=102400,
+            parallelism=8,
+            hash_len=32,
+            type=Type.ID
+        )
 
     def create_account(self, password: str, username: str, email: str):
         """
