@@ -1,4 +1,6 @@
 import customtkinter as ctk
+import threading
+
 
 #Implement gui dialogbox
 def input_dialog(title, text):
@@ -28,5 +30,4 @@ def input_dialog(title, text):
     
     # Return the input received from the dialog
     return dialog.get_input()
-    
     

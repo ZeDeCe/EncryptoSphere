@@ -110,15 +110,25 @@ class CloudManager:
         # TODO: finish function
         return self.split.merge_parts(data, clouds)
     
-    def _encrypt(self, data : bytes):
-        data = self.encrypt.encrypt(data)
-        return data
+    def _encrypt(self, data: bytes) -> bytes:
+        """
+        Encrypts the data using the encryption method provided.
+        Raises an exception if encryption fails.
+        """
+        if data is None:
+            raise ValueError("Cannot encrypt: data is None.")
+        return self.encrypt.encrypt(data)
     
-    def _decrypt(self, data : bytes):
+    def _decrypt(self, data: bytes) -> bytes:
+        """
+        Decrypts the data using the encryption method provided.
+        Raises an exception if decryption fails.
+        """
+        if data is None:
+            raise ValueError("Cannot decrypt: data is None.")
         if data.endswith(b'\x00'):
-            data = data.rstrip(b'\x00')  # Remove only the null byte at the end
-        clear_data = self.encrypt.decrypt(data)
-        return clear_data
+            data = data.rstrip(b'\x00')
+        return self.encrypt.decrypt(data)
 
     def _tempfile_from_path(self, os_filepath):
         file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))

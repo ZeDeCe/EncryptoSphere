@@ -1,5 +1,6 @@
 import os
 import io
+import json
 from dotenv import load_dotenv
 import webbrowser
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -7,19 +8,20 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload, HttpRequest
 from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from modules.CloudAPI.CloudService import CloudService
 from google_auth_httplib2 import AuthorizedHttp
 import httplib2
-
 
 load_dotenv()
 # Set up Google Drive API
 CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 API_KEY = os.getenv("GOOGLE_API_KEY")
 SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
+TOKEN_PATH = "token.json"  # Path to store token
 
 class GoogleDrive(CloudService):
-
+    
     def authenticate_cloud(self):
         """
         Authenticate with Google Drive
@@ -27,16 +29,48 @@ class GoogleDrive(CloudService):
         # First check if already authenticated
         if self.authenticated:
             return True
-
+        
+        creds = None
+        
         try:
-            # Let the user log in and obtain new credentials every time
-            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
-            creds = flow.run_local_server(port=0)
-
-            # Thread safety of httplib https://github.com/googleapis/google-api-python-client/blob/main/docs/thread_safety.md
+            # Try to load credentials from token file if it exists
+            if os.path.exists(TOKEN_PATH):
+                try:
+                    with open(TOKEN_PATH, "r") as token_file:
+                        token_data = json.load(token_file)
+                        creds = Credentials(
+                            token=token_data.get('token'),
+                            refresh_token=token_data.get('refresh_token'),
+                            token_uri=token_data.get('token_uri'),
+                            client_id=token_data.get('client_id'),
+                            client_secret=token_data.get('client_secret'),
+                            scopes=token_data.get('scopes')
+                        )
+                except Exception as e:
+                    print(f"Error loading token: {e}")
+                    creds = None  # Reset creds if there's an error loading
+            
+            # Check if credentials are valid or need refresh
+            if creds and not creds.expired:
+                pass  # Use existing valid credentials
+            elif creds and creds.expired and creds.refresh_token:
+                # Refresh token if expired
+                creds.refresh(Request())
+                # Save refreshed credentials
+                self._save_token_to_json(creds)
+            else:
+                # Get new credentials if not available or invalid
+                flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
+                creds = flow.run_local_server(port=0)
+                
+                # Save the credentials for future use
+                self._save_token_to_json(creds)
+            
+            # Thread safety of httplib
             def build_request(http, *args, **kwargs):
                 new_http = AuthorizedHttp(creds, http=httplib2.Http())
                 return HttpRequest(new_http, *args, **kwargs)
+            
             authorized_http = AuthorizedHttp(creds, http=httplib2.Http())
             self.drive_service = build('drive', 'v3', requestBuilder=build_request, http=authorized_http)
             
@@ -48,10 +82,32 @@ class GoogleDrive(CloudService):
             else:
                 print("Email mismatch during authentication")
                 return False
-        
+                
         except HttpError as error:
             print(f"An error occurred: {error}")
             return False
+        except Exception as e:
+            print(f"Authentication error: {e}")
+            return False
+    
+    def _save_token_to_json(self, creds):
+        """
+        Save credentials to JSON file
+        """
+        try:
+            token_data = {
+                'token': creds.token,
+                'refresh_token': creds.refresh_token,
+                'token_uri': creds.token_uri,
+                'client_id': creds.client_id,
+                'client_secret': creds.client_secret,
+                'scopes': creds.scopes
+            }
+            
+            with open(TOKEN_PATH, "w") as token_file:
+                json.dump(token_data, token_file)
+        except Exception as e:
+            print(f"Error saving token: {e}")
 
 
     def list_files(self, folder='/'):
