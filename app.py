@@ -105,7 +105,9 @@ class App(ctk.CTk):
         if self.api.manager:
             self.api.manager.sync_to_clouds() 
             self.api.manager.delete_fd()
+            self.api.manager.unlock_session()
             self.api.manager.stop_sync_thread()
+            self.api.stop_sync_new_sessions_task()
     
     def register_context_menu(self, context_menu):
         """
@@ -392,11 +394,16 @@ class MainPage(ctk.CTkFrame):
         Upload file to the cloud and refresh the page
         @param file_path: The path of the file to be uploaded
         """
-        # Create a new label for the uploading file
         label = self.add_message_label(f"Uploading file {file_path.split('/')[-1]}")
 
-        # Call the API to upload the file and use remove_message as the callback
-        self.controller.get_api().upload_file(lambda f: self.remove_message(label), os.path.normpath(file_path), self.main_frame.path)
+        self.controller.get_api().upload_file(
+            lambda f: (
+                self.remove_message(label),
+                messagebox.showerror(str(f.exception())) if f.exception() else None
+            ),
+            os.path.normpath(file_path),
+            self.main_frame.path
+        )
 
     def add_message_label(self, message):
         # Create a new label for the uploading file
@@ -443,10 +450,16 @@ class MainPage(ctk.CTkFrame):
         Upload folder to the cloud and refresh the page
         @param folder_path: The path of the folder to be uploaded
         """
-        # Create a new label for the uploading file
         label = self.add_message_label(f"Uploading folder {folder_path.split('/')[-1]}")
 
-        self.controller.get_api().upload_folder(lambda f: self.remove_message(label), os.path.normpath(folder_path), self.main_frame.path)
+        self.controller.get_api().upload_folder(
+            lambda f: (
+                self.remove_message(label),
+                messagebox.showerror(str(f.exception())) if f.exception() else None
+            ),
+            os.path.normpath(folder_path),
+            self.main_frame.path
+        )
         
     def change_back_button(self, path):
         """
@@ -636,20 +649,30 @@ class FileButton(IconButton):
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
-        
-        label = self.master.master.master.add_message_label(f"Uploading file {file_data['name']}")
+        label = self.master.master.master.add_message_label(f"Downloading file {file_data['name']}")
 
-        self.controller.get_api().download_file(lambda f: self.remove_message(label), file_data["id"])
-
+        self.controller.get_api().download_file(
+            lambda f: (
+                self.master.master.master.remove_message(label),
+                messagebox.showerror(str(f.exception())) if f.exception() else None
+            ),
+            file_data["id"]
+        )
 
     def delete_file_from_cloud(self, file_data):
         """
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        label = self.master.master.master.add_message_label(f"Delete file {file_data['name']}")
-        self.controller.get_api().delete_file(lambda f: self.master.master.master.remove_message(label), file_data["id"])
-        del self.master.file_list[file_data["name"]]
+        label = self.master.master.master.add_message_label(f"Deleting file {file_data['name']}")
+
+        self.controller.get_api().delete_file(
+            lambda f: (
+                self.master.master.master.remove_message(label),
+                messagebox.showerror(str(f.exception())) if f.exception() else self.master.file_list.pop(file_data["name"], None)
+            ),
+            file_data["id"]
+        )
 
     def on_button1_click(self, event=None):
         """
@@ -742,8 +765,15 @@ class FolderButton(IconButton):
         Delete folder from the cloud and refresh the page
         @param folder_path: The path of the folder to be deleted
         """
-        # The callback here might need to just check that it didn't fail and we should instead delete the folder immediately
-        self.controller.get_api().delete_folder(lambda f: self.master.master.master.refresh(), self.folder_path)
+        label = self.master.master.master.add_message_label(f"Deleting folder {self.folder_path}")
+
+        self.controller.get_api().delete_folder(
+            lambda f: (
+                self.master.master.master.remove_message(label),
+                messagebox.showerror(str(f.exception())) if f.exception() else self.master.master.master.refresh()
+            ),
+            self.folder_path
+        )
     
     
     def download_folder(self):

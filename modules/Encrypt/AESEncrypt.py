@@ -5,42 +5,66 @@ import hashlib
 
 class AESEncrypt(Encrypt):
 
-    def generate_key_from_key(self, key : bytes) -> bytes:
+    def generate_key_from_key(self, key: bytes) -> bytes:
         """
         Generate an AES key using Argon2id or another suitable method
         for secure key generation (here we use a simple example).
         This key will be used for AES encryption and decryption.
         If the key length is not 32 bytes, we adjust it using SHA-256.
         """
+        if not key or not isinstance(key, bytes):
+            raise ValueError("Key must be a non-empty byte string.")
         # Ensure key is 32 bytes long by hashing it with SHA-256
         return hashlib.sha256(key).digest()
-    
+
     def generate_key(self) -> bytes:
         """
         Generate a 32-byte AES key using SHA-256.
         """
-        # Generate a random 16-byte value and hash it to create a 32-byte key
-        return hashlib.sha256(get_random_bytes(16)).digest()
-        
+        try:
+            # Generate a random 16-byte value and hash it to create a 32-byte key
+            return hashlib.sha256(get_random_bytes(16)).digest()
+        except Exception as e:
+            raise RuntimeError(f"Error generating key: {str(e)}")
 
     def encrypt(self, data: bytes) -> bytes:
         """
         Encrypt the data using AES encryption with the stored key.
         """
-        cipher = AES.new(self.key, AES.MODE_GCM)
-        ciphertext, tag = cipher.encrypt_and_digest(data)
-        return cipher.nonce + tag + ciphertext
+        if not hasattr(self, 'key') or not self.key:
+            raise ValueError("Encryption key is not set.")
+        if not data or not isinstance(data, bytes):
+            raise ValueError("Data to encrypt must be a non-empty byte string.")
+
+        try:
+            cipher = AES.new(self.key, AES.MODE_GCM)
+            ciphertext, tag = cipher.encrypt_and_digest(data)
+            return cipher.nonce + tag + ciphertext
+        except Exception as e:
+            raise RuntimeError(f"Encryption failed: {str(e)}")
 
     def decrypt(self, data: bytes) -> bytes:
         """
         Decrypt the data using AES decryption with the stored key.
         """
-        nonce = data[:16]
-        tag = data[16:32] 
-        ciphertext = data[32:]
+        if not hasattr(self, 'key') or not self.key:
+            raise ValueError("Decryption key is not set.")
+        if not data or not isinstance(data, bytes):
+            raise ValueError("Data to decrypt must be a non-empty byte string.")
+        if len(data) < 32:
+            raise ValueError("Encrypted data is too short to contain nonce, tag, and ciphertext.")
 
-        cipher = AES.new(self.key, AES.MODE_GCM, nonce=nonce)
-        return cipher.decrypt_and_verify(ciphertext, tag)
+        try:
+            nonce = data[:16]
+            tag = data[16:32]
+            ciphertext = data[32:]
+
+            cipher = AES.new(self.key, AES.MODE_GCM, nonce=nonce)
+            return cipher.decrypt_and_verify(ciphertext, tag)
+        except ValueError as ve:
+            raise RuntimeError(f"Decryption failed due to invalid input: {str(ve)}")
+        except Exception as e:
+            raise RuntimeError(f"Decryption failed: {str(e)}")
 
     @staticmethod
     def get_name() -> str:

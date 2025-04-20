@@ -159,9 +159,11 @@ class DropBox(CloudService):
             return file_data
         
         except dropbox.exceptions.ApiError as e:
-            raise Exception(f"DropBox-Error {e}")
+            print(f"DropBox-Error {e}")
+            return None
         except FileNotFoundError:
-             raise Exception("DropBox: The specified Dropbox file was not found.")
+            print("DropBox: The specified Dropbox file was not found.")
+            return None
         except Exception as e:
             raise Exception(f"DropBox-Error: {e}")
         finally:
