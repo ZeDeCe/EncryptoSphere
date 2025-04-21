@@ -1,17 +1,16 @@
 import os
 from argon2 import PasswordHasher
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
 from argon2.low_level import hash_secret_raw, Type
+from modules import Encrypt
 
 class LoginModule:
     """
     This class handles secure account creation and login,
-    using Argon2 for password hashing and AES-GCM for encryption.
+    using Argon2 for password hashing and a pluggable encryption module (like AES).
     """
 
     def __init__(self):
-        self.ph = PasswordHasher()  # Argon2 password hasher
+        self.ph = PasswordHasher()
 
     def create_key_from_password(self, password: str, salt: bytes) -> bytes:
         return hash_secret_raw(
@@ -24,40 +23,44 @@ class LoginModule:
             type=Type.ID
         )
 
-    def create_account(self, password: str, username: str, email: str):
+    def create_account(self, password: str, username: str, email: str, encryption_type: str):
         """
-        Encrypt user data (username + email) using AES-GCM and return the encryption parameters.
+        Encrypt user data using the selected encryption method and return the encryption parameters.
         """
-        salt = os.urandom(16)   # Salt for key derivation
-        nonce = os.urandom(12)  # 12-byte nonce for AES-GCM
+        salt = os.urandom(16)
+
+        # Get the appropriate encryption class based on encryption_type
+        encryptor_class = Encrypt.get_class(encryption_type)
+        if encryptor_class is None:
+            raise ValueError(f"Unsupported encryption type: {encryption_type}")
+        encryptor = encryptor_class()
 
         key = self.create_key_from_password(password, salt)
-
-        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce), backend=default_backend())
-        encryptor = cipher.encryptor()
+        encryptor.set_key(encryptor.generate_key_from_key(key))
 
         user_data = f"Username: {username}\nEmail: {email}".encode()
-        encrypted_data = encryptor.update(user_data) + encryptor.finalize()
+        encrypted_data = encryptor.encrypt(user_data)
 
         return {
             "salt": salt,
-            "nonce": nonce,
-            "tag": encryptor.tag,
-            "user_data": encrypted_data
+            "user_data": encrypted_data,
+            "encryption_type": encryption_type
         }
 
-    def login(self, input_password: str, salt: bytes, nonce: bytes, tag: bytes, encrypted_data: bytes):
+    def login(self, input_password: str, salt: bytes, encrypted_data: bytes, encryption_type: str):
         """
-        Attempt to decrypt encrypted user data using the provided password.
-        Returns the decrypted user data if the password is correct.
+        Attempt to decrypt user data using the password and encryption method.
         """
-        key = self.create_key_from_password(input_password, salt)
+        encryptor_class = Encrypt.get_class(encryption_type)
+        if encryptor_class is None:
+            raise ValueError(f"Unsupported encryption type: {encryption_type}")
+        encryptor = encryptor_class()
 
-        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce, tag), backend=default_backend())
-        decryptor = cipher.decryptor()
+        key = self.create_key_from_password(input_password, salt)
+        encryptor.set_key(encryptor.generate_key_from_key(key))
 
         try:
-            decrypted_data = decryptor.update(encrypted_data) + decryptor.finalize()
+            decrypted_data = encryptor.decrypt(encrypted_data)
             return decrypted_data.decode()
         except Exception:
             raise ValueError("Invalid password or corrupted data.")
@@ -67,30 +70,29 @@ class LoginModule:
 def main():
     login_module = LoginModule()
 
-    # Create account
-    print("Creating account...")
+    encryption_type = "AES"
+
     username = "alice"
     email = "alice@example.com"
     password = "securepassword123"
 
-    account_data = login_module.create_account(password, username, email)
-    print("Account created successfully!")
+    print(f"Creating account using {encryption_type}...")
+    account_data = login_module.create_account(password, username, email, encryption_type)
+    print("Account created successfully!\n")
 
-    # Try to login
-    print("\nLogging in...")
+    print("Logging in...")
     try:
         decrypted_info = login_module.login(
-            input_password="securepassword123",  # Try changing this to test failure
+            input_password="securepassword123",
             salt=account_data["salt"],
-            nonce=account_data["nonce"],
-            tag=account_data["tag"],
-            encrypted_data=account_data["user_data"]
+            encrypted_data=account_data["user_data"],
+            encryption_type=account_data["encryption_type"]
         )
-        print("Login successful!\nDecrypted data:")
+        print("Login successful! Decrypted data:")
         print(decrypted_info)
     except ValueError as e:
         print("Login failed:", str(e))
-
+    
 if __name__ == "__main__":
     main()
-"""""
+"""
