@@ -214,7 +214,7 @@ class Gateway:
             shared_with,
             list(self.manager.clouds),
             f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
-            NoSplit(),
+            ShamirSplit(),
             self.manager.encrypt.copy(),
         )
 
