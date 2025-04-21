@@ -669,10 +669,12 @@ class FileButton(IconButton):
         self.controller.get_api().delete_file(
             lambda f: (
                 self.master.master.master.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else self.master.file_list.pop(file_data["name"], None)
+                messagebox.showerror(str(f.exception())) if f.exception() else None
             ),
             file_data["id"]
         )
+        # Immediately pop the file from the list
+        self.master.file_list.pop(file_data["name"])
 
     def on_button1_click(self, event=None):
         """
