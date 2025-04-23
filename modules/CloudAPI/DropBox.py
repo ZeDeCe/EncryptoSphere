@@ -31,6 +31,8 @@ class DropBox(CloudService):
         if os.path.exists(DROPBOX_TOKEN_PATH):
             try:
                 with open(DROPBOX_TOKEN_PATH, "r") as token_file:
+                    print("DropBox  : Loading existing Dropbox token...")
+                    # Load the token from the JSON file
                     token_data = json.load(token_file)
                     access_token = token_data.get("access_token")
                     self.dbx = dropbox.Dropbox(access_token)
@@ -42,9 +44,9 @@ class DropBox(CloudService):
                         self.user_id = self.dbx.users_get_current_account().account_id
                         return True
                     else:
-                        print("Email mismatch with stored Dropbox token.")
+                        print("DropBox  : Email mismatch with stored Dropbox token.")
             except Exception as e:
-                print(f"Error loading or validating Dropbox token: {e}")
+                print(f"DropBox  : Error loading or validating Dropbox token: {e}")
         
         # Start the OAuth flow
         auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
