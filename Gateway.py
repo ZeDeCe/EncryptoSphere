@@ -244,7 +244,18 @@ class Gateway:
     def unshare_file(self):
         pass
     """
-
+    def get_shared_emails(self, folder_path):
+        """
+        Returns the list of emails that are shared with the given folder
+        @param folder_path: the path of the folder to get the shared emails from
+        @return: list of emails that are shared with the folder
+        """
+        share = None
+        for root_folder, session in self.session_manager.sessions.items():
+            if folder_path == root_folder:
+                share = session
+        return share.get_shared_emails()
+    
     def revoke_user_from_share(self, folder_path ,emails):
         """
         unshare emails from given shared folder
@@ -256,7 +267,7 @@ class Gateway:
 
         """
         share = None
-        for session in self.session_manager.sessions:
+        for folder_path,session in self.session_manager.sessions.items():
             if folder_path ==  session.root_folder:
                 share = session
         unshare_with = []
@@ -267,7 +278,8 @@ class Gateway:
             unshare_with.append(user_dict)
         share.revoke_user_from_share(unshare_with)
 
-    def add_user_to_share(self, folder_path ,emails):
+    @promise
+    def add_users_to_share(self, folder_path ,emails):
         """
         share email with given folder
         @param folder name ==> session
@@ -278,7 +290,7 @@ class Gateway:
 
         """
         share = None
-        for session in self.session_manager.sessions:
+        for folder_path,session in self.session_manager.sessions.items():
             if folder_path ==  session.root_folder:
                 share = session
         share_with = []
@@ -287,7 +299,7 @@ class Gateway:
             for cloud in self.manager.clouds:
                 user_dict[cloud.get_name()] = email
             share_with.append(user_dict)
-        share.revoke_user_from_share(share_with)
+        share.add_users_to_share(share_with)
 
     def start_sync_new_sessions_task(self):
         """

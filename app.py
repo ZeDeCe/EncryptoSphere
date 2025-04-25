@@ -1021,10 +1021,6 @@ class SharePage(ctk.CTkFrame):
             index +=1
         
 
-
-
-
-
 class SharedFolderButton(IconButton):
     """
     This class represents a "shared folder button"
@@ -1048,24 +1044,20 @@ class SharedFolderButton(IconButton):
         # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
         self.context_menu = OptionMenu(master.master.master, self.controller, [
             {
-                "label": "Add Member",
+                "label": "Manage Permissions",
                 "color": "green4",
-                "event": lambda: Thread(target=self.add_member_on_shared_folder, args=(), daemon=True).start() #TODO: add the function to add member
+                "event": lambda: self.manage_share_permissions() #TODO: add the function to add member
              },
-             {
-                 "label": "Remove member",
-                 "color": "green4",
-                 "event": lambda: Thread(target=self.remove_member_from_shared_folder, args=(), daemon=True).start()
-             },
-                         {
+             
+            {
                 "label": "Leave Share",
                 "color": "red",
-                "event": lambda: Thread(target=self.leave_shared_folder, args=(), daemon=True).start()
+                "event": lambda: Thread(target=self.leave_shared_folder, args=(), daemon=True).start() #TODO: this
              },
              {
                  "label": "Delete Share",
                  "color": "red",
-                 "event": lambda: Thread(target=self.delete_shared_folder, args=(), daemon=True).start()
+                 "event": lambda: Thread(target=self.delete_shared_folder, args=(), daemon=True).start() #TODO: this
              }
         ])
 
@@ -1081,11 +1073,107 @@ class SharedFolderButton(IconButton):
         self.controller.show_frame(self.controller.get_shared_page(self.full_folder_name))
 
         
-    def add_member_on_shared_folder(self):
-        pass
+    def manage_share_permissions(self):
+        new_window = ctk.CTkToplevel(self)
+        new_window.title("Manage Share Permissions")
+        # Bring to front & keep it on top of the main window
+        new_window.lift()  
+        new_window.transient(self)  
 
-    def remove_member_from_shared_folder(self):
-        pass
+        # Get the position and size of the parent (controller) window
+        main_x = self.controller.winfo_x()
+        main_y = self.controller.winfo_y()
+        main_w = self.controller.winfo_width()
+        main_h = self.controller.winfo_height()
+        # Size of the new window
+        # TODO: dynamic sizing
+        new_w, new_h = 400, 350  
+
+        # Calculate the position to center the new window over the parent window
+        new_x = main_x + (main_w // 2) - (new_w // 2)
+        new_y = main_y + (main_h // 2) - (new_h // 2)
+        new_window.geometry(f"{new_w}x{new_h}+{new_x}+{new_y}")
+
+        # Create a frame for the scrollable area
+        frame = ctk.CTkFrame(new_window)
+        frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+
+        # Create a scrollable frame inside the main frame
+        scrollable_frame = ctk.CTkScrollableFrame(frame)
+        scrollable_frame.pack(fill=ctk.BOTH, expand=True)
+
+        # Share with header
+        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w")
+        share_with_label.grid(row=0, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
+        
+        # Email list input
+        email_frame = ctk.CTkFrame(scrollable_frame, fg_color=scrollable_frame.cget('fg_color'))  # Match background
+        email_frame.grid(row=1, column=0, columnspan=2, pady=0, sticky="w")
+
+        # List to hold email input fields
+        email_inputs = []  
+
+        # Initial email input field
+        initial_email_entry = ctk.CTkEntry(email_frame, width=300)
+        initial_email_entry.grid(row=1, column=0, pady=5, padx=(0, 10), sticky="w")
+        email_inputs.append(initial_email_entry)
+
+        # Function to add new email input
+        def add_email_input():
+            if len(email_inputs) < 5:
+                new_email_entry = ctk.CTkEntry(email_frame, width=300)
+                new_email_entry.grid(row=len(email_inputs) + 1, column=0, pady=5, padx=(0, 10), sticky="w")
+                email_inputs.append(new_email_entry)
+
+        # "+" button to add email inputs (styled as a small circular button)
+        plus_button = ctk.CTkButton(email_frame, text="+", command=add_email_input, width=30, height=30, corner_radius=15)
+        plus_button.grid(row=1, column=1, padx=10, pady=5)
+
+        # Function to handle the creation of new share
+        def add_to_exsisting_share():
+            emails = [email.get() for email in email_inputs]
+            print(f"Adding to share with emails: {emails}")
+            
+            # Call the API with the final array
+            self.controller.get_api().add_users_to_share(None, self.full_folder_name, emails)
+            # Close the new window
+            new_window.destroy()
+
+        # Create new share button (this now does both actions: create share and close the window)
+        add_to_share_button = ctk.CTkButton(scrollable_frame, text="Share", command=add_to_exsisting_share, width=80, height=25, corner_radius=10)
+        add_to_share_button.grid(row=2, column=1, pady=50, padx=100, sticky="e")
+
+        # Already shared emails
+        shared_with_label = ctk.CTkLabel(scrollable_frame, text="Already shared with:", anchor="w")
+        shared_with_label.grid(row=3, column=0, padx=(0, 10), pady=(10, 5), sticky="w")
+
+        # List of emails already shared
+        shared_emails = self.controller.get_api().get_shared_emails(self.full_folder_name)  # Fetch shared emails from API
+
+        def remove_email(display_email, email):
+            """
+            Function to remove an email from the shared list
+            """
+            confirm = messagebox.askyesno("Remove Share", f"Remove {display_email} from share?")
+            if confirm:
+                self.controller.get_api().revoke_user_from_share(lambda f: self.refresh(), self.full_folder_name, email)
+
+        # Display each email with alignment and a "Remove" button
+        if shared_emails:
+            for idx, email in enumerate(shared_emails):
+                # Display email aligned to the left
+                display_email = list(email.values())[0]  # Get the value of the first element in the dictionary
+                email_label = ctk.CTkLabel(scrollable_frame, text=display_email, anchor="w", text_color="white")
+                email_label.grid(row=idx + 4, column=0, sticky="w")
+
+                # Add "Remove" button aligned to the right
+                remove_button = ctk.CTkButton(scrollable_frame, text="Remove", command=lambda: remove_email(display_email, email), width=80, height=25, corner_radius=10)
+                remove_button.grid(row=idx + 4, column=1, padx=100, sticky="e")
+        
+        
+
+        # Adjust the scrollbar to make it thinner (no slider_length argument)
+        new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
     def leave_shared_folder(self):
         pass
