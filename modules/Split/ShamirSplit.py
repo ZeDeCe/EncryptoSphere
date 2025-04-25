@@ -6,13 +6,18 @@ from zfec.easyfec import Decoder
 from modules.Split.Split import Split
 
 class ShamirSplit(Split):
-    
+    def __init__(self):
+        super().__init__()
+        self.copies_per_cloud = 2
+        self.min_parts = 3
+
+
     @staticmethod
     def get_name():
         return "Shamir"
 
     def split(self, data, clouds_num):
-        num_parts= clouds_num * 2
+        num_parts= clouds_num * self.copies_per_cloud
         min_parts=3
         encoder = Encoder(k=min_parts, m=num_parts)
         try:
@@ -24,7 +29,7 @@ class ShamirSplit(Split):
 
 
     def merge_parts(self, data, clouds_num):
-        num_parts= clouds_num * 2
+        num_parts= clouds_num * self.copies_per_cloud
         min_parts=3
         sharenums = []
 

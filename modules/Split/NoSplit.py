@@ -4,6 +4,11 @@ import tempfile
 from .Split import Split
 
 class NoSplit(Split):
+
+    def __init__(self):
+        super().__init__()
+
+        
     def split(self, data, clouds_num) -> str:
         ret = []
         for _ in range(clouds_num):

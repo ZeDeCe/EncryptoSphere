@@ -542,17 +542,12 @@ class Folder(ctk.CTkFrame):
         """
         Refresh the frame and display all updates
         """
-        file_list, folder_list = self.controller.get_api().get_files(self.path)
-
-        # Add new files to self.file_list
-        for file in file_list:
-            if file["name"] not in self.file_list:
-                self.file_list[file["name"]] = FileButton(self, width=120, height=120, file_data=file, controller=self.controller)
-
-        # Add new folders to self.folder_list
-        for folder in folder_list:
-            if folder not in self.folder_list:
-                self.folder_list[folder] = FolderButton(self, width=120, height=120, folder_path=folder, controller=self.controller)
+        generator = self.controller.get_api().get_items_in_folder(self.path)
+        for item in generator:
+            if item.get("type") == "file" and item.get("name") not in self.file_list:
+                self.file_list[item.get("name")] = FileButton(self, width=120, height=120, file_data=item, controller=self.controller)
+            if item.get("type") == "folder" and folder not in self.folder_list:
+                self.folder_list[item.get("path")] = FolderButton(self, width=120, height=120, folder_path=item.get("path"), controller=self.controller)
 
         self.pack(fill=ctk.BOTH, expand=True)
         columns = 6
@@ -626,7 +621,6 @@ class FileButton(IconButton):
         self.file_data = file_data
         print(self.file_data)
         print(self.file_data["name"])
-        print(self.file_data["id"])
 
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
         self.context_menu = OptionMenu(master.master.master, self.controller, [

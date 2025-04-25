@@ -1,34 +1,28 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 
 class CloudService(ABC):
     class CloudObject:
         """
         Abstract class representing an object in the cloud
         """
-        def __init__(self, id : any, path : str, name=None):
+        def __init__(self, id : any, name):
             self._id = id
-            self.path = path
             self.name = name
-            if name == None:
-                name = path.split("/")[-1]
-                
-
-        def get_path(self):
-            return self.path
         
         def get_name(self):
             return self.name
         
         def __str__(self):
-            return f"{self.__class__.__name__}: {self._id}, {self.path}"
+            return f"{self.__class__.__name__}: {self._id}, {self.name}"
         
     class Folder(CloudObject):
         """
         This class is the top level folder class that represent folders in a specific cloudservice.
         Can be inherited to add more functionality to the folder objects
         """
-        def __init__(self, id : any, path : str, name=None, shared=False):
-            super().__init__(id, path, name)
+        def __init__(self, id : any, name, shared=False):
+            super().__init__(id, name)
             self.shared = shared
         
         def is_shared(self):
@@ -89,16 +83,17 @@ class CloudService(ABC):
         return self.authenticated
 
     @abstractmethod
-    def get_children(self, folder : Folder) -> list[File|Folder]:
+    def get_children(self, folder : Folder, filter=None) -> Iterable[File|Folder]:
         """
         Get all file and folder objects that are children of the specified folder
         @param folder the folder object to get the children of
-        @return a list of file and folder objects
+        @param filter optional if the file or folder name starts with this, ignore it
+        @return an iterable of file and folder objects
         """
         pass
 
     @abstractmethod
-    def list_files(self, folder : Folder, filter="") -> list[File]:
+    def list_files(self, folder : Folder, filter="") -> Iterable[File]:
         """
         List all files in the folder
         @param folder the folder object, if not specified uses root folder
@@ -200,7 +195,7 @@ class CloudService(ABC):
         pass
     
     @abstractmethod
-    def list_shared_folders(self, filter="") -> list[Folder]:
+    def list_shared_folders(self, filter="") -> Iterable[Folder]:
         """
         List all shared folders in all of the cloud
         @return a list of folder objects that represent the shared folders

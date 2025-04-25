@@ -46,24 +46,24 @@ class Gateway:
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
         dropbox1 = DropBox(email)
-        drive1 = GoogleDrive(email)
+        #drive1 = GoogleDrive(email)
         encrypt = AESEncrypt()
         encrypt.set_key(encrypt.generate_key_from_key(master_key))
         # Everything here is for testing
         self.manager = CloudManager(
-            [drive1, dropbox1],
+            [dropbox1],
             "/EncryptoSphere", 
-            ShamirSplit(), 
+            NoSplit(), 
             encrypt
         )
 
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         self.current_session = self.manager
-        self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
-        self.executor.submit(self.manager.start_sync_thread())
-        self.executor.submit(self.start_sync_new_sessions_task())
-        self.executor.submit(self.manager.lock_session())
+        #self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
+        #self.executor.submit(self.manager.start_sync_thread())
+        #self.executor.submit(self.start_sync_new_sessions_task())
+        #self.executor.submit(self.manager.lock_session())
         print(f"Status: {status}")
         return status
     
@@ -90,28 +90,22 @@ class Gateway:
         else:
             self.current_session = self.session_manager.main_session
     
-    """ 
-    def get_files(self):
-        return self.current_session.get_file_list()
-    """ 
-    
-    def get_files(self, path="/"):
+    def get_items_in_folder(self, path="/"):
         """
-        @return: list of files in the current session in the FD format
+        @param path: the path to the folder
+        @return: Yielded iterable (generator) for every file in the current session in the folder given
         """
         return self.current_session.get_items_in_folder(path)
+    
+    
     @promise
     def sync_fd_to_clouds(self, callback=None):
         if not self.active_fd_sync:
             self.active_fd_sync = True
             print(f"Syncing FD to clouds")
-            fut1,fut2 = self.manager.sync_to_clouds()
-            fut1.result()
-            fut2.result()
-            ret = True if not fut1.exception() and not fut2.exception() else False
-            self.active_fd_sync = False
-            print(f"Syncing FD to clouds, status: {str(ret)}")
-            return ret
+            
+            print(f"Syncing FD to clouds, status: {str(True)}")
+            return True
         
     @promise    
     def sync_new_sessions(self):
@@ -134,13 +128,13 @@ class Gateway:
         
     
     @promise
-    def download_file(self, file_id):
+    def download_file(self, file_path):
         """
         Download file function
         @param file_id: the id of the file to download
         @return: True if the file was downloaded successfully, False otherwise
         """
-        return self.current_session.download_file(file_id)
+        return self.current_session.download_file(file_path)
 
     """
     def download_folder(self, folder_id):
@@ -170,14 +164,14 @@ class Gateway:
         return self.current_session.upload_folder(folder_path, path)
 
     @promise
-    def delete_file(self, file_id):
+    def delete_file(self, file_path):
         """
         Delete file function
         @param file_id: the id of the file to delete
         @return: True if the file was deleted successfully, False otherwise
         """
-        print(f"Delete file selected {file_id}")
-        return self.current_session.delete_file(file_id)
+        print(f"Delete file selected {file_path}")
+        return self.current_session.delete_file(file_path)
 
     @promise
     def delete_folder(self, path):
