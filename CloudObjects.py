@@ -47,9 +47,10 @@ class Directory:
 class CloudFile:
     def __init__(self, parts : dict[CloudService, list[CloudService.File]], path):
         """
+        @param parts should look like this:
         {
-            "cloud1": [file_part0, file_part1,...],
-            "cloud2": [file_part0, file_part1,...],
+            cloud1: [file_part0, file_part1,...],
+            cloud2: [file_part0, file_part1,...],
             ...
         }
         """

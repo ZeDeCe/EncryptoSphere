@@ -399,7 +399,7 @@ class MainPage(ctk.CTkFrame):
         self.controller.get_api().upload_file(
             lambda f: (
                 self.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else None
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             os.path.normpath(file_path),
             self.main_frame.path
@@ -455,7 +455,7 @@ class MainPage(ctk.CTkFrame):
         self.controller.get_api().upload_folder(
             lambda f: (
                 self.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else None
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             os.path.normpath(folder_path),
             self.main_frame.path
@@ -546,7 +546,7 @@ class Folder(ctk.CTkFrame):
         for item in generator:
             if item.get("type") == "file" and item.get("name") not in self.file_list:
                 self.file_list[item.get("name")] = FileButton(self, width=120, height=120, file_data=item, controller=self.controller)
-            if item.get("type") == "folder" and folder not in self.folder_list:
+            if item.get("type") == "folder" and item.get("name") not in self.folder_list:
                 self.folder_list[item.get("path")] = FolderButton(self, width=120, height=120, folder_path=item.get("path"), controller=self.controller)
 
         self.pack(fill=ctk.BOTH, expand=True)
@@ -648,7 +648,7 @@ class FileButton(IconButton):
         self.controller.get_api().download_file(
             lambda f: (
                 self.master.master.master.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else None
+                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else None
             ),
             file_data["id"]
         )
@@ -663,7 +663,7 @@ class FileButton(IconButton):
         self.controller.get_api().delete_file(
             lambda f: (
                 self.master.master.master.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else None
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             file_data["id"]
         )
@@ -766,7 +766,7 @@ class FolderButton(IconButton):
         self.controller.get_api().delete_folder(
             lambda f: (
                 self.master.master.master.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else self.master.master.master.refresh()
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else self.master.master.master.refresh()
             ),
             self.folder_path
         )

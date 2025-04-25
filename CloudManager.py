@@ -142,7 +142,7 @@ class CloudManager:
         """
         # Check if we have it cached
         if path in self.fs and isinstance(self.fs.get(path), Directory):
-            return self.fs[path]
+            return self.fs.get(path)
         
         # Go through all folders in cache that match path and try to find one of them
         parent = '/'.join(path.rstrip('/').split('/')[:-1]) or '/'
@@ -154,8 +154,8 @@ class CloudManager:
 
         # Create each folder
         futures = {}
-        current_path = parent.path
-        for name in path.split("/")[len(parent.path.split("/")):]:
+        current_path = parent.path if parent.path != "/" else ""
+        for name in path.split("/")[len(parent.path.split("/"))-1:]:
             current_path = f"{current_path}/{name}"
             for cloud in self.clouds:
                 futures[self.executor.submit(cloud.create_folder, name, parent.get(cloud.get_name()))] = cloud.get_name()
@@ -167,6 +167,7 @@ class CloudManager:
                 folders[tupl[0]] = tupl[1]
             parent = Directory(folders, path=current_path)
             self.fs[current_path] = parent
+        return self.fs[path]
 
     def authenticate(self):
         """
@@ -207,7 +208,7 @@ class CloudManager:
             print(f"Error during authentication, loading of file descriptor: {e}")
             return False
         
-    def upload_file(self, os_filepath, path="/", sync=True):
+    def upload_file(self, os_filepath, path="/"):
         """
         Uploads a single file to the cloud.
         
@@ -319,9 +320,36 @@ class CloudManager:
             if data!=replicated[0]:
                 return False, replicated
         return True, replicated[0]
+    
+    def create_folder(self, path : str) -> bool:
+        """
+        Creates a new folder in the encryptosphere filesystem
+        @param path the path to create the folder in
+        @return success
+        """
+        if not self.fs.get(path) is None:
+            return True
         
+        parent_path = "/".join(path.split("/")[:-1])
+        parent_path = "/" if parent_path == "" else parent_path
+        parent = self._get_directory(parent_path)
+        name = path.split("/")[-1]
+        if name == "":
+            raise Exception("Cannot create root folder using create_folder!")
+        futures = {}
+        for cloud in self.clouds:
+            futures[self.executor.submit(cloud.create_folder, name, parent.get(cloud.get_name()))] = cloud
+        results, success = self._complete_cloud_threads(futures)
+        if not success:
+            raise Exception("Failed to create folder in some clouds")
+        folders = {}
+        for cloud,folder in results:
+            folders[cloud.get_name()] = folder
+        self.fs[path] = Directory(folders, path)
+        return True
+
     # TODO: error handling
-    def upload_folder(self, os_folder, path="/"):
+    def upload_folder(self, os_folder, path):
         """
         This function uploads an entire folder to the cloud.
         Synchronization is deferred until all files are uploaded.
@@ -336,18 +364,36 @@ class CloudManager:
         
         # Iterate over the folder and upload each file
         futures = {}
+        
+        # First upload main folder
+        futures[self.executor.submit(self.create_folder, f"{path}{folder_name}")] = f"{path}{folder_name}"
+        
+        # Create all subdirectories
+        for root, dirs, _ in os.walk(os_folder):
+            root_arr = root.split(os.sep)
+            root_arr = root_arr[root_arr.index(folder_name):]
+            encrypto_root = f"{path}{'/'.join(root_arr)}"
+            if encrypto_root[-1] != "/":
+                encrypto_root = f"{encrypto_root}/"
+            for dir in dirs:
+                print(f"Doing folder: {encrypto_root}{dir}")
+                futures[self.executor.submit(self.create_folder, f"{encrypto_root}{dir}")] = f"{encrypto_root}{dir}"
+        results, success = self._complete_cloud_threads(futures)
+        if not success:
+            raise Exception("Failed to upload folders in given folder.")
+        
+        # Create all files
+        futures = {}
         for root, _, files in os.walk(os_folder):
             root_arr = root.split(os.sep)
             root_arr = root_arr[root_arr.index(folder_name):]
-            encrypto_root = "/".join(root_arr)
+            encrypto_root = f"{path}{'/'.join(root_arr)}"
             for file in files:
-                futures[self.executor.submit(self.upload_file, os.path.join(root, file), f"{path}{encrypto_root}", False)] = None
+                print(f"Doing file: {encrypto_root}{file}")
+                futures[self.executor.submit(self.upload_file, os.path.join(root, file), encrypto_root)] = f"{encrypto_root}-{file}"
         results, success = self._complete_cloud_threads(futures)
         if not success:
-            raise Exception("Failed to upload folder contents to clouds.")
-        
-        # Sync file descriptor once after all uploads
-        self.sync_fd()
+            raise Exception("Failed to upload files in folders.")
         return True
 
     def download_file(self, path):
@@ -423,26 +469,25 @@ class CloudManager:
         on all of those files. Constructs them as the hierarchy in the filedescriptor on the OS.
         """
 
-    def delete_file(self, file_id):
+    def delete_file(self, path):
         """
         Deletes a specific file from file ID using the filedescriptor
         @param file_id the file id to delete
         """
-        file_data = self.fd.get_file_data(file_id)
-        parts = file_data['parts']
+        file : CloudFile = self.fs.get(path)
+        if file is None:
+            raise Exception(f"Trying to delete a non-existant file {path}")
         futures = {}
-        for cloud_name, part_count in parts.items():
-            cloud = next((cloud for cloud in self.clouds if cloud.get_name() == cloud_name), None)
-            if cloud is None:
-                raise ValueError(f"Cloud {cloud_name} not found in the current session.")    
-            for part_number in range(1, part_count + 1): 
-                futures[self.executor.submit(cloud.delete_file, f"{file_id}_{part_number}", self.root_folder)] = cloud_name
+        for cloud in self.clouds:
+            parts = file.get(cloud.get_name())
+            for part in parts:
+                futures[self.executor.submit(cloud.delete_file, part)] = cloud
         results, success = self._complete_cloud_threads(futures)
         if not success:
-            raise Exception("Failed to delete file parts from clouds.")
-        
-        self.fd.delete_file(file_id)
-        self.sync_fd()
+            bad = filter(lambda cloud,result: result is None)
+            bad = [cloud.get_name() for (cloud,result) in bad]
+            print(f"Failed to delete file parts from a few clouds: {bad}")
+        self.fs.pop(path)
         return True
 
     def delete_folder(self, folder_path):
