@@ -179,3 +179,4 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 token.json
+cloud_tokens.json
