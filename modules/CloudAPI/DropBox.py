@@ -376,7 +376,7 @@ class DropBox(CloudService):
         Unshare a folder by given email address
         """
         folder_id = folder.id
-        if isinstance(folder_id, str):
+        if not folder.shared:
             raise Exception("Error: Folder ID should be a shared ID")
         success = True
         for email in emails:
