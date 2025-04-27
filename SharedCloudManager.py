@@ -317,7 +317,7 @@ class SharedCloudManager(CloudManager):
                 """
 
             except Exception as e:
-                print(f"Failed to add user {email} to shared session on {cloud_name}: {e}")
+                print(f"Failed to remove user {email} from shared session on {cloud_name}: {e}")
     
     def add_users_to_share(self, users : list[dict[str, str]]):
         """
