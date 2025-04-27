@@ -594,13 +594,13 @@ class GoogleDrive(CloudService):
         except HttpError as error:
             raise Exception(f"Error unsharing folder: {error}")
 
-    def unshare_by_email(self, folder: str, emails: list[str]):
+    def unshare_by_email(self, folder : CloudService.Folder, emails: list[str]):
         """
         Unshare a folder from specific emails.
         """
         try:
             # Get the list of permissions for the folder
-            permissions = self.drive_service.permissions().list(fileId=folder, fields="permissions(id, emailAddress, type, role)").execute()
+            permissions = self.drive_service.permissions().list(fileId=folder.id, fields="permissions(id, emailAddress, type, role)").execute()
             
             permission_list = permissions.get('permissions', [])
 
@@ -608,7 +608,7 @@ class GoogleDrive(CloudService):
                 # Find and delete permission for the specific email
                 for permission in permission_list:
                     if permission.get('emailAddress') == email and permission['type'] == 'user':
-                        self.drive_service.permissions().delete(fileId=folder, permissionId=permission['id']).execute()
+                        self.drive_service.permissions().delete(fileId=folder.id, permissionId=permission['id']).execute()
                         break
 
             return True
