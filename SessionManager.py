@@ -14,6 +14,7 @@ class SessionManager():
         self.main_session : CloudManager = main_session
         self.sessions : dict[SharedCloudManager] = {}
         self.sessions_lock = Lock()
+        self.syncing_sessions = False
 
     def get_key(self):
         """
@@ -54,6 +55,10 @@ class SessionManager():
         Looks in all clouds for shared sessions
         If one is found, create a SharedCloudManager for the folder and add it to self.sessions using add_session
         """
+        if self.syncing_sessions:
+            return False
+        self.syncing_sessions = True
+
         new_sessions = {}
         for cloud in self.main_session.clouds:
             shared_folders = cloud.list_shared_folders(filter=SharedCloudManager.shared_suffix)
@@ -81,8 +86,9 @@ class SessionManager():
                 dir = Directory(folders, "/")
                 future = executor.submit(self.add_session,
                     SharedCloudManager(None, dir, clouds, name, self.main_session.split.copy(), self.main_session.encrypt.copy()))
-        
+        self.syncing_sessions = False
         self.sync_known_sessions()
+        return True
     
     def __get_shared_folder_uid(self, cloud : CloudService, folder : CloudService.Folder) -> str | None:
         files = cloud.list_files(folder, "$UID_")

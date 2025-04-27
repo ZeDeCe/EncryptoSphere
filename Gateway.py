@@ -26,7 +26,7 @@ import app as app
 # This is temporary:
 from cryptography.fernet import Fernet
 
-SYNC_TIME = 600 # 10 minutes
+SYNC_TIME = 90 # 1 min 30 sec
 
 class Gateway:
     """
@@ -61,8 +61,7 @@ class Gateway:
         status = self.manager.authenticate()
         self.current_session = self.manager
         self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
-        #self.executor.submit(self.manager.start_sync_thread())
-        #self.executor.submit(self.start_sync_new_sessions_task())
+        self.start_sync_new_sessions_task()
         print(f"Status: {status}")
         return status
     
@@ -224,7 +223,7 @@ class Gateway:
         @return: list of shared folders names
         """
         ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
-        #self.session_manager.sync_new_sessions()  
+        #self.session_manager.sync_new_sessions()
         return self.session_manager.sessions.keys()
 
     #TODO: Advanced sharing options
@@ -294,7 +293,7 @@ class Gateway:
             while not self.stop_event.is_set():  # Check if stop_event is set
                 try:
                     print("Running sync_new_sessions...")
-                    self.sync_new_sessions(None)
+                    ret = self.session_manager.sync_new_sessions()
                 except Exception as e:
                     print(f"Error during sync_new_sessions: {e}")
                 # Wait for the next sync interval, but check stop_event periodically
