@@ -536,6 +536,7 @@ class Folder(ctk.CTkFrame):
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
     
     def refresh(self):
+        self.pack(fill=ctk.BOTH, expand=True)
         if self.is_refreshed:
             self.controller.get_api().get_items_in_folder_async(lambda f: self.__refresh(f.result()), self.path)
         else:
@@ -555,7 +556,6 @@ class Folder(ctk.CTkFrame):
                 self.folder_list[item.get("name")] = FolderButton(self, width=120, height=120, folder_path=item.get("path"), controller=self.controller)
             item_names.append(item.get("name"))
 
-        self.pack(fill=ctk.BOTH, expand=True)
         columns = 6
 
         # Forget all existing files and folders
