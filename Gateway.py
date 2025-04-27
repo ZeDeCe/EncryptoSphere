@@ -267,10 +267,7 @@ class Gateway:
         As of this POC we are given only one email and support only dropbox and google drive using the same email address!
 
         """
-        share = None
-        for folder_path, session in self.session_manager.sessions.items():
-            if folder_path ==  session.root_folder:
-                share = session
+        share = self.session_manager.sessions.get(folder_path)
         share.revoke_user_from_share(email_dict)
 
     @promise
@@ -284,10 +281,7 @@ class Gateway:
         As of this POC we are given only one email and support only dropbox and google drive using the same email address!
 
         """
-        share = None
-        for folder_path, session in self.session_manager.sessions.items():
-            if folder_path ==  session.root_folder:
-                share = session
+        share = self.session_manager.sessions.get(folder_path)
         share_with = []
         for email in emails:
             user_dict = {}
