@@ -70,7 +70,7 @@ class SessionManager():
                 uid = self.__get_shared_folder_uid(cloud, folder)
                 if uid is None or uid == "":
                     continue
-                id : str = f"{folder.get_name()}${uid}"
+                id : str = f"{folder.get_name().replace(SharedCloudManager.shared_suffix, '')}${uid}"
                 if self.sessions.get(id):
                     continue
                 new_sessions[id] = new_sessions.get(id) if new_sessions.get(id) else {}
