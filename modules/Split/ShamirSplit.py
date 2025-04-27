@@ -19,8 +19,8 @@ class ShamirSplit(Split):
             data_parts =  encoder.encode(data)
             return [data_parts[i:i + clouds_num] for i in range(0, len(data_parts), clouds_num)]
 
-        except Exception:
-            raise Exception("Shamir: Error during split")
+        except Exception as e:
+            raise Exception(f"Shamir-Split Error: {e}")
 
 
     def merge_parts(self, data, clouds_num):
@@ -33,7 +33,7 @@ class ShamirSplit(Split):
         data = [part for part in data if part is not None]
 
         if len(data) < min_parts:
-            raise Exception(f"Shamir split: At least {min_parts} parts are required to reconstruct the file, got {len(data)} parts")
+            raise Exception(f"Shamir-Merge: At least {min_parts} parts are required to reconstruct the file, got {len(data)} parts")
 
         decoder = Decoder(k=min_parts, m=num_parts)
         if len(data) > min_parts:
@@ -44,8 +44,8 @@ class ShamirSplit(Split):
             padlen = 0
             return decoder.decode(data, sharenums, padlen)
 
-        except Exception:
-            raise Exception("Shamir: error during reconstruction")
+        except Exception as e:
+            raise Exception(f"Shamir-Merge: error during reconstruction, {e}")
 
 """
 def test():

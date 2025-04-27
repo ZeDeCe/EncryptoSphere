@@ -344,9 +344,6 @@ class CloudManager:
                     data[index] = result
                     valid_parts += 1
             
-            if valid_parts < MIN_PARTS:  # Allow at most 1 missing part
-                raise ValueError(f"Insufficient valid parts for file_id {file_id}. Valid parts: {valid_parts}/{len(data)}")
-
             # Merge and decrypt the data
             if not data:
                 raise ValueError(f"No data downloaded for file_id {file_id}.")
