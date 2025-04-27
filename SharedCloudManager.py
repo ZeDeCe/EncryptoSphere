@@ -305,14 +305,14 @@ class SharedCloudManager(CloudManager):
             return False
         return True
     
-    def revoke_user_from_share(self, users):
+    def revoke_user_from_share(self, user : dict[str, str]):
         """
         Completely revokes a user from a shared session
         Will delete their FEK and unshare them from the folder
         If it is the last user, converts to a normal session
-        @param users a dictionary in the format: {"cloudname": "email", ...}
+        @param user a dictionary in the format: {"cloudname": "email", ...}
         """
-        for cloud_name, email in users.items():
+        for cloud_name, email in user.items():
             # Find the cloud service by name
             cloud = next((c for c in self.clouds if c.get_name() == cloud_name), None)
             if not cloud:
@@ -339,6 +339,7 @@ class SharedCloudManager(CloudManager):
                         user for user in self.users if not (cloud_name in user and user[cloud_name] == email)
                     ]
 
+                """
                 # Check if there are any remaining shared users
                 remaining_members = cloud.get_members_shared(folder)
                 if not remaining_members or len(remaining_members) < 2:
@@ -347,35 +348,38 @@ class SharedCloudManager(CloudManager):
                     cloud.delete_file("$FEK", self.root_folder)  # Delete the global FEK file
                     cloud.unshare_folder(folder)  # Unshare the folder completely
                     print(f"Session on {cloud_name} converted to a normal session.")
+                """
 
             except Exception as e:
-                print(f"Failed to add user {email} to shared session on {cloud_name}: {e}")
+                print(f"Failed to remove user {email} from shared session on {cloud_name}: {e}")
     
-    def add_user_to_share(self, users):
+    def add_users_to_share(self, users : list[dict[str, str]]):
         """
-        Adds a new user to the shared session
-        @param users a dictionary in the format: {"cloudname": "email", ...}
+        Adds multiple new users to the shared session
+        @param users a list of dictionaries in the format: [{"cloudname": "email", ...}, ...]
         """
-        for cloud_name, email in users.items():
-            # Find the cloud service by name
-            cloud = next((c for c in self.clouds if c.get_name() == cloud_name), None)
-            if not cloud:
-                print(f"Cloud {cloud_name} not found in the current session.")
-                continue
+        for user in users:
+            for cloud_name, email in user.items():
+                # Find the cloud service by name
+                cloud = next((c for c in self.clouds if c.get_name() == cloud_name), None)
+                if not cloud:
+                    print(f"Cloud {cloud_name} not found in the current session.")
+                    continue
 
-            try:
-                # Share the folder with the new user
-                folder = cloud.get_folder(self.root_folder)
-                cloud.share_folder(folder, [email])
-                print(f"User {email} added to shared session on {cloud_name}.")
+                try:
+                    # Share the folder with the new user
+                    folder = cloud.get_folder(self.root_folder)
+                    cloud.share_folder(folder, [email])
+                    print(f"User {email} added to shared session on {cloud_name}.")
 
-                # Update self.users to include the new user
-                if self.users is None:
-                    self.users = []
-                self.users.append({cloud_name: email})
-
-            except Exception as e:
-                print(f"Failed to add user {email} to shared session on {cloud_name}: {e}")
+                    # Update self.users to include the new user
+                    if self.users is None:
+                        self.users = []
+                    
+                except Exception as e:
+                    print(f"Failed to add user {email} to shared session on {cloud_name}: {e}")
+                    user.pop(cloud_name, None)  # Remove the cloud from the user dictionary if sharing fails
+            self.users.append(user)
 
     @staticmethod
     def is_valid_session_root(cloud : CloudService, root : CloudService.Folder) -> bool:
@@ -418,3 +422,12 @@ class SharedCloudManager(CloudManager):
     
     def get_uid(self):
         return self.uid
+    
+
+    def get_shared_emails(self) -> list[str]:
+        """
+        Returns the emails of the users shared in the session
+        @param cloud_name the name of the cloud to get the emails from
+        @return a list of emails of the users shared in the session
+        """
+        return self.users
