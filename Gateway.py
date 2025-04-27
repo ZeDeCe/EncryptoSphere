@@ -96,6 +96,9 @@ class Gateway:
         """
         return self.current_session.get_items_in_folder(path)
     
+    @promise
+    def get_items_in_folder_async(self, path="/"):
+        return self.current_session.get_items_in_folder(path)
     
     @promise
     def sync_fd_to_clouds(self, callback=None):

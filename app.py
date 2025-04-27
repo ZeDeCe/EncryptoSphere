@@ -467,8 +467,8 @@ class MainPage(ctk.CTkFrame):
         else:
             self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
     def change_folder(self, path):
-        self.change_back_button(path)
         self._change_folder(path)
+        self.change_back_button(path)
 
     def _change_folder(self, path):
         """
@@ -530,15 +530,23 @@ class Folder(ctk.CTkFrame):
         
         self.file_list = {}
         self.folder_list = {}
+        self.is_refreshed = False
 
         self.url_label = ctk.CTkLabel(self, text=self.path, anchor="e", fg_color="gray30", corner_radius=10)
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
-      
+    
     def refresh(self):
+        if self.is_refreshed:
+            self.controller.get_api().get_items_in_folder_async(lambda f: self.__refresh(f.result()), self.path)
+        else:
+            generator = self.controller.get_api().get_items_in_folder(self.path)
+            self.__refresh(generator)
+            self.is_refreshed = True
+
+    def __refresh(self, generator):
         """
         Refresh the frame and display all updates
         """
-        generator = self.controller.get_api().get_items_in_folder(self.path)
         item_names = []
         for item in generator:
             if item.get("type") == "file" and item.get("name") not in self.file_list:
