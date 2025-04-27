@@ -60,7 +60,6 @@ class Gateway:
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         self.current_session = self.manager
-        self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
         self.start_sync_new_sessions_task()
         print(f"Status: {status}")
         return status
