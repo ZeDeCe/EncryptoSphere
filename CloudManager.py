@@ -266,11 +266,15 @@ class CloudManager:
     def _delete_replicated(self, file_name, suffix=False):
         for cloud in self.clouds:
             suffix = f"_{cloud.get_email()}" if suffix else ""
-            file = cloud.list_files(self.fs["/"].get(cloud.get_name()), file_name) # This is running sync, might be a problem
-            for data in file:
-                if data.get_name() == file_name:
-                    file = data
+            files = cloud.list_files(self.fs["/"].get(cloud.get_name()), f"{file_name}{suffix}")
+            file : CloudService.File = None
+            for f in files:
+                if f.get_name() == f"{file_name}{suffix}":
+                    file = f
                     break
+            if file is None:
+                print(f"Failed to find replicated file {file_name}{suffix}")
+                return False
             self.executor.submit(cloud.delete_file, file)
         # we don't even wait for the results
     

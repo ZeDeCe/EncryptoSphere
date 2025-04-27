@@ -221,7 +221,7 @@ class DropBox(CloudService):
                 res.close()
 
 
-    def delete_file(self, file : CloudService.File): # Changed!
+    def delete_file(self, file : CloudService.File):
         """
         Delete file from DropBox by name
         """
