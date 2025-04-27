@@ -39,7 +39,7 @@ class CloudManager:
         self.stop_event = threading.Event()  # Event to signal
         self.fs : dict[str, CloudFile | Directory]= {} # filesystem
         self.root = root # Temporary until login module
-        self.executor = concurrent.futures.ThreadPoolExecutor()
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.clouds) * 5)
 
     def __del__(self):
         self.executor.shutdown(wait=True)

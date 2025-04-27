@@ -222,7 +222,7 @@ class Gateway:
         @return: list of shared folders names
         """
         ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
-        #self.session_manager.sync_new_sessions()
+        #res = self.session_manager.sync_new_sessions()
         return self.session_manager.sessions.keys()
 
     #TODO: Advanced sharing options
