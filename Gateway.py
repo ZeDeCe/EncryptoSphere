@@ -256,7 +256,8 @@ class Gateway:
                 share = session
         return share.get_shared_emails()
     
-    def revoke_user_from_share(self, folder_path ,emails):
+    @promise
+    def revoke_user_from_share(self, folder_path ,email_dict):
         """
         unshare emails from given shared folder
         @param folder name (will be convertet to session)
@@ -267,16 +268,10 @@ class Gateway:
 
         """
         share = None
-        for folder_path,session in self.session_manager.sessions.items():
+        for folder_path, session in self.session_manager.sessions.items():
             if folder_path ==  session.root_folder:
                 share = session
-        unshare_with = []
-        for email in emails:
-            user_dict = {}
-            for cloud in self.manager.clouds:
-                user_dict[cloud.get_name()] = email
-            unshare_with.append(user_dict)
-        share.revoke_user_from_share(unshare_with)
+        share.revoke_user_from_share(email_dict)
 
     @promise
     def add_users_to_share(self, folder_path ,emails):
@@ -290,7 +285,7 @@ class Gateway:
 
         """
         share = None
-        for folder_path,session in self.session_manager.sessions.items():
+        for folder_path, session in self.session_manager.sessions.items():
             if folder_path ==  session.root_folder:
                 share = session
         share_with = []
