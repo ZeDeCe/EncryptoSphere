@@ -6,11 +6,11 @@ class CloudService(ABC):
         """
         Abstract class representing an object in the cloud
         """
-        def __init__(self, id : any, name):
+        def __init__(self, id : any, name : str):
             self._id = id
             self.name = name
         
-        def get_name(self):
+        def get_name(self) -> str:
             return self.name
         
         def __str__(self):
@@ -198,6 +198,7 @@ class CloudService(ABC):
     def list_shared_folders(self, filter="") -> Iterable[Folder]:
         """
         List all shared folders in all of the cloud
+        @param filter a suffix to filter results by
         @return a list of folder objects that represent the shared folders
         """
     

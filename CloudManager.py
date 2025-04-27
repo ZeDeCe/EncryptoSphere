@@ -25,13 +25,11 @@ class CloudManager:
         """
         Initialize a cloudmanager and a session
         @param clouds the cloud classes to use
-        @param root the root directory, must start with /
+        @param root the root directory name
         @param split the split class to use
         @param encrypt the encrypt class to use
         @param file_descriptor the filedescriptor to use. If none provided, will assume that the session already exists and try syncing it from the cloud
         """
-        if root[0]!="/":
-            raise Exception("CloudManager: Root direcory must start with /")
         self.split = split
         self.encrypt = encrypt
         self.clouds = clouds
@@ -40,8 +38,7 @@ class CloudManager:
         self.sync_thread = None
         self.stop_event = threading.Event()  # Event to signal
         self.fs : dict[str, CloudFile | Directory]= {} # filesystem
-        self.username = "main_session" # Temporary until login module
-        #self.lock_session()
+        self.root = root # Temporary until login module
         self.executor = concurrent.futures.ThreadPoolExecutor()
 
     def __del__(self):
@@ -66,42 +63,6 @@ class CloudManager:
                 results.append((cloud_name, e))
                 print(f"Error executing task to {cloud_name}: {e}")
         return results, success
-
-    def lock_session(self):
-        """
-        Checks if a session file is active on the cloud
-        If it is raise error.
-        If not then place one to lock the session
-        """
-        for cloud in self.clouds:
-            session_file_name = f"SESSION_ACTIVE_{cloud.get_email()}"
-            try:
-                # Check if the session file already exists
-                existing_file = cloud.download_file(session_file_name, self.root_folder)
-                if existing_file is not None:
-                    print(f"Session is already active for user {cloud.get_email()} on cloud {cloud.get_name()}.")
-                    raise Exception(f"Session is already active for user {cloud.get_email()} on cloud {cloud.get_name()}.")
-
-                # Create the session file
-                cloud.upload_file(b"SESSION ACTIVE", session_file_name, self.root_folder)
-                print(f"Session locked for user {cloud.get_email()} on cloud {cloud.get_name()}.")
-            except Exception as e:
-                print(f"Error locking session for cloud {cloud.get_name()}: {e}")
-                raise
-    
-    def unlock_session(self):
-        """
-        Removes the "SESSION ACTIVE" file from the root directory of each cloud to unlock the session.
-        """
-        for cloud in self.clouds:
-            session_file_name = f"SESSION_ACTIVE_{cloud.get_email()}"
-            try:
-                # Delete the session file
-                cloud.delete_file(session_file_name, self.root_folder)
-                print(f"Session unlocked for user {cloud.get_email()} on cloud {cloud.get_name()}.")
-            except Exception as e:
-                print(f"Error unlocking session for cloud {cloud.get_name()}: {e}")
-                raise
 
     def _split(self, data : bytes, clouds : int):
         return self.split.split(data, clouds)
@@ -181,7 +142,7 @@ class CloudManager:
         for cloud in self.clouds:
             try:
                 cloud.authenticate_cloud()
-                futures[self.executor.submit(cloud.get_session_folder, self.username)] = cloud.get_name()
+                futures[self.executor.submit(cloud.get_session_folder, self.root)] = cloud.get_name()
             except Exception as e:
                 print(f"Error during cloud authentication: {e}")
                 return False
@@ -502,13 +463,13 @@ class CloudManager:
         if not folder:
             raise FileNotFoundError(f"Folder with path {path} does not exist!")
         
-        for item_path, item in self.fs.items():
-            if item_path == '/':
-                continue
-            mydir = "/".join(item_path.split("/")[:-1])
-            mydir = mydir if mydir != '' else '/'
-            if mydir == path:
-                yield item.get_data()
+        # for item_path, item in self.fs.items():
+        #     if item_path == '/':
+        #         continue
+        #     mydir = "/".join(item_path.split("/")[:-1])
+        #     mydir = mydir if mydir != '' else '/'
+        #     if mydir == path:
+        #         yield item.get_data()
         
         files = {}
         folders = {}
@@ -538,18 +499,30 @@ class CloudManager:
                 else:
                     print("Invalid type found - danger")
                     continue
-
+        added = []
         for folder_path, f in folders.items():
             dir = Directory(f, folder_path)
-            if not self.fs.get(folder_path):
-                yield dir.get_data()
+            added.append(folder_path)
+            yield dir.get_data()
             self.fs[folder_path] = dir
             
         for file_path, parts in files.items():
             f = CloudFile(parts, file_path)
-            if not self.fs.get(file_path):
-                yield f.get_data()
+            added.append(file_path)
+            yield f.get_data()
             self.fs[file_path] = f
+        
+        to_remove = []
+        for item_path in self.fs.keys():
+            item_folder = "/".join(item_path.split("/")[:-1])
+            item_folder = item_folder if item_folder != '' else '/'
+            if item_path != path and not item_path in added and item_folder == path:
+                print(f"File was deleted: {item_path}")
+                to_remove.append(item_path)
+        
+        for item_path in to_remove:
+            self.fs.pop(item_path)
+
         
         
                 
@@ -566,9 +539,12 @@ class CloudManager:
             for cloudname in self.metadata.get("order"):
                 if not cloudname in self.cloud_name_list: # TODO: Make it so only the needed amount of clouds are checked
                     raise Exception(f"Missing a required cloud for session: {cloudname}")
+            self.cloud_name_list = self.metadata.get("order")
             if self.split.get_name() != self.metadata.get("split"):
-                raise Exception("Bad splitting algorithm chosen for session")
+                print(f"Changing splitting algorithm for session {self.root}")
+                self.split = Split.get_class(self.metadata.get("split"))()
             if self.encrypt.get_name() != self.metadata.get("encrypt"):
-                raise Exception("Bad encryption algorithm chosen for session")
+                print(f"Changing encryption algorithm for session {self.root}")
+                self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
 

@@ -1,7 +1,7 @@
 from modules.CloudAPI.CloudService import CloudService
 
 class Directory:
-    def __init__(self, folders : dict[str, CloudService.Folder], path : str):
+    def __init__(self, folders : dict[str | CloudService, CloudService.Folder], path : str):
         """
         {
             "cloud1": folder,
@@ -10,12 +10,16 @@ class Directory:
         }
         """
         assert len(folders)>0
-
-        self.folders = folders
-        for cloud, item in self.folders.items():
+        self.folders = {}
+        for cloud, item in folders.items():
             if not isinstance(item, CloudService.Folder):
                 raise Exception("Trying to create directory with an item that is not a folder!")
-        
+            if isinstance(cloud, CloudService):
+                self.folders[cloud.get_name()] = item
+            elif isinstance(cloud, str):
+                self.folders[cloud] = item
+            else:
+                raise Exception("Cloud key is neither a cloudservice object or a string")
         self.path = path
         self.name = (self.path.split("/")[-1]) if (self.path.split("/")[-1]) != "" else "/"
 

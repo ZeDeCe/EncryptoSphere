@@ -24,6 +24,8 @@ class DropBox(CloudService):
         The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
         The function creates and save the root folder (if not already exsist)
         """
+        if self.authenticated:
+            return True
         try:
             with open(DROPBOX_TOKEN_PATH, "r") as token_file:
                 print("DropBox : Loading clouds token file...")
@@ -165,6 +167,7 @@ class DropBox(CloudService):
             return files
 
         except dropbox.exceptions.ApiError as e:
+            print(f"Dropbox: API error: {e}")
             raise Exception(f"Error {e}")
 
 

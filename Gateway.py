@@ -52,7 +52,7 @@ class Gateway:
         # Everything here is for testing
         self.manager = CloudManager(
             [dropbox1],
-            "/EncryptoSphere", 
+            "main_session", 
             NoSplit(), 
             encrypt
         )
@@ -60,10 +60,9 @@ class Gateway:
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         self.current_session = self.manager
-        #self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
+        self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
         #self.executor.submit(self.manager.start_sync_thread())
         #self.executor.submit(self.start_sync_new_sessions_task())
-        #self.executor.submit(self.manager.lock_session())
         print(f"Status: {status}")
         return status
     
@@ -80,13 +79,13 @@ class Gateway:
             return future
         return wrapper
 
-    def change_session(self, path=None):
+    def change_session(self, uid=None):
         """
         Change the current session to the one specified by path
         @param path: the path to the session to change to
         """
-        if path:
-           self.current_session = self.session_manager.get_session(path)
+        if uid:
+           self.current_session = self.session_manager.get_session(uid)
         else:
             self.current_session = self.session_manager.main_session
     
@@ -120,10 +119,8 @@ class Gateway:
         
     @promise
     def refresh_shared_folder(self):
-        if not self.active_shared_folder_sync:
-            self.active_shared_folder_sync = True
-            #TODO: Add the functionality to refresh the shared folder
-            self.active_shared_folder_sync = False
+        # We don't actually need to do anything, just call get_items_in_folder for that shared folder
+        pass
 
         
     
@@ -206,9 +203,10 @@ class Gateway:
             
         new_session = SharedCloudManager(
             shared_with,
+            None,
             list(self.manager.clouds),
-            f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
-            ShamirSplit(),
+            folder_name, 
+            self.manager.split.copy(),
             self.manager.encrypt.copy(),
         )
 
