@@ -1148,27 +1148,54 @@ class SharedFolderButton(IconButton):
         shared_with_label.grid(row=3, column=0, padx=(0, 10), pady=(10, 5), sticky="w")
 
         # List of emails already shared
-        shared_emails = self.controller.get_api().get_shared_emails(self.full_folder_name)  # Fetch shared emails from API
+        self.shared_emails = self.controller.get_api().get_shared_emails(self.full_folder_name)  # Fetch shared emails from API
 
         def remove_email(display_email, email):
             """
             Function to remove an email from the shared list
             """
             confirm = messagebox.askyesno("Remove Share", f"Remove {display_email} from share?")
+            for widget in scrollable_frame.winfo_children():
+                if hasattr(widget, 'custom_id') and widget.custom_id == display_email and isinstance(widget, ctk.CTkButton):
+                    widget.configure(state="disabled")
             if confirm:
-                self.controller.get_api().revoke_user_from_share(lambda f: self.refresh(), self.full_folder_name, email)
+                self.controller.get_api().revoke_user_from_share(
+                    lambda f, display_email=display_email: (
+                        remove_email_and_rearrange(display_email) if not f.exception() else messagebox.showerror("Error", f"Failed to revoke user: {f.exception()}")
+                    ),
+                    self.full_folder_name,
+                    email
+                )
+
+        def remove_email_and_rearrange(display_email):
+            # Remove the relevant email label and remove button using custom_id
+            for widget in scrollable_frame.winfo_children():
+                if hasattr(widget, 'custom_id') and widget.custom_id == display_email:
+                    if widget.winfo_exists():  # Check if the widget still exists
+                        widget.destroy()
+
+            # Remove the email from the shared list
+            self.shared_emails = [email for email in self.shared_emails if list(email.values())[0] != display_email]
+
+            # Rearrange the remaining email labels and buttons
+            scrollable_frame.update_idletasks()  # Ensure the frame is updated after widget removal
+
 
         # Display each email with alignment and a "Remove" button
-        if shared_emails:
-            for idx, email in enumerate(shared_emails):
+        if self.shared_emails:
+            for idx, email in enumerate(self.shared_emails):
                 # Display email aligned to the left
                 display_email = list(email.values())[0]  # Get the value of the first element in the dictionary
                 email_label = ctk.CTkLabel(scrollable_frame, text=display_email, anchor="w", text_color="white")
                 email_label.grid(row=idx + 4, column=0, sticky="w")
+                email_label.custom_id = display_email
 
                 # Add "Remove" button aligned to the right
-                remove_button = ctk.CTkButton(scrollable_frame, text="Remove", command=lambda: remove_email(display_email, email), width=80, height=25, corner_radius=10)
+                remove_button = ctk.CTkButton(scrollable_frame, text="Remove", 
+                                command=lambda email=email, display_email=display_email: remove_email(display_email, email), 
+                                width=80, height=25, corner_radius=10)
                 remove_button.grid(row=idx + 4, column=1, padx=100, sticky="e")
+                remove_button.custom_id = display_email
         
         
 
