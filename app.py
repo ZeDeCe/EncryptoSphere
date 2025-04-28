@@ -267,7 +267,7 @@ class MainPage(ctk.CTkFrame):
         self.encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         # Create the upload button and shared files button
-        self.upload_button = ctk.CTkButton(self.side_bar, text="Upload",
+        self.upload_button = ctk.CTkButton(self.side_bar, text=" + New ",
                                            command=lambda: self.open_upload_menu(),
                                            width=120, height=30, fg_color="gray25", hover=False)
         self.upload_button.pack(anchor="nw", padx=10, pady=10, expand=False)
@@ -303,7 +303,7 @@ class MainPage(ctk.CTkFrame):
 
         # Create the back button to go back to the previous folder, it is hidden by default (on main page).
         # This button is displayed when the user enters a subfolder.
-        self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
+        self.back_button = ctk.CTkButton(self.side_bar, text=" ⏎ Back",
                                          command=lambda: self.change_folder(self.get_previous_window(self.main_frame.path)),
                                          width=120, height=30, fg_color="gray25", hover=False)
         self.back_button.pack_forget()
@@ -330,6 +330,11 @@ class MainPage(ctk.CTkFrame):
         Initialize or recreate the context menu for the upload button.
         """
         self.context_menu = OptionMenu(self, self.controller, [
+            {
+                "label": "New Folder",
+                "color": "gray25",
+                "event": lambda: self.create_new_folder()
+            },
             {
                 "label": "Upload File",
                 "color": "gray25",
@@ -374,6 +379,49 @@ class MainPage(ctk.CTkFrame):
         else:
             self.context_menu.hide_context_menu()
 
+    def create_new_folder(self):
+        """
+        If new folder option is selected in the upload_context_menu, open a dialog to let the user pick a name for the new folder
+        """
+        # Get the position and size of the parent window
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_width = self.winfo_width()
+        parent_height = self.winfo_height()
+
+        # Create the input dialog
+        input_dialog = ctk.CTkInputDialog(text="Enter the name of the new folder:", title="Create New Folder")
+
+        # Calculate the position to center the dialog over the parent window
+        dialog_width = 300  # Approximate width of the dialog
+        dialog_height = 150  # Approximate height of the dialog
+        dialog_x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        dialog_y = parent_y + (parent_height // 2) - (dialog_height // 2)
+
+        # Set the position of the dialog
+        input_dialog.geometry(f"{dialog_width}x{dialog_height}+{dialog_x}+{dialog_y}")
+
+        # Get the folder name from the input dialog
+        folder_name = input_dialog.get_input()
+        self.context_menu.hide_context_menu()
+        if folder_name:
+            folder_path = f"{self.curr_path}/{folder_name}" if self.curr_path != "/" else f"/{folder_name}"
+            self.create_new_folder_in_cloud(folder_path)
+    
+    def create_new_folder_in_cloud(self, folder_path):
+        """
+        Create a new folder in the cloud and refresh the page
+        @param folder_path: The path of the folder to be created
+        """
+        label = self.add_message_label(f"Creating folder {folder_path.split('/')[-1]}")
+
+        self.controller.get_api().create_folder(
+            lambda f: (
+                self.remove_message(label),
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
+            ),
+            folder_path,
+        )
 
     def upload_file(self):
         """
@@ -488,6 +536,7 @@ class MainPage(ctk.CTkFrame):
         @param path: The path to the folder to be changed to
         """
         print(f"Current folder: {path}")
+        self.curr_path = path
         self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
