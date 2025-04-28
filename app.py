@@ -432,6 +432,18 @@ class MainPage(ctk.CTkFrame):
         # Refresh the main frame
         self.main_frame.refresh()
 
+    def show_message_notification(self, desc_text, title, on_confirm):
+    # Ensure the MessageNotification window is not constrained by the FolderButton size
+        self.notification_window = MessageNotification(
+            master = self,  # Use the main window as the parent
+            title = title,  
+            description=desc_text,
+            on_confirm=on_confirm
+        )
+        self.notification_window.lift()
+
+
+
     def upload_folder(self):
         """
         If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder
@@ -737,6 +749,82 @@ class OptionMenu(ctk.CTkFrame):
         self.context_hidden = False
         self.place(x=x, y=y)
 
+class MessageNotification(ctk.CTkFrame):
+    """
+    This class represents a message notification popup
+    """
+    def __init__(self, master, width=300, height=150, title="Notification", description="", on_confirm=None, on_cancel=None):
+        """
+        Initialize the message notification popup
+        @param master: The parent widget
+        @param width: Width of the popup
+        @param height: Height of the popup
+        @param title: Title of the popup
+        @param description: Description text of the popup
+        @param on_confirm: Function to call when the confirm button is clicked
+        @param on_cancel: Function to call when the cancel button is clicked
+        """
+        ctk.CTkFrame.__init__(self, master, width=width, height=height, corner_radius=10)
+        self.place(relx=0.5, rely=0.5, anchor="center")  # Center of the parent window
+
+
+        # Bind a click event to the root window
+        self.bind("<Button-1>", self._handle_outside_click, add="+")
+        
+        # Ensure the frame respects the specified width and height
+        self.pack_propagate(False)  
+        self.grid_propagate(False)  
+
+        # Title
+        title_label = ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"))
+        title_label.pack(pady=(20, 10))
+
+        # Description
+        desc_label = ctk.CTkLabel(self, text=description, font=("Arial", 12), justify="center")
+        desc_label.pack(pady=(0, 20))
+
+        # Buttons frame
+        buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
+        buttons_frame.pack(pady=(0, 10))
+
+        # Cancel button
+        cancel_button = ctk.CTkButton(buttons_frame, text="Cancel", width=50,
+                                      fg_color="transparent", hover_color="gray",
+                                      text_color="white",
+                                      command=lambda: self._handle_cancel(on_cancel))
+        cancel_button.grid(row=0, column=0, padx=(0, 10))
+
+        # Confirm button
+        confirm_button = ctk.CTkButton(buttons_frame, text="Confirm", width=100,
+                                       command=lambda: self._handle_confirm(on_confirm))
+        confirm_button.grid(row=0, column=1)
+
+    def _handle_confirm(self, on_confirm):
+        """
+        Handle the confirm button click
+        @param on_confirm: Function to call when the confirm button is clicked
+        """
+        if on_confirm:
+            on_confirm()
+        self.destroy()
+
+    def _handle_cancel(self, on_cancel):
+        """
+        Handle the cancel button click
+        @param on_cancel: Function to call when the cancel button is clicked
+        """
+        if on_cancel:
+            on_cancel()
+        self.destroy()
+    
+    def _handle_outside_click(self, event):
+        """
+        Handle clicks outside the notification frame
+        """
+        # Check if the click occurred outside the notification frame
+        if not self.winfo_containing(event.x_root, event.y_root) == self:
+            self._handle_cancel(None)  # Close the notification
+
 class FolderButton(IconButton):
     """
     This class represents a "folder button"
@@ -766,35 +854,48 @@ class FolderButton(IconButton):
              {
                  "label": "Delete Folder",
                  "color": "red",
-                 "event": lambda: self.delete_folder() # maybe add "ARE YOU SURE?"
+                 "event": lambda: self.delete_folder_from_cloud() 
              }
         ])
         self.controller.register_context_menu(self.context_menu)
     
     
-    def delete_folder(self):
+    def delete_folder_from_cloud(self):
         """
         Delete folder from the cloud and refresh the page
         @param folder_path: The path of the folder to be deleted
         """
-        label = self.master.master.master.add_message_label(f"Deleting folder {self.folder_path}")
-
-        self.controller.get_api().delete_folder(
+        desc_text = f'"{self.folder_path}" will be permanently deleted.'
+        title = "Delete This Folder?"
+        def on_confirm():
+            label = self.master.master.master.add_message_label(f"Deleting folder {self.folder_path}")
+            self.controller.get_api().delete_folder(
             lambda f: (
                 self.master.master.master.remove_message(label),
-                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else self.master.master.master.refresh()
+                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.master.master.master.refresh()
             ),
             self.folder_path
-        )
-    
+            )
+            # Immediately pop the folder from the list
+            self.master.folder_list.pop(self.folder_name)
+
+        self.master.master.master.show_message_notification(desc_text, title, on_confirm)
+
     
     def download_folder(self):
         """
         Download folder from the cloud and refresh the page
         @param folder_path: The path of the folder to be downloaded
         """
-        # Can add a callback to notify user that the download is complete
-        self.controller.get_api().download_folder(None, self.folder_path)
+        label = self.master.master.master.add_message_label(f"Downloading folder {self.folder_path}")
+        self.controller.get_api().download_folder(
+            lambda f: (
+                self.master.master.master.remove_message(label),
+                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.master.master.master.refresh()
+            ),
+            self.folder_path
+            )
+
 
     def on_double_click(self, event=None):
         """
