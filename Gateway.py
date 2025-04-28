@@ -134,11 +134,16 @@ class Gateway:
         """
         return self.current_session.download_file(file_path)
 
-    """
+    @promise
     def download_folder(self, folder_id):
-        self.current_session.download_folder(folder_id)
-        return True # TODO: Handle correctly!!
-    """
+        """
+        Download folder function
+        @param folder_id: the id of the folder to download
+        @return: True if the folder was downloaded successfully, False otherwise
+        """
+        print(f"Download folder selected {folder_id}")
+        return self.current_session.download_folder(folder_id)
+    
     @promise
     def upload_file(self, file_path, path):
         """
@@ -172,13 +177,14 @@ class Gateway:
         return self.current_session.delete_file(file_path)
 
     @promise
-    def delete_folder(self, path):
+    def delete_folder(self, folder_path):
         """
         Delete folder function
         @param path: the path of the folder to delete
         @return: True if the folder was deleted successfully, False otherwise
         """
-        return self.current_session.delete_folder(path)
+        print(f"Delete folder selected {folder_path}")
+        return self.current_session.delete_folder(folder_path)
     
     @promise
     def create_shared_session(self, folder_name, emails):

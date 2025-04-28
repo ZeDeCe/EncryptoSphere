@@ -437,6 +437,8 @@ class CloudManager:
         Using filedescriptor functions, gathers all files under the folder_name and then calls self.download
         on all of those files. Constructs them as the hierarchy in the filedescriptor on the OS.
         """
+        time.sleep(3)
+        return True
 
     def delete_file(self, path):
         """
@@ -464,6 +466,7 @@ class CloudManager:
         Given a path in EncryptoSphere (/EncryptoSphere/...), deletes all files with that path name
         @param folder_path the path to the folder in the file descriptor
         """
+        time.sleep(3)
         return True
     
     def get_items_in_folder(self, path):
