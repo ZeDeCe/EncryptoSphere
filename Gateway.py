@@ -26,7 +26,7 @@ import app as app
 # This is temporary:
 from cryptography.fernet import Fernet
 
-SYNC_TIME = 600 # 10 minutes
+SYNC_TIME = 90 # 1 min 30 sec
 
 class Gateway:
     """
@@ -46,24 +46,21 @@ class Gateway:
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
         dropbox1 = DropBox(email)
-        drive1 = GoogleDrive(email)
+        #drive1 = GoogleDrive(email)
         encrypt = AESEncrypt()
         encrypt.set_key(encrypt.generate_key_from_key(master_key))
         # Everything here is for testing
         self.manager = CloudManager(
-            [drive1, dropbox1],
-            "/EncryptoSphere", 
-            ShamirSplit(), 
+            [dropbox1],
+            "main_session", 
+            NoSplit(), 
             encrypt
         )
 
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         self.current_session = self.manager
-        self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
-        self.executor.submit(self.manager.start_sync_thread())
-        self.executor.submit(self.start_sync_new_sessions_task())
-        self.executor.submit(self.manager.lock_session())
+        self.start_sync_new_sessions_task()
         print(f"Status: {status}")
         return status
     
@@ -80,38 +77,35 @@ class Gateway:
             return future
         return wrapper
 
-    def change_session(self, path=None):
+    def change_session(self, uid=None):
         """
         Change the current session to the one specified by path
         @param path: the path to the session to change to
         """
-        if path:
-           self.current_session = self.session_manager.get_session(path)
+        if uid:
+           self.current_session = self.session_manager.get_session(uid)
         else:
             self.current_session = self.session_manager.main_session
     
-    """ 
-    def get_files(self):
-        return self.current_session.get_file_list()
-    """ 
-    
-    def get_files(self, path="/"):
+    def get_items_in_folder(self, path="/"):
         """
-        @return: list of files in the current session in the FD format
+        @param path: the path to the folder
+        @return: Yielded iterable (generator) for every file in the current session in the folder given
         """
         return self.current_session.get_items_in_folder(path)
+    
+    @promise
+    def get_items_in_folder_async(self, path="/"):
+        return self.current_session.get_items_in_folder(path)
+    
     @promise
     def sync_fd_to_clouds(self, callback=None):
         if not self.active_fd_sync:
             self.active_fd_sync = True
             print(f"Syncing FD to clouds")
-            fut1,fut2 = self.manager.sync_to_clouds()
-            fut1.result()
-            fut2.result()
-            ret = True if not fut1.exception() and not fut2.exception() else False
-            self.active_fd_sync = False
-            print(f"Syncing FD to clouds, status: {str(ret)}")
-            return ret
+            
+            print(f"Syncing FD to clouds, status: {str(True)}")
+            return True
         
     @promise    
     def sync_new_sessions(self):
@@ -126,21 +120,19 @@ class Gateway:
         
     @promise
     def refresh_shared_folder(self):
-        if not self.active_shared_folder_sync:
-            self.active_shared_folder_sync = True
-            #TODO: Add the functionality to refresh the shared folder
-            self.active_shared_folder_sync = False
+        # We don't actually need to do anything, just call get_items_in_folder for that shared folder
+        pass
 
         
     
     @promise
-    def download_file(self, file_id):
+    def download_file(self, file_path):
         """
         Download file function
         @param file_id: the id of the file to download
         @return: True if the file was downloaded successfully, False otherwise
         """
-        return self.current_session.download_file(file_id)
+        return self.current_session.download_file(file_path)
 
     """
     def download_folder(self, folder_id):
@@ -170,14 +162,14 @@ class Gateway:
         return self.current_session.upload_folder(folder_path, path)
 
     @promise
-    def delete_file(self, file_id):
+    def delete_file(self, file_path):
         """
         Delete file function
         @param file_id: the id of the file to delete
         @return: True if the file was deleted successfully, False otherwise
         """
-        print(f"Delete file selected {file_id}")
-        return self.current_session.delete_file(file_id)
+        print(f"Delete file selected {file_path}")
+        return self.current_session.delete_file(file_path)
 
     @promise
     def delete_folder(self, path):
@@ -212,9 +204,10 @@ class Gateway:
             
         new_session = SharedCloudManager(
             shared_with,
+            None,
             list(self.manager.clouds),
-            f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
-            ShamirSplit(),
+            folder_name, 
+            self.manager.split.copy(),
             self.manager.encrypt.copy(),
         )
 
@@ -229,7 +222,7 @@ class Gateway:
         @return: list of shared folders names
         """
         ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
-        #self.session_manager.sync_new_sessions()  
+        #res = self.session_manager.sync_new_sessions()
         return self.session_manager.sessions.keys()
 
     #TODO: Advanced sharing options
@@ -300,7 +293,7 @@ class Gateway:
             while not self.stop_event.is_set():  # Check if stop_event is set
                 try:
                     print("Running sync_new_sessions...")
-                    self.sync_new_sessions(None)
+                    ret = self.session_manager.sync_new_sessions()
                 except Exception as e:
                     print(f"Error during sync_new_sessions: {e}")
                 # Wait for the next sync interval, but check stop_event periodically
