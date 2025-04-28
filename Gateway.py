@@ -187,6 +187,17 @@ class Gateway:
         return self.current_session.delete_folder(folder_path)
     
     @promise
+    def create_folder(self, folder_path):
+        """
+        Create folder function
+        @param folder_name: the name of the folder to create
+        @param path: the path in the cloud to create the folder in
+        @return: True if the folder was created successfully, False otherwise
+        """
+        print(f"Create folder selected {folder_path}")
+        return self.current_session.create_folder(folder_path)
+    
+    @promise
     def create_shared_session(self, folder_name, emails):
         """
         Create new shared session
