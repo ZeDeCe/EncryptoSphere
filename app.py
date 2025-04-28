@@ -536,6 +536,7 @@ class MainPage(ctk.CTkFrame):
         @param path: The path to the folder to be changed to
         """
         print(f"Current folder: {path}")
+        self.curr_path = path
         self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
