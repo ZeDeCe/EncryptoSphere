@@ -113,6 +113,10 @@ class App(ctk.CTk):
         """
         self.context_menus.append(context_menu)
     
+    def unregister_context_menu(self, context_menu):
+        if context_menu in self.context_menus:
+            self.context_menus.remove(context_menu)
+    
     def button_clicked(self, button, ignore_list):
         """
         When any button is clicked, we need to close all opend context_menu(s)
@@ -483,6 +487,7 @@ class MainPage(ctk.CTkFrame):
     def show_message_notification(self, desc_text, title, on_confirm):
     # Ensure the MessageNotification window is not constrained by the FolderButton size
         self.notification_window = MessageNotification(
+            controller=self.controller,
             master = self,  # Use the main window as the parent
             title = title,  
             description=desc_text,
@@ -802,7 +807,7 @@ class MessageNotification(ctk.CTkFrame):
     """
     This class represents a message notification popup
     """
-    def __init__(self, master, width=300, height=150, title="Notification", description="", on_confirm=None, on_cancel=None):
+    def __init__(self, master, controller, width=300, height=150, title="Notification", description="", on_confirm=None, on_cancel=None):
         """
         Initialize the message notification popup
         @param master: The parent widget
@@ -815,7 +820,7 @@ class MessageNotification(ctk.CTkFrame):
         """
         ctk.CTkFrame.__init__(self, master, width=width, height=height, corner_radius=10)
         self.place(relx=0.5, rely=0.5, anchor="center")  # Center of the parent window
-
+        self.controller = controller
 
         # Bind a click event to the root window
         self.bind("<Button-1>", self._handle_outside_click, add="+")
@@ -847,6 +852,8 @@ class MessageNotification(ctk.CTkFrame):
         confirm_button = ctk.CTkButton(buttons_frame, text="Confirm", width=100,
                                        command=lambda: self._handle_confirm(on_confirm))
         confirm_button.grid(row=0, column=1)
+        controller.register_context_menu(self)
+        master.bind("<Button-1>", lambda event: self.close_menu(), add="+")
 
     def _handle_confirm(self, on_confirm):
         """
@@ -855,7 +862,7 @@ class MessageNotification(ctk.CTkFrame):
         """
         if on_confirm:
             on_confirm()
-        self.destroy()
+        self.close_menu()
 
     def _handle_cancel(self, on_cancel):
         """
@@ -864,7 +871,7 @@ class MessageNotification(ctk.CTkFrame):
         """
         if on_cancel:
             on_cancel()
-        self.destroy()
+        self.close_menu()
     
     def _handle_outside_click(self, event):
         """
@@ -873,6 +880,13 @@ class MessageNotification(ctk.CTkFrame):
         # Check if the click occurred outside the notification frame
         if not self.winfo_containing(event.x_root, event.y_root) == self:
             self._handle_cancel(None)  # Close the notification
+
+    def hide_context_menu(self):
+        self.close_menu()
+
+    def close_menu(self):
+        self.controller.unregister_context_menu(self)
+        self.destroy()
 
 class FolderButton(IconButton):
     """
