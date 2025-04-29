@@ -325,6 +325,9 @@ class MainPage(ctk.CTkFrame):
         self.main_frame.lift()
         self.messages_pannel.lift()
 
+        self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label.place(relx=1.0, rely=1.0, x=-13, y=-10, anchor="se")
+
 
         # Initialize the context menu
         self.initialize_context_menu()
@@ -543,6 +546,7 @@ class MainPage(ctk.CTkFrame):
         print(f"Current folder: {path}")
         self.curr_path = path
         self.main_frame.pack_forget()
+        self.url_label.configure(text=self.curr_path)
         if path in self.folders:
             self.main_frame = self.folders[path]
         else:
@@ -581,14 +585,14 @@ class MainPage(ctk.CTkFrame):
         print(parts[0])
         return parts[0]
 
-class Folder(ctk.CTkFrame):
+class Folder(ctk.CTkScrollableFrame):
     """
     This class represents the current folder we are in
     It contains all the files and folders that are in the current folder, the current folder, and the frame to display
     """
 
     def __init__(self, parent, controller : App, path):
-        ctk.CTkFrame.__init__(self, parent, corner_radius=0)
+        ctk.CTkScrollableFrame.__init__(self, parent, corner_radius=0)
         self.controller = controller
         self.path = path
         self.pack(fill = ctk.BOTH, expand = True)
@@ -598,9 +602,9 @@ class Folder(ctk.CTkFrame):
         self.folder_list = {}
         self.is_refreshed = False
 
-        self.url_label = ctk.CTkLabel(self, text=self.path, anchor="e", fg_color="gray30", corner_radius=10)
-        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
-    
+        # Make the scrollbar thinner
+        self._scrollbar.configure(width=8)
+
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
         if self.is_refreshed:
