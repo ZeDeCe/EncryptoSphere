@@ -5,7 +5,8 @@ import hashlib
 from modules import Split
 from modules import Encrypt
 from modules.CloudAPI import CloudService
-import FileDescriptor
+import json
+from CloudObjects import Directory, CloudFile
 
 import concurrent.futures
 import time
@@ -13,7 +14,7 @@ import threading
 
 SYNC_TIME = 300  # Sync time in seconds
 FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
-MIN_PARTS = 3  # Minimum number of parts required for reconstruction
+FILE_INDEX_SEPERATOR = "#"
 
 class CloudManager:
     """
@@ -24,34 +25,30 @@ class CloudManager:
         """
         Initialize a cloudmanager and a session
         @param clouds the cloud classes to use
-        @param root the root directory, must start with /
+        @param root the root directory name
         @param split the split class to use
         @param encrypt the encrypt class to use
         @param file_descriptor the filedescriptor to use. If none provided, will assume that the session already exists and try syncing it from the cloud
         """
-        if root[0]!="/":
-            raise Exception("CloudManager: Root direcory must start with /")
         self.split = split
         self.encrypt = encrypt
         self.clouds = clouds
-        mainroot = os.getenv("ENCRYPTO_ROOT")
-        self.root_folder = f"{mainroot}{root}"
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.fd = None
-        #file_descriptor if file_descriptor else self.sync_from_clouds()
         self.sync_thread = None
         self.stop_event = threading.Event()  # Event to signal
-        #self.lock_session()
-        self.executor = concurrent.futures.ThreadPoolExecutor()
+        self.fs : dict[str, CloudFile | Directory]= {} # filesystem
+        self.root = root # Temporary until login module
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.clouds) * 5)
 
     def __del__(self):
         self.executor.shutdown(wait=True)
 
-    def _complete_cloud_threads(self, futures: dict[concurrent.futures.Future, str]):
+    def _complete_cloud_threads(self, futures: dict[concurrent.futures.Future, str]) -> tuple[list[tuple[any, any]], bool]:
         """
         Waits for all threads to finish and returns the results
-        @param futures a dictionary of futures and their corresponding cloud names {future: cloud_name, ...}
-        @return a tuple containing: (success, a list of tuples (cloud_name, result))
+        @param futures a dictionary of futures and their corresponding cloud objects/names {future: cloud, ...}
+        @return a tuple containing: (a list of tuples (value, result), success)
         """
         results = []
         success = True
@@ -66,42 +63,6 @@ class CloudManager:
                 results.append((cloud_name, e))
                 print(f"Error executing task to {cloud_name}: {e}")
         return results, success
-
-    def lock_session(self):
-        """
-        Checks if a session file is active on the cloud
-        If it is raise error.
-        If not then place one to lock the session
-        """
-        for cloud in self.clouds:
-            session_file_name = f"SESSION_ACTIVE_{cloud.get_email()}"
-            try:
-                # Check if the session file already exists
-                existing_file = cloud.download_file(session_file_name, self.root_folder)
-                if existing_file is not None:
-                    print(f"Session is already active for user {cloud.get_email()} on cloud {cloud.get_name()}.")
-                    raise Exception(f"Session is already active for user {cloud.get_email()} on cloud {cloud.get_name()}.")
-
-                # Create the session file
-                cloud.upload_file(b"SESSION ACTIVE", session_file_name, self.root_folder)
-                print(f"Session locked for user {cloud.get_email()} on cloud {cloud.get_name()}.")
-            except Exception as e:
-                print(f"Error locking session for cloud {cloud.get_name()}: {e}")
-                raise
-    
-    def unlock_session(self):
-        """
-        Removes the "SESSION ACTIVE" file from the root directory of each cloud to unlock the session.
-        """
-        for cloud in self.clouds:
-            session_file_name = f"SESSION_ACTIVE_{cloud.get_email()}"
-            try:
-                # Delete the session file
-                cloud.delete_file(session_file_name, self.root_folder)
-                print(f"Session unlocked for user {cloud.get_email()} on cloud {cloud.get_name()}.")
-            except Exception as e:
-                print(f"Error unlocking session for cloud {cloud.get_name()}: {e}")
-                raise
 
     def _split(self, data : bytes, clouds : int):
         return self.split.split(data, clouds)
@@ -135,33 +96,80 @@ class CloudManager:
         with open(os_filepath, "r") as osfile:
             file.write(osfile.read().encode('utf-8'))
         return file
+    
+    def _get_directory(self, path : str) -> Directory:
+        """
+        Function to traverse a directory and return the object
+        """
+        # Check if we have it cached
+        if path in self.fs and isinstance(self.fs.get(path), Directory):
+            return self.fs.get(path)
+        
+        # Go through all folders in cache that match path and try to find one of them
+        parent = '/'.join(path.rstrip('/').split('/')[:-1]) or '/'
+        while True:
+            if parent in self.fs and isinstance(self.fs.get(parent), Directory):
+                parent = self.fs.get(parent)
+                break
+            path = '/'.join(path.rstrip('/').split('/')[:-1]) or '/'
+
+        # Create each folder
+        futures = {}
+        current_path = parent.path if parent.path != "/" else ""
+        for name in path.split("/")[len(parent.path.split("/"))-1:]:
+            current_path = f"{current_path}/{name}"
+            for cloud in self.clouds:
+                futures[self.executor.submit(cloud.create_folder, name, parent.get(cloud.get_name()))] = cloud.get_name()
+            results, success = self._complete_cloud_threads(futures)
+            if not success:
+                raise Exception(f"Cannot create folder at path {current_path}")
+            folders = {}
+            for tupl in results:
+                folders[tupl[0]] = tupl[1]
+            parent = Directory(folders, path=current_path)
+            self.fs[current_path] = parent
+        return self.fs[path]
 
     def authenticate(self):
         """
         Authenticates the clouds and loads the file descriptor.
         Returns True if the process succeeds, False otherwise.
         """
-        try:
-            # Authenticate all clouds
-            for cloud in self.clouds:
-                cloud.authenticate_cloud()
-        except Exception as e:
-            print(f"Error during cloud authentication: {e}")
-            return False
+        futures = {}
+        folders = {}
         
+        # Authenticate all clouds
+        for cloud in self.clouds:
+            try:
+                cloud.authenticate_cloud()
+                futures[self.executor.submit(cloud.get_session_folder, self.root)] = cloud.get_name()
+            except Exception as e:
+                print(f"Error during cloud authentication: {e}")
+                return False
+            
+        # Get root folders
+        for future in concurrent.futures.as_completed(futures):
+            cloud_name = futures[future]
+            try:
+                result = future.result()
+                folders[cloud_name] = result
+                print(f"Successfully found session folder for cloud {cloud_name}.")
+            except Exception as e:
+                print(f"Failed to get session folder in cloud: {e}")
+                return False
         try:
             # Attempt to load the file descriptor
-            fd_loaded = self.load_fd()
-            if not fd_loaded:
-                print("Failed to load file descriptor.")
-                return False
+            
+            self.fs["/"] = Directory(folders, "/")
+            self.fs["/"].set_root()
+            self.load_metadata()
 
             return True  # Authentication and file descriptor loading succeeded
         except Exception as e:
             print(f"Error during authentication, loading of file descriptor: {e}")
             return False
         
-    def upload_file(self, os_filepath, path="/", sync=True):
+    def upload_file(self, os_filepath, path="/", executor=None):
         """
         Uploads a single file to the cloud.
         
@@ -169,52 +177,45 @@ class CloudManager:
         @param path: The root path for the file in EncryptoSphere hierarchy.
         @param sync: Whether to sync the file descriptor after uploading. Defaults to True.
         """
+        if executor is None:
+            executor = self.executor
+
         if not os.path.isfile(os_filepath):
             raise OSError()
         
-        file_name = os.path.basename(os_filepath)
-        existing_files = self.get_file_list()
-        
-        if any(file['name'] == file_name and file['path'] == path for file in existing_files):
-            print(f"Error: A file with the name '{file_name}' already exists in the directory '{path}'.")
-            raise Exception(f"Error: A file with the name '{file_name}' already exists in the directory '{path}'.")
+        filebasename = os.path.basename(os_filepath)
+        filepath = f"{path if path != '/' else ''}/{filebasename}"
+        if filepath in self.fs:
+            raise Exception(f"File or folder already exists with given path {path}")
         
         data = None
         with open(os_filepath, 'rb') as file:
             data = file.read()
-        hash = hashlib.md5(data).hexdigest()
         data = self._encrypt(data)
         data = self._split(data, len(self.clouds))
-        file_id = self.fd.get_next_id()
-        cloud_file_count = {}
 
         # Upload file parts to clouds
         futures = {}
         for cloud_index, f in enumerate(data):
-            cloud_name = self.clouds[cloud_index].get_name()
-            cloud_file_count[cloud_name] = len(f)
+            cloud = self.clouds[cloud_index]
             for file_index, file_content in enumerate(f):
-                file_name = f"{file_id}_{file_index+1}"
-                futures[self.executor.submit(self.clouds[cloud_index].upload_file, file_content, file_name, self.root_folder)] = cloud_name
-     
+                file_name = f"{file_index+1}{FILE_INDEX_SEPERATOR}{filebasename}"
+                futures[executor.submit(cloud.upload_file, file_content, file_name, self._get_directory(path).get(cloud.get_name()))] = cloud
         results, success = self._complete_cloud_threads(futures)
         if not success:
-            raise Exception("Failed to upload file parts to clouds.")
-        
-        # Add file metadata to the file descriptor
-        file_id = self.fd.add_file(
-            os.path.basename(os_filepath),
-            path,
-            cloud_file_count,
-            hash,
-            file_id
-        )
-        
-        # Sync file descriptor if requested
-        if sync:
-            self.sync_fd()
-        
-        return self.fd.get_file_data(file_id)
+            pass # TODO: one part didn't load correctly, check if this is fine according to our split
+
+        parts = {}
+        # Ensure the clouds are in correct order
+        for cloud in self.clouds:
+            parts[cloud] = []
+
+        # Get results in the parts dict
+        for (cloud, file) in results:
+            parts[cloud].append(file)
+        self.fs[filepath] = CloudFile(parts, filepath)
+
+        return self.fs[filepath].get_data()
     
      
     def _upload_replicated(self, file_name, data, suffix=False):
@@ -229,7 +230,7 @@ class CloudManager:
         for cloud in self.clouds:
             print(f"Uploading to {cloud.get_name()}")
             suffix = f"_{cloud.get_email()}" if suffix else ""
-            futures[self.executor.submit(cloud.upload_file, data, f"{file_name}{suffix}", self.root_folder)] = cloud.get_name()
+            futures[self.executor.submit(cloud.upload_file, data, f"{file_name}{suffix}", self.fs["/"].get(cloud.get_name()))] = cloud.get_name()
         results, success = self._complete_cloud_threads(futures)
         if not success:
             raise Exception("Failed to upload replicated file to all clouds.")
@@ -244,7 +245,15 @@ class CloudManager:
         for cloud in self.clouds:
             suffix = f"_{cloud.get_email()}" if suffix else ""
             try:
-                file_data = cloud.download_file(f"{file_name}{suffix}", self.root_folder)
+                meta = cloud.list_files(self.fs["/"].get(cloud.get_name()), file_name)
+                found = None
+                for data in meta:
+                    if data.get_name() == file_name:
+                        found = data
+                        break
+                if found is None:
+                    raise Exception("Cannot find file in cloud")
+                file_data = cloud.download_file(found)
                 if file_data is not None:
                     print(f"Successfully downloaded {file_name}{suffix} from {cloud.get_name()}.")
                     return file_data  # Return the data if download is successful
@@ -255,10 +264,18 @@ class CloudManager:
         return None  # Return None if all clouds fail
     
     def _delete_replicated(self, file_name, suffix=False):
-        futures = {}
         for cloud in self.clouds:
             suffix = f"_{cloud.get_email()}" if suffix else ""
-            self.executor.submit(cloud.delete_file, f"{file_name}{suffix}", self.root_folder)
+            files = cloud.list_files(self.fs["/"].get(cloud.get_name()), f"{file_name}{suffix}")
+            file : CloudService.File = None
+            for f in files:
+                if f.get_name() == f"{file_name}{suffix}":
+                    file = f
+                    break
+            if file is None:
+                print(f"Failed to find replicated file {file_name}{suffix}")
+                return False
+            self.executor.submit(cloud.delete_file, file)
         # we don't even wait for the results
     
     def _check_replicated_integrity(self, replicated : list[bytes]):
@@ -271,9 +288,36 @@ class CloudManager:
             if data!=replicated[0]:
                 return False, replicated
         return True, replicated[0]
+    
+    def create_folder(self, path : str) -> bool:
+        """
+        Creates a new folder in the encryptosphere filesystem
+        @param path the path to create the folder in
+        @return success
+        """
+        if not self.fs.get(path) is None:
+            return True
         
+        parent_path = "/".join(path.split("/")[:-1])
+        parent_path = "/" if parent_path == "" else parent_path
+        parent = self._get_directory(parent_path)
+        name = path.split("/")[-1]
+        if name == "":
+            raise Exception("Cannot create root folder using create_folder!")
+        futures = {}
+        for cloud in self.clouds:
+            futures[self.executor.submit(cloud.create_folder, name, parent.get(cloud.get_name()))] = cloud
+        results, success = self._complete_cloud_threads(futures)
+        if not success:
+            raise Exception("Failed to create folder in some clouds")
+        folders = {}
+        for cloud,folder in results:
+            folders[cloud.get_name()] = folder
+        self.fs[path] = Directory(folders, path)
+        return True
+
     # TODO: error handling
-    def upload_folder(self, os_folder, path="/"):
+    def upload_folder(self, os_folder, path):
         """
         This function uploads an entire folder to the cloud.
         Synchronization is deferred until all files are uploaded.
@@ -288,53 +332,61 @@ class CloudManager:
         
         # Iterate over the folder and upload each file
         futures = {}
-        for root, _, files in os.walk(os_folder):
+        
+        # First upload main folder
+        futures[self.executor.submit(self.create_folder, f"{path}{folder_name}")] = f"{path}{folder_name}"
+        
+        # Create all subdirectories
+        for root, dirs, _ in os.walk(os_folder):
             root_arr = root.split(os.sep)
             root_arr = root_arr[root_arr.index(folder_name):]
-            encrypto_root = "/".join(root_arr)
-            for file in files:
-                futures[self.executor.submit(self.upload_file, os.path.join(root, file), f"{path}{encrypto_root}", False)] = None
+            encrypto_root = f"{path}{'/'.join(root_arr)}"
+            if encrypto_root[-1] != "/":
+                encrypto_root = f"{encrypto_root}/"
+            for dir in dirs:
+                print(f"Doing folder: {encrypto_root}{dir}")
+                futures[self.executor.submit(self.create_folder, f"{encrypto_root}{dir}")] = f"{encrypto_root}{dir}"
         results, success = self._complete_cloud_threads(futures)
         if not success:
-            raise Exception("Failed to upload folder contents to clouds.")
+            raise Exception("Failed to upload folders in given folder.")
         
-        # Sync file descriptor once after all uploads
-        self.sync_fd()
+        # Create all files
+        futures = {}
+        with concurrent.futures.ThreadPoolExecutor() as file_executor:
+            for root, _, files in os.walk(os_folder):
+                root_arr = root.split(os.sep)
+                root_arr = root_arr[root_arr.index(folder_name):]
+                encrypto_root = f"{path}{'/'.join(root_arr)}"
+                for file in files:
+                    print(f"Doing file: {encrypto_root}{file}")
+                    futures[self.executor.submit(self.upload_file, os.path.join(root, file), encrypto_root, file_executor)] = f"{encrypto_root}-{file}"
+            results, success = self._complete_cloud_threads(futures)
+            if not success:
+                raise Exception("Failed to upload files in folders.")
         return True
 
-    def download_file(self, file_id):
+    def download_file(self, path):
         """
         Downloads a file from the various clouds
         file_id is a FileDescriptor ID of the file.
         Make sure to check if the clouds of this object exist in the "parts" array
         """
         try:
-            file_data = self.fd.get_file_data(file_id)
-            if not file_data:
-                raise ValueError(f"File descriptor for file_id {file_id} not found.")
-
-            parts = file_data.get('parts', {})
-            if not parts:
-                raise ValueError(f"No parts found for file_id {file_id} in the file descriptor.")
-
-            data = [None] * sum(parts.values())  # Preallocate the list to ensure correct order
+            
+            file : CloudFile = self.fs[path]
+            if not file:
+                raise Exception("Looking for file that does not exist! Try running get_items_in_folder")
             futures = {}
-
-            # Iterate over clouds and download file parts
             current_index = 0
-            for cloud_name, part_count in parts.items():
-                cloud = next((cloud for cloud in self.clouds if cloud.get_name() == cloud_name), None)
-                if cloud is None:
-                    raise ValueError(f"Cloud {cloud_name} not found in the current session.")
-                for part_number in range(1, part_count + 1):
-                    file_name = f"{file_id}_{part_number}"
-                    futures[self.executor.submit(cloud.download_file, file_name, self.root_folder)] = (cloud_name, current_index)
+            
+            for cloud, parts in file.parts.items():
+                cloud_name = cloud.get_name()
+                for part in parts:
+                    futures[self.executor.submit(cloud.download_file, part)] = (cloud_name, current_index)
                     current_index += 1
-
-            # Wait for all download threads to complete
             results, success = self._complete_cloud_threads(futures)
-            if not success:
-                raise FileNotFoundError(f"File part {file_name} not found in {cloud_name}.")
+
+            data = [None] * current_index
 
             # Iterate over the results and place them in the correct order
             valid_parts = 0
@@ -346,27 +398,22 @@ class CloudManager:
             
             # Merge and decrypt the data
             if not data:
-                raise ValueError(f"No data downloaded for file_id {file_id}.")
+                raise ValueError(f"No data downloaded for file {path}.")
             try:
                 encrypted_data = self._merge(data, len(self.clouds))
-                file = self._decrypt(encrypted_data)
+                data = self._decrypt(encrypted_data)
             except Exception as e:
-                print(f"Error merging or decrypting data for file_id {file_id}: {e}")
+                print(f"Error merging or decrypting data for file {path}: {e}")
                 raise
-
-            # Get the file metadata and filename
-            file_name = file_data.get("name")
-            if not file_name:
-                raise ValueError(f"Filename not found in file descriptor for file_id {file_id}.")
 
             # Set the destination path to the Downloads folder
             downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-            dest_path = os.path.join(downloads_folder, file_name)
+            dest_path = os.path.join(downloads_folder, file.data.get("name"))
 
             # Write the reconstructed file to the destination path
             try:
                 with open(dest_path, 'wb') as output:
-                    output.write(file)
+                    output.write(data)
                 print(f"File successfully reconstructed into '{dest_path}'.")
             except Exception as e:
                 print(f"Error writing file to {dest_path}: {e}")
@@ -387,27 +434,28 @@ class CloudManager:
         Using filedescriptor functions, gathers all files under the folder_name and then calls self.download
         on all of those files. Constructs them as the hierarchy in the filedescriptor on the OS.
         """
+        time.sleep(3)
+        return True
 
-    def delete_file(self, file_id):
+    def delete_file(self, path):
         """
         Deletes a specific file from file ID using the filedescriptor
         @param file_id the file id to delete
         """
-        file_data = self.fd.get_file_data(file_id)
-        parts = file_data['parts']
+        file : CloudFile = self.fs.get(path)
+        if file is None:
+            raise Exception(f"Trying to delete a non-existant file {path}")
         futures = {}
-        for cloud_name, part_count in parts.items():
-            cloud = next((cloud for cloud in self.clouds if cloud.get_name() == cloud_name), None)
-            if cloud is None:
-                raise ValueError(f"Cloud {cloud_name} not found in the current session.")    
-            for part_number in range(1, part_count + 1): 
-                futures[self.executor.submit(cloud.delete_file, f"{file_id}_{part_number}", self.root_folder)] = cloud_name
+        for cloud in self.clouds:
+            parts = file.get(cloud.get_name())
+            for part in parts:
+                futures[self.executor.submit(cloud.delete_file, part)] = cloud
         results, success = self._complete_cloud_threads(futures)
         if not success:
-            raise Exception("Failed to delete file parts from clouds.")
-        
-        self.fd.delete_file(file_id)
-        self.sync_fd()
+            bad = filter(lambda cloud,result: result is None)
+            bad = [cloud.get_name() for (cloud,result) in bad]
+            print(f"Failed to delete file parts from a few clouds: {bad}")
+        self.fs.pop(path)
         return True
 
     def delete_folder(self, folder_path):
@@ -415,117 +463,96 @@ class CloudManager:
         Given a path in EncryptoSphere (/EncryptoSphere/...), deletes all files with that path name
         @param folder_path the path to the folder in the file descriptor
         """
-        self.sync_fd()
+        time.sleep(3)
         return True
-
-    def get_file_list(self):
-        return self.fd.get_file_list()
     
     def get_items_in_folder(self, path):
-        return self.fd.get_items_in_folder(path)
-
-    def sync_to_clouds(self):
-        """
-        Uploads the filedescriptor to the clouds encrypted using self.encrypt
-        This function should use upload_replicated
-        @return a tuple of two futures (future1, future2) where future1 is the metadata and future2 is the FD data
-        """
-        data, metadata = self.fd.serialize()
-        if metadata:
-            future1 = self.executor.submit(self._upload_replicated, "$FD_META", metadata)
-        if data:
-            future2 = self.executor.submit(self._upload_replicated, "$FD", self._encrypt(data))
-        print("FDs Synced to clouds")
-        return (future1, future2)
-
-    def start_sync_thread(self):
-        """
-        Starts a background task to run sync_to_clouds every 5 minutes using the thread pool.
-        """
-        def sync_task():
-            while not self.stop_event.is_set():  # Check if stop_event is set
-                try:
-                    self.sync_to_clouds()
-                except Exception as e:
-                    print(f"Error during periodic sync: {e}")
-
-                # Wait for the next sync interval, but check stop_event periodically
-                for _ in range(SYNC_TIME):  # SYNC_TIME is the total wait time in seconds
-                    if self.stop_event.is_set():
-                        return  # Exit the loop if stop_event is set
-                    time.sleep(1)  # Sleep for 1 second and check again
-        if not self.sync_thread or not self.sync_thread.running():
-            self.sync_thread = self.executor.submit(sync_task)
-            print("Sync task submitted to thread pool.")
-
-    def stop_sync_thread(self):
-        """
-        Stops the background sync thread and waits for it to terminate.
-        """
-        print("Stopping sync thread...")
-        if self.sync_thread:
-            # Signal the thread to stop
-            self.stop_event.set()
-
-            # Wait for the task to complete if it is already running
-            try:
-                self.sync_thread.result()  # Wait for the task to complete
-                print("Sync thread stopped.")
-            except Exception as e:
-                print(f"Error while stopping sync thread: {e}")
+        folder = self.fs.get(path)
+        if not folder:
+            raise FileNotFoundError(f"Folder with path {path} does not exist!")
+        
+        # for item_path, item in self.fs.items():
+        #     if item_path == '/':
+        #         continue
+        #     mydir = "/".join(item_path.split("/")[:-1])
+        #     mydir = mydir if mydir != '' else '/'
+        #     if mydir == path:
+        #         yield item.get_data()
+        
+        files = {}
+        folders = {}
+        for cloud in self.clouds:
+            for result in cloud.get_children(folder.get(cloud.get_name()), filter="$"):
                 
-    def load_fd(self):
+                if isinstance(result, CloudService.File):
+                    split = result.name.split(FILE_INDEX_SEPERATOR)
+                    actual_path = f"{folder.path if folder.path != '/' else ''}/{split[-1]}"
+                    if not files.get(actual_path):
+                        files[actual_path] = {}
+                    if not files.get(actual_path).get(cloud):
+                        files.get(actual_path)[cloud] = [None] * self.split.copies_per_cloud
+                    index = split[0] if len(split) == 2 else 1
+                    try:
+                        index = int(index) -1
+                    except:
+                        raise Exception("File has a special character in the name")
+                    files.get(actual_path).get(cloud)[index] = result
+
+                elif isinstance(result, CloudService.Folder):
+                    actual_path = f"{folder.path if folder.path != '/' else ''}/{result.name}"
+                    cloud_name = cloud.get_name()
+                    if not folders.get(actual_path):
+                        folders[actual_path] = {}
+                    folders.get(actual_path)[cloud_name] = result
+                else:
+                    print("Invalid type found - danger")
+                    continue
+        added = []
+        for folder_path, f in folders.items():
+            dir = Directory(f, folder_path)
+            added.append(folder_path)
+            yield dir.get_data()
+            self.fs[folder_path] = dir
+            
+        for file_path, parts in files.items():
+            f = CloudFile(parts, file_path)
+            added.append(file_path)
+            yield f.get_data()
+            self.fs[file_path] = f
+        
+        to_remove = []
+        for item_path in self.fs.keys():
+            item_folder = "/".join(item_path.split("/")[:-1])
+            item_folder = item_folder if item_folder != '' else '/'
+            if item_path != path and not item_path in added and item_folder == path:
+                print(f"File was deleted: {item_path}")
+                to_remove.append(item_path)
+        
+        for item_path in to_remove:
+            self.fs.pop(item_path)
+
+        
+        
+                
+    def load_metadata(self):
         """
         Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor
         """
-        data_future = self.executor.submit(self._download_replicated, "$FD")
-        metadata = self._download_replicated("$FD_META")
-        data = data_future.result()
-        # Technically supposed to pull encryption decryption from cloud or at least check it matches
-        # TODO: Check here if a version is still in desktop, means corruption
-        self.fd = FileDescriptor.FileDescriptor(None if data == None else self._decrypt(data), metadata, self.encrypt.get_name(), self.split.get_name())
-        return True
-    
-    def sync_fd(self):
-        """
-        Syncs the file descriptor
-        This function is called after every operation
-        """
-        fd_file_path = os.path.join(".", "Test") #temporary
-        try:
-            if not os.path.exists(fd_file_path):
-                os.makedirs(fd_file_path)
-        except:
-            raise OSError("Root folder given for FD is invalid")
-        data = None
-        metadata = None
-        try:
-            data, metadata = self.fd.serialize()
-        except:
-            raise Exception("Failed to serialize fd")
-
-        try:
-            with open(os.path.join(fd_file_path, "$FD"), "wb") as f:
-                f.write(self._encrypt(data)) 
-            with open(os.path.join(fd_file_path, "$FD_META"), "wb") as f:
-                f.write(metadata)
-        except:
-            print("Failed to write to {fd_file_path}")
-        
-    def delete_fd(self):
-        """
-        Deletes the file descriptor file from disk
-        This function should be used to clean up the file descriptor file after the session is over
-        """
-        try:
-            os.remove(os.path.join(FILE_DESCRIPTOR_FOLDER, "$FD"))
-            os.remove(os.path.join(FILE_DESCRIPTOR_FOLDER, "$FD_META"))
-            print("$FD deleted successfully!")
-        except FileNotFoundError:
-            print("File not found.")
-        except PermissionError:
-            print("You do not have permission to delete the file.")
-        except Exception as e:
-            print(f"Error: {e}")
+        metadata = self._download_replicated("$META")
+        if metadata is None: # Metadata does not exist, new session, make our own
+            self.metadata = {"encrypt": self.encrypt.get_name(), "split": self.split.get_name(), "order": self.cloud_name_list}
+            self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
+        else:
+            self.metadata = json.loads(metadata)
+            for cloudname in self.metadata.get("order"):
+                if not cloudname in self.cloud_name_list: # TODO: Make it so only the needed amount of clouds are checked
+                    raise Exception(f"Missing a required cloud for session: {cloudname}")
+            self.cloud_name_list = self.metadata.get("order")
+            if self.split.get_name() != self.metadata.get("split"):
+                print(f"Changing splitting algorithm for session {self.root}")
+                self.split = Split.get_class(self.metadata.get("split"))()
+            if self.encrypt.get_name() != self.metadata.get("encrypt"):
+                print(f"Changing encryption algorithm for session {self.root}")
+                self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
 

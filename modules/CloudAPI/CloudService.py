@@ -1,12 +1,41 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 
 class CloudService(ABC):
-    class Folder:
-        def __init__(self, id, path, shared=False, members_shared=None):
-            self.id = id
-            self.path = path
+    class CloudObject:
+        """
+        Abstract class representing an object in the cloud
+        """
+        def __init__(self, id : any, name : str):
+            self._id = id
+            self.name = name
+        
+        def get_name(self) -> str:
+            return self.name
+        
+        def __str__(self):
+            return f"{self.__class__.__name__}: {self._id}, {self.name}"
+        
+    class Folder(CloudObject):
+        """
+        This class is the top level folder class that represent folders in a specific cloudservice.
+        Can be inherited to add more functionality to the folder objects
+        """
+        def __init__(self, id : any, name, shared=False):
+            super().__init__(id, name)
             self.shared = shared
-            self.members_shared = members_shared if members_shared is not None else []
+        
+        def is_shared(self):
+            return self.shared
+        
+
+    class File(CloudObject):
+        """
+        This class is the top level file class that represent files in a specific cloudservice. 
+        Can be inherited to add more functionality to the file objects
+        Maybe later add more details about files
+        """
+        pass
 
     def __new__(cls, email : str):
         """
@@ -54,27 +83,38 @@ class CloudService(ABC):
         return self.authenticated
 
     @abstractmethod
-    def list_files(self, folder='/') -> list:
+    def get_children(self, folder : Folder, filter=None) -> Iterable[File|Folder]:
         """
-        List files in the cloud storage, optionally in a specific folder object
+        Get all file and folder objects that are children of the specified folder
+        @param folder the folder object to get the children of
+        @param filter optional if the file or folder name starts with this, ignore it
+        @return an iterable of file and folder objects
+        """
+        pass
+
+    @abstractmethod
+    def list_files(self, folder : Folder, filter="") -> Iterable[File]:
+        """
+        List all files in the folder
         @param folder the folder object, if not specified uses root folder
+        @param filter optional to filter the files by name. The function checks if the filename starts with the filter string
         @return a list of all the file names in the folder
         """
         pass
 
     @abstractmethod
-    def upload_file(self, data : bytes, file_name : str, path : str) -> bool:
+    def upload_file(self, data : bytes, file_name : str, parent : Folder) -> File:
         """
         Upload a file to the cloud storage
         @param data the data to upload
         @param file_name the file name
         @param path the path
-        @return success, if fails throws an error
+        @return the file object if it was uploaded successfully, if fails throws an error
         """
         pass
 
     @abstractmethod
-    def download_file(self, file_name : str, path : str) -> bytes | None:
+    def download_file(self, file : File) -> bytes | None:
         """
         Download a file from the cloud storage using
         @param file_name the name of the file
@@ -84,32 +124,30 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def delete_file(self, file_name : str, path : str) -> bool:
+    def delete_file(self, file : File) -> bool:
         """
         Delete a file from the cloud storage
         @param file_path the path to the file in the cloud storage
         @return success, if fails throws an error
         """
         pass
-    
+
     @abstractmethod
-    def get_folder(self, path : str) -> Folder:
+    def get_session_folder(self, name : str) -> Folder:
         """
-        Get a folder object from the path if it exists, if not throws an error
-        @param path the path to the folder to get
+        Get a normal (none shared) session root folder in a cloud_service
+        This is the folder that is used to store all the files in the session
+        Generally the name parameter will be the application username for that specific session
+        If the folder does not exist, it will be created
+        This function should look under the root folder of the cloudservice for a folder with the correct name
+        If there are multiple folders with the same path, throws a specific error
+        @param name the name of the folder to search for
         @return the folder object to be passed to other folder functions
         """
         pass
 
     @abstractmethod
-    def get_folder_path(self, folder : any) -> str:
-        """
-        @param folder a folder object returned from one of the folder functions
-        @return the path of the folder object
-        """
-
-    @abstractmethod
-    def create_folder(self, path : str) -> Folder:
+    def create_folder(self, name : str, parent : Folder) -> Folder:
         """
         Create a folder in the cloud storage
         @param path the path to create the folder at
@@ -128,17 +166,17 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def create_shared_folder(self, path, emails : list[str]) -> Folder:
+    def create_shared_session(self, name : str, emails : list[str]) -> Folder:
         """
         Creates and shares a folder with a specific list of emails
-        @param path the path the new folder should be created at
+        This method must create a shared folder in the root directory of the cloudservice
+        @param name the name of the folder
         @param emails a list of emails to share with
         @return a folder object
         """
-        pass
  
     @abstractmethod
-    def unshare_folder(self, folder) -> None:
+    def unshare_folder(self,  folder : Folder) -> None:
         """
         Unshares a folder - makes the folder "unshared", removes anyone shared with it
         @param folder, the folder object
@@ -147,7 +185,7 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
-    def unshare_by_email(self, folder : any, emails : list[str]) -> bool:
+    def unshare_by_email(self, folder : Folder, emails : list[str]) -> bool:
         """
         Unshare a folder from a specific emails list
         @param folder the folder object to unshare
@@ -155,20 +193,12 @@ class CloudService(ABC):
         @return success, if fails throws an error
         """
         pass
-
-    @abstractmethod
-    def list_shared_files(self, folder=None):
-        """
-        List all shared files and folders in the cloud storage
-        @param folder, optional, the folder object to look into
-        @return a list of shared file names
-        """
-        pass
     
     @abstractmethod
-    def list_shared_folders(self) -> list[Folder]:
+    def list_shared_folders(self, filter="") -> Iterable[Folder]:
         """
         List all shared folders in all of the cloud
+        @param filter a suffix to filter results by
         @return a list of folder objects that represent the shared folders
         """
     

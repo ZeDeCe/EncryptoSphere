@@ -83,12 +83,12 @@ class App(ctk.CTk):
         frame.refresh()
         frame.tkraise()
 
-    def get_shared_page(self, path):
-        if path in self.shared_frames:
-            return self.shared_frames[path]
-        frame = SharePageMainPage(self.container, self, path)
+    def get_shared_page(self, uid):
+        if uid in self.shared_frames:
+            return self.shared_frames[uid]
+        frame = SharePageMainPage(self.container, self, uid)
         frame.grid(row=0, column=0, sticky="nsew")
-        self.shared_frames[path] = frame
+        self.shared_frames[uid] = frame
         return frame
     
     def get_api(self):
@@ -103,10 +103,6 @@ class App(ctk.CTk):
         """    
         self.destroy() 
         if self.api.manager:
-            self.api.manager.sync_to_clouds() 
-            self.api.manager.delete_fd()
-            self.api.manager.unlock_session()
-            self.api.manager.stop_sync_thread()
             self.api.stop_sync_new_sessions_task()
     
     def register_context_menu(self, context_menu):
@@ -116,6 +112,10 @@ class App(ctk.CTk):
         @param context_menu: The context menu to be registered
         """
         self.context_menus.append(context_menu)
+    
+    def unregister_context_menu(self, context_menu):
+        if context_menu in self.context_menus:
+            self.context_menus.remove(context_menu)
     
     def button_clicked(self, button, ignore_list):
         """
@@ -134,12 +134,12 @@ class App(ctk.CTk):
         """
         self.current_frame.change_folder(path)
     
-    def change_session(self, path):
+    def change_session(self, uid):
         """
         Change the session in the main page to the given path
         @param path: The path to the session to be changed to
         """
-        self.api.change_session(path)
+        self.api.change_session(uid)
         
 
 class LoginPage(ctk.CTkFrame):
@@ -271,7 +271,7 @@ class MainPage(ctk.CTkFrame):
         self.encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         # Create the upload button and shared files button
-        self.upload_button = ctk.CTkButton(self.side_bar, text="Upload",
+        self.upload_button = ctk.CTkButton(self.side_bar, text=" + New ",
                                            command=lambda: self.open_upload_menu(),
                                            width=120, height=30, fg_color="gray25", hover=False)
         self.upload_button.pack(anchor="nw", padx=10, pady=10, expand=False)
@@ -307,7 +307,7 @@ class MainPage(ctk.CTkFrame):
 
         # Create the back button to go back to the previous folder, it is hidden by default (on main page).
         # This button is displayed when the user enters a subfolder.
-        self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
+        self.back_button = ctk.CTkButton(self.side_bar, text=" ⏎ Back",
                                          command=lambda: self.change_folder(self.get_previous_window(self.main_frame.path)),
                                          width=120, height=30, fg_color="gray25", hover=False)
         self.back_button.pack_forget()
@@ -334,6 +334,11 @@ class MainPage(ctk.CTkFrame):
         Initialize or recreate the context menu for the upload button.
         """
         self.context_menu = OptionMenu(self, self.controller, [
+            {
+                "label": "New Folder",
+                "color": "gray25",
+                "event": lambda: self.create_new_folder()
+            },
             {
                 "label": "Upload File",
                 "color": "gray25",
@@ -378,6 +383,49 @@ class MainPage(ctk.CTkFrame):
         else:
             self.context_menu.hide_context_menu()
 
+    def create_new_folder(self):
+        """
+        If new folder option is selected in the upload_context_menu, open a dialog to let the user pick a name for the new folder
+        """
+        # Get the position and size of the parent window
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_width = self.winfo_width()
+        parent_height = self.winfo_height()
+
+        # Create the input dialog
+        input_dialog = ctk.CTkInputDialog(text="Enter the name of the new folder:", title="Create New Folder")
+
+        # Calculate the position to center the dialog over the parent window
+        dialog_width = 300  # Approximate width of the dialog
+        dialog_height = 150  # Approximate height of the dialog
+        dialog_x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        dialog_y = parent_y + (parent_height // 2) - (dialog_height // 2)
+
+        # Set the position of the dialog
+        input_dialog.geometry(f"{dialog_width}x{dialog_height}+{dialog_x}+{dialog_y}")
+
+        # Get the folder name from the input dialog
+        folder_name = input_dialog.get_input()
+        self.context_menu.hide_context_menu()
+        if folder_name:
+            folder_path = f"{self.curr_path}/{folder_name}" if self.curr_path != "/" else f"/{folder_name}"
+            self.create_new_folder_in_cloud(folder_path)
+    
+    def create_new_folder_in_cloud(self, folder_path):
+        """
+        Create a new folder in the cloud and refresh the page
+        @param folder_path: The path of the folder to be created
+        """
+        label = self.add_message_label(f"Creating folder {folder_path.split('/')[-1]}")
+
+        self.controller.get_api().create_folder(
+            lambda f: (
+                self.remove_message(label),
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
+            ),
+            folder_path,
+        )
 
     def upload_file(self):
         """
@@ -399,7 +447,7 @@ class MainPage(ctk.CTkFrame):
         self.controller.get_api().upload_file(
             lambda f: (
                 self.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else None
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             os.path.normpath(file_path),
             self.main_frame.path
@@ -436,6 +484,19 @@ class MainPage(ctk.CTkFrame):
         # Refresh the main frame
         self.main_frame.refresh()
 
+    def show_message_notification(self, desc_text, title, on_confirm):
+    # Ensure the MessageNotification window is not constrained by the FolderButton size
+        self.notification_window = MessageNotification(
+            controller=self.controller,
+            master = self,  # Use the main window as the parent
+            title = title,  
+            description=desc_text,
+            on_confirm=on_confirm
+        )
+        self.notification_window.lift()
+
+
+
     def upload_folder(self):
         """
         If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder
@@ -455,7 +516,7 @@ class MainPage(ctk.CTkFrame):
         self.controller.get_api().upload_folder(
             lambda f: (
                 self.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else None
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             os.path.normpath(folder_path),
             self.main_frame.path
@@ -471,8 +532,8 @@ class MainPage(ctk.CTkFrame):
         else:
             self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
     def change_folder(self, path):
-        self.change_back_button(path)
         self._change_folder(path)
+        self.change_back_button(path)
 
     def _change_folder(self, path):
         """
@@ -480,6 +541,7 @@ class MainPage(ctk.CTkFrame):
         @param path: The path to the folder to be changed to
         """
         print(f"Current folder: {path}")
+        self.curr_path = path
         self.main_frame.pack_forget()
         if path in self.folders:
             self.main_frame = self.folders[path]
@@ -534,27 +596,32 @@ class Folder(ctk.CTkFrame):
         
         self.file_list = {}
         self.folder_list = {}
+        self.is_refreshed = False
 
         self.url_label = ctk.CTkLabel(self, text=self.path, anchor="e", fg_color="gray30", corner_radius=10)
         self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
-      
+    
     def refresh(self):
+        self.pack(fill=ctk.BOTH, expand=True)
+        if self.is_refreshed:
+            self.controller.get_api().get_items_in_folder_async(lambda f: self.__refresh(f.result()), self.path)
+        else:
+            generator = self.controller.get_api().get_items_in_folder(self.path)
+            self.__refresh(generator)
+            self.is_refreshed = True
+
+    def __refresh(self, generator):
         """
         Refresh the frame and display all updates
         """
-        file_list, folder_list = self.controller.get_api().get_files(self.path)
+        item_names = []
+        for item in generator:
+            if item.get("type") == "file" and item.get("name") not in self.file_list:
+                self.file_list[item.get("name")] = FileButton(self, width=120, height=120, file_data=item, controller=self.controller)
+            if item.get("type") == "folder" and item.get("name") not in self.folder_list:
+                self.folder_list[item.get("name")] = FolderButton(self, width=120, height=120, folder_path=item.get("path"), controller=self.controller)
+            item_names.append(item.get("name"))
 
-        # Add new files to self.file_list
-        for file in file_list:
-            if file["name"] not in self.file_list:
-                self.file_list[file["name"]] = FileButton(self, width=120, height=120, file_data=file, controller=self.controller)
-
-        # Add new folders to self.folder_list
-        for folder in folder_list:
-            if folder not in self.folder_list:
-                self.folder_list[folder] = FolderButton(self, width=120, height=120, folder_path=folder, controller=self.controller)
-
-        self.pack(fill=ctk.BOTH, expand=True)
         columns = 6
 
         # Forget all existing files and folders
@@ -565,20 +632,32 @@ class Folder(ctk.CTkFrame):
             self.grid_columnconfigure(col, weight=1, uniform="file_grid")
         index = 0
 
-        for folder in self.folder_list.values():
+        deleted_folders = []
+        for name, folder in self.folder_list.items():
+            if not name in item_names:
+                deleted_folders.append(name)
+                continue
             row = index // columns  
             col = index % columns   
 
             folder.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
 
-        for file in self.file_list.values():
+        deleted_files = []
+        for name,file in self.file_list.items():
+            if not name in item_names:
+                deleted_files.append(name)
+                continue
             row = index // columns  
             col = index % columns   
 
             file.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index += 1
-         
+
+        for deleted in deleted_folders:
+            self.folder_list.pop(deleted)
+        for deleted in deleted_files:
+            self.file_list.pop(deleted)
 
 class IconButton(ctk.CTkFrame):
     """
@@ -624,9 +703,6 @@ class FileButton(IconButton):
     def __init__(self, master, width, height, file_data, controller):
         IconButton.__init__(self, master, width, height, "resources/file_icon.png", file_data["name"], controller)
         self.file_data = file_data
-        print(self.file_data)
-        print(self.file_data["name"])
-        print(self.file_data["id"])
 
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
         self.context_menu = OptionMenu(master.master.master, self.controller, [
@@ -654,7 +730,7 @@ class FileButton(IconButton):
         self.controller.get_api().download_file(
             lambda f: (
                 self.master.master.master.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else None
+                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else None
             ),
             file_data["id"]
         )
@@ -669,7 +745,7 @@ class FileButton(IconButton):
         self.controller.get_api().delete_file(
             lambda f: (
                 self.master.master.master.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else None
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             file_data["id"]
         )
@@ -727,6 +803,91 @@ class OptionMenu(ctk.CTkFrame):
         self.context_hidden = False
         self.place(x=x, y=y)
 
+class MessageNotification(ctk.CTkFrame):
+    """
+    This class represents a message notification popup
+    """
+    def __init__(self, master, controller, width=300, height=150, title="Notification", description="", on_confirm=None, on_cancel=None):
+        """
+        Initialize the message notification popup
+        @param master: The parent widget
+        @param width: Width of the popup
+        @param height: Height of the popup
+        @param title: Title of the popup
+        @param description: Description text of the popup
+        @param on_confirm: Function to call when the confirm button is clicked
+        @param on_cancel: Function to call when the cancel button is clicked
+        """
+        ctk.CTkFrame.__init__(self, master, width=width, height=height, corner_radius=10)
+        self.place(relx=0.5, rely=0.5, anchor="center")  # Center of the parent window
+        self.controller = controller
+
+        # Bind a click event to the root window
+        self.bind("<Button-1>", self._handle_outside_click, add="+")
+        
+        # Ensure the frame respects the specified width and height
+        self.pack_propagate(False)  
+        self.grid_propagate(False)  
+
+        # Title
+        title_label = ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"))
+        title_label.pack(pady=(20, 10))
+
+        # Description
+        desc_label = ctk.CTkLabel(self, text=description, font=("Arial", 12), justify="center")
+        desc_label.pack(pady=(0, 20))
+
+        # Buttons frame
+        buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
+        buttons_frame.pack(pady=(0, 10))
+
+        # Cancel button
+        cancel_button = ctk.CTkButton(buttons_frame, text="Cancel", width=50,
+                                      fg_color="transparent", hover_color="gray",
+                                      text_color="white",
+                                      command=lambda: self._handle_cancel(on_cancel))
+        cancel_button.grid(row=0, column=0, padx=(0, 10))
+
+        # Confirm button
+        confirm_button = ctk.CTkButton(buttons_frame, text="Confirm", width=100,
+                                       command=lambda: self._handle_confirm(on_confirm))
+        confirm_button.grid(row=0, column=1)
+        controller.register_context_menu(self)
+        master.bind("<Button-1>", lambda event: self.close_menu(), add="+")
+
+    def _handle_confirm(self, on_confirm):
+        """
+        Handle the confirm button click
+        @param on_confirm: Function to call when the confirm button is clicked
+        """
+        if on_confirm:
+            on_confirm()
+        self.close_menu()
+
+    def _handle_cancel(self, on_cancel):
+        """
+        Handle the cancel button click
+        @param on_cancel: Function to call when the cancel button is clicked
+        """
+        if on_cancel:
+            on_cancel()
+        self.close_menu()
+    
+    def _handle_outside_click(self, event):
+        """
+        Handle clicks outside the notification frame
+        """
+        # Check if the click occurred outside the notification frame
+        if not self.winfo_containing(event.x_root, event.y_root) == self:
+            self._handle_cancel(None)  # Close the notification
+
+    def hide_context_menu(self):
+        self.close_menu()
+
+    def close_menu(self):
+        self.controller.unregister_context_menu(self)
+        self.destroy()
+
 class FolderButton(IconButton):
     """
     This class represents a "folder button"
@@ -756,35 +917,48 @@ class FolderButton(IconButton):
              {
                  "label": "Delete Folder",
                  "color": "red",
-                 "event": lambda: self.delete_folder() # maybe add "ARE YOU SURE?"
+                 "event": lambda: self.delete_folder_from_cloud() 
              }
         ])
         self.controller.register_context_menu(self.context_menu)
     
     
-    def delete_folder(self):
+    def delete_folder_from_cloud(self):
         """
         Delete folder from the cloud and refresh the page
         @param folder_path: The path of the folder to be deleted
         """
-        label = self.master.master.master.add_message_label(f"Deleting folder {self.folder_path}")
-
-        self.controller.get_api().delete_folder(
+        desc_text = f'"{self.folder_path}" will be permanently deleted.'
+        title = "Delete This Folder?"
+        def on_confirm():
+            label = self.master.master.master.add_message_label(f"Deleting folder {self.folder_path}")
+            self.controller.get_api().delete_folder(
             lambda f: (
                 self.master.master.master.remove_message(label),
-                messagebox.showerror(str(f.exception())) if f.exception() else self.master.master.master.refresh()
+                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.master.master.master.refresh()
             ),
             self.folder_path
-        )
-    
+            )
+            # Immediately pop the folder from the list
+            self.master.folder_list.pop(self.folder_name)
+
+        self.master.master.master.show_message_notification(desc_text, title, on_confirm)
+
     
     def download_folder(self):
         """
         Download folder from the cloud and refresh the page
         @param folder_path: The path of the folder to be downloaded
         """
-        # Can add a callback to notify user that the download is complete
-        self.controller.get_api().download_folder(None, self.folder_path)
+        label = self.master.master.master.add_message_label(f"Downloading folder {self.folder_path}")
+        self.controller.get_api().download_folder(
+            lambda f: (
+                self.master.master.master.remove_message(label),
+                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.master.master.master.refresh()
+            ),
+            self.folder_path
+            )
+
 
     def on_double_click(self, event=None):
         """
@@ -801,15 +975,13 @@ class FolderButton(IconButton):
             self.context_menu.hide_context_menu()
 
 class SharePageMainPage(MainPage):
-    def __init__(self, parent, controller, path):
-        self.path = path
+    def __init__(self, parent, controller, uid):
+        self.uid = uid
         super().__init__(parent, controller)
         self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
         self.back_button.configure(command=lambda: self.controller.show_frame(SharePage) if self.main_frame.path == "/" else self.change_folder(self.get_previous_window(self.main_frame.path)))
         self.shared_files_button.pack_forget()
-        parsed_path = path.replace("_ENCRYPTOSPHERE_SHARE", "")
-        parsed_path = parsed_path.split("/")[-1]
-        self.encryptosphere_label.configure(text=parsed_path)
+        self.encryptosphere_label.configure(text=uid.split("$")[0])
 
     def sync_to_clouds(self):
         """
@@ -836,7 +1008,6 @@ class SharePage(ctk.CTkFrame):
         
         self.controller = controller
         ctk.CTkFrame.__init__(self, parent)
-
         # Create the side bar
         self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
         self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
@@ -1001,10 +1172,9 @@ class SharePage(ctk.CTkFrame):
         
         for folder in folder_list:
             if folder not in self.shared_folder_list:
-                self.shared_folder_list[folder] = SharedFolderButton(self.main_frame, width=120, height=120, folder_name=folder, controller=self.controller)
+                self.shared_folder_list[folder] = SharedFolderButton(self.main_frame, width=120, height=120, uid=folder, controller=self.controller)
 
         columns = 6
-        cell_size = 120
 
         for widget in self.main_frame.winfo_children():
             widget.grid_forget()
@@ -1019,11 +1189,7 @@ class SharePage(ctk.CTkFrame):
             col = index % columns   
             folder.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index +=1
-        
-
-
-
-
+ 
 
 class SharedFolderButton(IconButton):
     """
@@ -1031,41 +1197,34 @@ class SharedFolderButton(IconButton):
     A shared folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder 
     """
     
-    def __init__(self, master, width, height, folder_name, controller):
+    def __init__(self, master, width, height, uid, controller):
 
-        
         # Get the folder name from the path
-        self.full_folder_name = folder_name
-        folder_name = folder_name.replace("_ENCRYPTOSPHERE_SHARE", "")
-        folder_name = folder_name.split("/")[-1]
+        self.uid = uid
+        self.name = uid.split("$")[0]
 
-        super().__init__(master, width, height, "resources/folder_icon.png", folder_name, controller)
+        super().__init__(master, width, height, "resources/folder_icon.png", self.name, controller)
         self.controller = controller
         self.master = master
-        self.folder_name = folder_name
         
 
         # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
         self.context_menu = OptionMenu(master.master.master, self.controller, [
             {
-                "label": "Add Member",
+                "label": "Manage Permissions",
                 "color": "green4",
-                "event": lambda: Thread(target=self.add_member_on_shared_folder, args=(), daemon=True).start() #TODO: add the function to add member
+                "event": lambda: self.manage_share_permissions() #TODO: add the function to add member
              },
-             {
-                 "label": "Remove member",
-                 "color": "green4",
-                 "event": lambda: Thread(target=self.remove_member_from_shared_folder, args=(), daemon=True).start()
-             },
-                         {
+             
+            {
                 "label": "Leave Share",
                 "color": "red",
-                "event": lambda: Thread(target=self.leave_shared_folder, args=(), daemon=True).start()
+                "event": lambda: Thread(target=self.leave_shared_folder, args=(), daemon=True).start() #TODO: this
              },
              {
                  "label": "Delete Share",
                  "color": "red",
-                 "event": lambda: Thread(target=self.delete_shared_folder, args=(), daemon=True).start()
+                 "event": lambda: Thread(target=self.delete_shared_folder, args=(), daemon=True).start() #TODO: this
              }
         ])
 
@@ -1077,15 +1236,138 @@ class SharedFolderButton(IconButton):
         @param event: The event that triggered this function
         """
         # Add here the correct function
-        self.controller.change_session(self.full_folder_name)
-        self.controller.show_frame(self.controller.get_shared_page(self.full_folder_name))
+        self.controller.change_session(self.uid)
+        self.controller.show_frame(self.controller.get_shared_page(self.uid))
 
         
-    def add_member_on_shared_folder(self):
-        pass
+    def manage_share_permissions(self):
+        new_window = ctk.CTkToplevel(self)
+        new_window.title("Manage Share Permissions")
+        # Bring to front & keep it on top of the main window
+        new_window.lift()  
+        new_window.transient(self)  
 
-    def remove_member_from_shared_folder(self):
-        pass
+        # Get the position and size of the parent (controller) window
+        main_x = self.controller.winfo_x()
+        main_y = self.controller.winfo_y()
+        main_w = self.controller.winfo_width()
+        main_h = self.controller.winfo_height()
+        # Size of the new window
+        # TODO: dynamic sizing
+        new_w, new_h = 400, 350  
+
+        # Calculate the position to center the new window over the parent window
+        new_x = main_x + (main_w // 2) - (new_w // 2)
+        new_y = main_y + (main_h // 2) - (new_h // 2)
+        new_window.geometry(f"{new_w}x{new_h}+{new_x}+{new_y}")
+
+        # Create a frame for the scrollable area
+        frame = ctk.CTkFrame(new_window)
+        frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+
+        # Create a scrollable frame inside the main frame
+        scrollable_frame = ctk.CTkScrollableFrame(frame)
+        scrollable_frame.pack(fill=ctk.BOTH, expand=True)
+
+        # Share with header
+        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w")
+        share_with_label.grid(row=0, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
+        
+        # Email list input
+        email_frame = ctk.CTkFrame(scrollable_frame, fg_color=scrollable_frame.cget('fg_color'))  # Match background
+        email_frame.grid(row=1, column=0, columnspan=2, pady=0, sticky="w")
+
+        # List to hold email input fields
+        email_inputs = []  
+
+        # Initial email input field
+        initial_email_entry = ctk.CTkEntry(email_frame, width=300)
+        initial_email_entry.grid(row=1, column=0, pady=5, padx=(0, 10), sticky="w")
+        email_inputs.append(initial_email_entry)
+
+        # Function to add new email input
+        def add_email_input():
+            if len(email_inputs) < 5:
+                new_email_entry = ctk.CTkEntry(email_frame, width=300)
+                new_email_entry.grid(row=len(email_inputs) + 1, column=0, pady=5, padx=(0, 10), sticky="w")
+                email_inputs.append(new_email_entry)
+
+        # "+" button to add email inputs (styled as a small circular button)
+        plus_button = ctk.CTkButton(email_frame, text="+", command=add_email_input, width=30, height=30, corner_radius=15)
+        plus_button.grid(row=1, column=1, padx=10, pady=5)
+
+        # Function to handle the creation of new share
+        def add_to_exsisting_share():
+            emails = [email.get() for email in email_inputs]
+            print(f"Adding to share with emails: {emails}")
+            
+            # Call the API with the final array
+            self.controller.get_api().add_users_to_share(None, self.full_folder_name, emails)
+            # Close the new window
+            new_window.destroy()
+
+        # Create new share button (this now does both actions: create share and close the window)
+        add_to_share_button = ctk.CTkButton(scrollable_frame, text="Share", command=add_to_exsisting_share, width=80, height=25, corner_radius=10)
+        add_to_share_button.grid(row=2, column=1, pady=50, padx=100, sticky="e")
+
+        # Already shared emails
+        shared_with_label = ctk.CTkLabel(scrollable_frame, text="Already shared with:", anchor="w")
+        shared_with_label.grid(row=3, column=0, padx=(0, 10), pady=(10, 5), sticky="w")
+
+        # List of emails already shared
+        self.shared_emails = self.controller.get_api().get_shared_emails(self.full_folder_name)  # Fetch shared emails from API
+
+        def remove_email(display_email, email):
+            """
+            Function to remove an email from the shared list
+            """
+            confirm = messagebox.askyesno("Remove Share", f"Remove {display_email} from share?")
+            for widget in scrollable_frame.winfo_children():
+                if hasattr(widget, 'custom_id') and widget.custom_id == display_email and isinstance(widget, ctk.CTkButton):
+                    widget.configure(state="disabled")
+            if confirm:
+                self.controller.get_api().revoke_user_from_share(
+                    lambda f, display_email=display_email: (
+                        remove_email_and_rearrange(display_email) if not f.exception() else messagebox.showerror("Error", f"Failed to revoke user: {f.exception()}")
+                    ),
+                    self.full_folder_name,
+                    email
+                )
+
+        def remove_email_and_rearrange(display_email):
+            # Remove the relevant email label and remove button using custom_id
+            for widget in scrollable_frame.winfo_children():
+                if hasattr(widget, 'custom_id') and widget.custom_id == display_email:
+                    if widget.winfo_exists():  # Check if the widget still exists
+                        widget.destroy()
+
+            # Remove the email from the shared list
+            self.shared_emails = [email for email in self.shared_emails if list(email.values())[0] != display_email]
+
+            # Rearrange the remaining email labels and buttons
+            scrollable_frame.update_idletasks()  # Ensure the frame is updated after widget removal
+
+
+        # Display each email with alignment and a "Remove" button
+        if self.shared_emails:
+            for idx, email in enumerate(self.shared_emails):
+                # Display email aligned to the left
+                display_email = list(email.values())[0]  # Get the value of the first element in the dictionary
+                email_label = ctk.CTkLabel(scrollable_frame, text=display_email, anchor="w", text_color="white")
+                email_label.grid(row=idx + 4, column=0, sticky="w")
+                email_label.custom_id = display_email
+
+                # Add "Remove" button aligned to the right
+                remove_button = ctk.CTkButton(scrollable_frame, text="Remove", 
+                                command=lambda email=email, display_email=display_email: remove_email(display_email, email), 
+                                width=80, height=25, corner_radius=10)
+                remove_button.grid(row=idx + 4, column=1, padx=100, sticky="e")
+                remove_button.custom_id = display_email
+        
+        
+
+        # Adjust the scrollbar to make it thinner (no slider_length argument)
+        new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
     def leave_shared_folder(self):
         pass
