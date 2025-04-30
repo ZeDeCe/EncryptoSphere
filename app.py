@@ -764,6 +764,16 @@ class FileButton(IconButton):
             self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.winfo_rooty())
         else:
            self.context_menu.hide_context_menu()
+    
+    def on_double_click(self, event=None):
+        """
+        When double-clicking on a file, open the file using the `open_file` function.
+        """
+        try:
+            print(f"Opening file: {self.file_data['name']}")
+            self.controller.get_api().manager.open_file(self.file_data["id"])
+        except Exception as e:
+            print(f"Error opening file: {e}")
               
 class OptionMenu(ctk.CTkFrame):
     """
