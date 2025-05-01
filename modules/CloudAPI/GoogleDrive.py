@@ -667,7 +667,7 @@ class GoogleDrive(CloudService):
                         folder_id = item["id"]
                         folder_name = item["name"]
 
-                        # ✅ Check filter match (like Dropbox)
+                        # Check filter match (like Dropbox)
                         if filter and not folder_name.endswith(filter):
                             continue
                         
