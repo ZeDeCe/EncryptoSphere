@@ -1,6 +1,9 @@
 import os
 import tempfile
 import hashlib
+import zipfile
+import shutil
+
 
 from modules import Split
 from modules import Encrypt
@@ -432,13 +435,65 @@ class CloudManager:
             print(f"Unexpected error while downloading file: {e}")
         return False
 
-    def download_folder(self, folder_name):
+    def download_folder(self, folder_name: str):
         """
-        Using filedescriptor functions, gathers all files under the folder_name and then calls self.download
-        on all of those files. Constructs them as the hierarchy in the filedescriptor on the OS.
+        Downloads all files in the specified folder and compresses them into a ZIP file.
+        The ZIP file is saved to the user's Downloads folder.
+
+        @param folder_name: The name of the folder to download.
         """
-        time.sleep(3)
-        return True
+        try:
+            # Ensure the folder exists in the cloud
+            folder = self.fs.get(folder_name)
+            if not folder or not isinstance(folder, Directory):
+                raise FileNotFoundError(f"Folder '{folder_name}' does not exist in the cloud.")
+
+            # Set the destination path to the Downloads folder
+            downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+            os.makedirs(downloads_folder, exist_ok=True)
+            zip_file_path = os.path.join(downloads_folder, f"{os.path.basename(folder_name)}.zip")
+
+            # Create a temporary folder to store downloaded files
+            temp_folder = tempfile.mkdtemp()
+
+            # Get all items in the folder
+            items = list(self.get_items_in_folder(folder_name))
+            if not items:
+                raise FileNotFoundError(f"No items found in folder: {folder_name}")
+
+            # Download each file in the folder
+            for item in items:
+                if item.get("type") == "file":
+                    filename = item.get("name")
+                    expected_download_path = os.path.join(downloads_folder, filename)
+                    temp_target_path = os.path.join(temp_folder, filename)
+
+                    print(f"Downloading file: {filename}")
+                    self.download_file(item.get("path"))
+
+                    # Move the downloaded file from Downloads to the temp folder
+                    if os.path.exists(expected_download_path):
+                        shutil.move(expected_download_path, temp_target_path)
+                    else:
+                        raise FileNotFoundError(f"Expected downloaded file not found: {expected_download_path}")
+
+            # Create a ZIP file from the temp folder
+            with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                for root, _, files in os.walk(temp_folder):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, temp_folder)
+                        zipf.write(file_path, arcname)
+
+            # Clean up the temporary folder
+            shutil.rmtree(temp_folder)
+
+            print(f"Folder '{folder_name}' successfully downloaded and compressed to: {zip_file_path}")
+            return zip_file_path
+
+        except Exception as e:
+            print(f"Error downloading folder '{folder_name}': {e}")
+            raise
 
     def delete_file(self, path):
         """
