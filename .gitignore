@@ -3,6 +3,7 @@
 .env
 client_secret.json
 Test/
+clouddata/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
