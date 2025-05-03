@@ -532,7 +532,7 @@ class CloudManager:
         with concurrent.futures.ThreadPoolExecutor() as file_executor:
             for file_path in files_to_delete:
                 print(f"Deleting file: {file_path}")
-                futures[self.executor.submit(self.delete_file, file_path)] = file_path
+                futures[file_executor.submit(self.delete_file, file_path)] = file_path
 
             # Wait for all file deletions to complete
             results, success = self._complete_cloud_threads(futures)
