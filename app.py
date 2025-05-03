@@ -734,7 +734,14 @@ class IconButton(ctk.CTkFrame):
         self.controller.button_clicked(self)
 
     def on_double_click(self, event=None):
-        self.controller.button_clicked(self)
+        """
+        When double-clicking on a file, open the file using the `open_file` function.
+        """
+        try:
+            print(f"Opening file: {self.file_data['name']}")
+            self.controller.get_api().manager.open_file(self.file_data["id"])
+        except Exception as e:
+            print(f"Error opening file: {e}")
     
     def on_button3_click(self, event=None):
         self.controller.button_clicked(self)
