@@ -20,13 +20,20 @@ class CloudService(ABC):
         """
         This class is the top level folder class that represent folders in a specific cloudservice.
         Can be inherited to add more functionality to the folder objects
+        The shared flag can be used internally in the cloud service as whatever is needed
+        To determine if the folder is shared, use the is_shared function
         """
         def __init__(self, id : any, name, shared=False):
             super().__init__(id, name)
             self.shared = shared
         
         def is_shared(self):
-            return self.shared
+            """
+            Returns true if the folder is shared, false otherwise
+            """
+            if self.shared:
+                return True
+            return False
         
 
     class File(CloudObject):
