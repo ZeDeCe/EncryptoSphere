@@ -529,27 +529,34 @@ class CloudManager:
 
         # Use thread pool to delete all files
         futures = {}
+        with concurrent.futures.ThreadPoolExecutor() as file_executor:
+            for file_path in files_to_delete:
+                print(f"Deleting file: {file_path}")
+                futures[self.executor.submit(self.delete_file, file_path)] = file_path
+
+            # Wait for all file deletions to complete
+            results, success = self._complete_cloud_threads(futures)
+            if not success:
+                print("Failed to delete some files.")
+
+            # Clear the futures dictionary for folder deletions
+            futures = {}
+
+            # Use thread pool to delete all folders (subfolders first)
+            for subfolder_path in sorted(folders_to_delete, key=len, reverse=True):
+                print(f"Deleting folder: {subfolder_path}")
+                folder = self.fs[subfolder_path]
+                for cloud in self.clouds:
+                    futures[file_executor.submit(cloud.delete_file, folder.get(cloud.get_name()))] = subfolder_path
+
+            # Wait for all folder deletions to complete
+            results, success = self._complete_cloud_threads(futures)
+            if not success:
+                print("Failed to delete some folders.")
+
+        # Remove files and folders from the file descriptor
         for file_path in files_to_delete:
-            futures[self.executor.submit(self.delete_file, file_path)] = file_path
-
-        # Wait for all file deletions to complete
-        results, success = self._complete_cloud_threads(futures)
-        if not success:
-            print("Failed to delete some files.")
-
-        # Use thread pool to delete all folders
-        futures = {}
-        for subfolder_path in sorted(folders_to_delete, key=len, reverse=True):  # Delete subfolders first
-            folder = self.fs[subfolder_path]
-            for cloud in self.clouds:
-                futures[self.executor.submit(cloud.delete_file, folder.get(cloud.get_name()))] = subfolder_path
-
-        # Wait for all folder deletions to complete
-        results, success = self._complete_cloud_threads(futures)
-        if not success:
-            print("Failed to delete some folders.")
-
-        # Remove folders from the file descriptor
+            self.fs.pop(file_path, None)
         for subfolder_path in sorted(folders_to_delete, key=len, reverse=True):
             self.fs.pop(subfolder_path, None)
 
