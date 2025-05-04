@@ -408,8 +408,7 @@ class CloudManager:
                 encrypted_data = self._merge(data, len(self.clouds))
                 data = self._decrypt(encrypted_data)
             except Exception as e:
-                print(f"Error merging or decrypting data for file {path}: {e}")
-                raise
+                raise Exception(f"Error merging or decrypting data for file {path}: {e}")
 
             # Set the destination path to the Downloads folder
             downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -421,8 +420,7 @@ class CloudManager:
                     output.write(data)
                 print(f"File successfully reconstructed into '{dest_path}'.")
             except Exception as e:
-                print(f"Error writing file to {dest_path}: {e}")
-                raise
+                raise Exception(f"Error writing file to {dest_path}: {e}")
             return True
 
         except ValueError as ve:

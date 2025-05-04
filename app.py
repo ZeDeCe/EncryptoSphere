@@ -798,6 +798,18 @@ class FileButton(IconButton):
         # Immediately pop the file from the list
         self.master.file_list.pop(file_data["name"])
 
+    def open_file_from_cloud(self, file_data):
+        mainpage = self.master.master.master.master.master
+        label = mainpage.add_message_label(f"Opening file {file_data['name']}")
+
+        self.controller.get_api().open_file(
+            lambda f: (
+                mainpage.remove_message(label),
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
+            ),
+            file_data["id"]
+        )
+
     def on_button3_click(self, event=None):
         """
         When clicking on a file, open the context menu for that file, double clicking means open-close the context menu
@@ -820,7 +832,7 @@ class FileButton(IconButton):
         super().on_double_click(event)
         try:
             print(f"Opening file: {self.file_data['name']}")
-            self.controller.get_api().manager.open_file(self.file_data["id"])
+            self.open_file_from_cloud(self.file_data)
         except Exception as e:
             print(f"Error opening file: {e}")
 

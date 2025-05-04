@@ -124,6 +124,16 @@ class Gateway:
         pass
 
         
+    @promise
+    def open_file(self, file_path):
+        """
+        Open file function
+        @param file_id: the id of the file to open
+        @return: True if the file was opened successfully, False otherwise
+        """
+        print(f"Open file selected: {file_path}")
+        return self.current_session.open_file(file_path)
+    
     
     @promise
     def download_file(self, file_path):
