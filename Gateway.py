@@ -135,14 +135,14 @@ class Gateway:
         return self.current_session.download_file(file_path)
 
     @promise
-    def download_folder(self, folder_name):
+    def download_folder(self, folder_path):
         """
         Download folder as a ZIP file.
         @param folder_name: The name of the folder to download.
         @return: The path to the ZIP file if successful, False otherwise.
         """
-        print(f"Download folder selected: {folder_name}")
-        return self.current_session.download_folder(folder_name)
+        print(f"Download folder selected: {folder_path}")
+        return self.current_session.download_folder(folder_path)
     
     @promise
     def upload_file(self, file_path, path):

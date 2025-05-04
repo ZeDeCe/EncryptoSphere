@@ -184,7 +184,7 @@ class GoogleDrive(CloudService):
         """
         try:
             page_token = None
-            query = f"'{folder._id}' in parents and mimeType != 'application/vnd.google-apps.folder'"
+            query = f"'{folder._id}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false"
 
             while True:
                 results = self.drive_service.files().list(
@@ -313,164 +313,39 @@ class GoogleDrive(CloudService):
             print(f"Google Drive- Unexpected error: {e}")
             return False
         
+    
     def get_session_folder(self, name: str) -> CloudService.Folder:
         """
         Get the session folder from Google Drive, create it if it doesn't exist.
         """
         try:
-            children = self.get_children(self.root_folder)
-            for child in children:
-                if child.name == name:
-                    return child
-            
+            query = (
+                f"'{self.root_folder._id}' in parents and "
+                f"mimeType = 'application/vnd.google-apps.folder' and "
+                f"name = '{name}' and trashed = false"
+            )
+
+            results = self.drive_service.files().list(
+                q=query,
+                spaces='drive',
+                fields="files(id, name)",
+                pageSize=1
+            ).execute()
+
+            files = results.get('files', [])
+            if files:
+                return CloudService.Folder(id=files[0]['id'], name=files[0]['name'], shared=False)
+
             new_folder = self.create_folder(name, self.root_folder)
-            new_folder.name = "/" 
+            new_folder.name = "/"
             return new_folder
 
         except HttpError as error:
-            raise Exception(f"Google Drive- Error getting/creating session folder: {error}")
+            raise Exception(f"Google Drive - Error getting/creating session folder: {error}")
         except Exception as e:
-            raise Exception(f"Google Drive- Unexpected error in get_session_folder: {e}")
+            raise Exception(f"Google Drive - Unexpected error in get_session_folder: {e}")
 
-
-    """"
-    def get_folder(self, path: str) -> CloudService.Folder:
-        \"""
-        Get a folder object in Google Drive by its full path.
-        First checks if it's a shared folder, if so returns that.
-        Otherwise looks for non-shared folders.
-        
-        :param path: Full path of the folder (e.g., '/Parent/Child/Folder')
-        :return: A CloudService.Folder object representing the folder
-        \"""
-        try:
-            path = path.rstrip('/')  # Remove trailing slash if exists
-            
-            # PART 1: Check if it's a simple '/FolderName' path, which might be a shared folder
-            if path.count('/') == 1 and path.startswith('/'):
-                folder_name = path[1:]  # Remove the leading '/'
-                
-                # Get all shared folders
-                try:
-                    shared_folders = self.list_shared_folders()
-                    
-                    # Check if any shared folder matches the name
-                    for shared_folder in shared_folders:
-                        # Extract just the folder name from the path (without the leading '/')
-                        shared_folder_name = shared_folder.path.strip('/')
-                        
-                        if shared_folder_name == folder_name:
-                            return shared_folder
-                except Exception:
-                    # If error occurs while getting shared folders, continue to the regular search
-                    pass
-            
-            # PART 2: If no shared folder was found, look for non-shared folders
-            path_parts = path.strip('/').split('/')
-            
-            # Validate the path
-            if len(path_parts) < 1:
-                raise Exception("Invalid folder path")
-            
-            current_folder_id = 'root'
-            current_folder_path = ""
-
-            for folder_name in path_parts:
-                try:
-                    results = self.drive_service.files().list(
-                        q=f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{current_folder_id}' in parents and trashed = false",
-                        fields="files(id, name, shared, permissions(emailAddress))"
-                    ).execute()
-                    
-                    folders = results.get('files', [])
-                    
-                    if not folders:
-                        raise FileNotFoundError(f"Folder '{folder_name}' not found in path")
-                    
-                    # Update the current folder ID and path
-                    current_folder_id = folders[0]['id']
-                    current_folder_path = f"{current_folder_path}/{folder_name}"
-                except Exception as e:
-                    raise FileNotFoundError(f"Error accessing folder '{folder_name}': {str(e)}")
-
-            # Check if the folder is shared and get shared members
-            try:
-                permissions = self.drive_service.permissions().list(
-                    fileId=current_folder_id,
-                    fields="permissions(emailAddress)"
-                ).execute()
-                shared_members = [
-                    perm["emailAddress"] for perm in permissions.get("permissions", [])
-                ]
-
-                # Skip shared folders and continue processing
-                if len(shared_members) > 1:
-                    print(f"Folder '{path}' is shared. Skipping.")
-                    # Skip this folder and continue processing
-                    return self.get_folder(current_folder_path)  # Recursively call to continue processing
-
-                # Return the CloudService.Folder object (non-shared)
-                return CloudService.Folder(
-                    id=current_folder_id,
-                    path=current_folder_path,
-                    shared=False,
-                    members_shared=None
-                )
-            except Exception as e:
-                print(f"Error checking permissions for folder '{path}': {str(e)}")
-                # Skip this folder and continue processing
-                return self.get_folder(current_folder_path)  # Recursively call to continue processing
-
-        except FileNotFoundError as e:
-            # Log the error and raise an exception
-            print(f"Folder not found: {str(e)}")
-            raise Exception(f"Folder not found: {str(e)}")
-        except Exception as e:
-            # Log all other errors and raise an exception
-            print(f"Error while fetching folder: {str(e)}")
-            raise Exception(f"Error while fetching folder: {str(e)}")
-            """
     
-
-    def get_folder_path(self, folder: CloudService.Folder) -> str:
-        """
-        Get the full path of a folder in Google Drive given its folder object (ID).
-        
-        :param folder: A folder object (or ID) returned from one of the folder functions.
-        :return: The full path of the folder.
-        
-        try:
-            folder_id = folder if isinstance(folder, str) else folder.get('id')
-
-            if not folder_id:
-                raise ValueError("Invalid folder object or missing ID.")
-
-            path = []
-            
-            while folder_id:
-                # Fetch the folder metadata
-                folder_metadata = self.drive_service.files().get(
-                    fileId=folder_id, 
-                    fields="id, name, parents"
-                ).execute()
-
-                path.append(folder_metadata["name"])
-
-                # Move to the parent folder
-                parent_ids = folder_metadata.get("parents", [])
-                folder_id = parent_ids[0] if parent_ids else None
-
-            return "/" + "/".join(reversed(path))
-
-        except Exception as e:
-            print(f"Error while fetching folder path: {e}")
-            raise
-        """
-        folder_path = folder.path
-        if folder_path:
-            return folder_path
-        else: 
-            return None
         
     def create_folder(self, name: str, parent: CloudService.Folder) -> CloudService.Folder:
         """
@@ -515,6 +390,7 @@ class GoogleDrive(CloudService):
         except Exception as e:
             raise Exception(f"Google Drive - Error creating folder '{name}' under parent '{parent.name}': {e}")
 
+    
     def create_shared_session(self, name, emails):
         try:
             folder = self.create_folder(name, self.root_folder)  # folder is CloudService.Folder object
@@ -528,7 +404,7 @@ class GoogleDrive(CloudService):
     
     def share_folder(self, folder: CloudService.Folder, emails: list[str]) -> CloudService.Folder:
         """
-        Share a folder on Google Drive
+        Share a folder on Google Drive.
         """
         try:
             shared_members = self.get_members_shared(folder)
@@ -544,7 +420,7 @@ class GoogleDrive(CloudService):
                     return None
                 print(f"Folder shared successfully with {email}!")
 
-            return CloudService.Folder(id=folder._id, name=folder.name, shared=folder._id)
+            return CloudService.Folder(id=folder._id, name=folder.name, shared=True)
 
         except HttpError as e:
             raise Exception(f"Google Drive: Error: {e}")
@@ -574,7 +450,7 @@ class GoogleDrive(CloudService):
                 'role': 'writer',  # or 'reader' for read-only
                 'emailAddress': email
             }
-            self.service.permissions().create(
+            self.drive_service.permissions().create(
                 fileId=folder_id,
                 body=permission,
                 fields='id',
@@ -594,10 +470,10 @@ class GoogleDrive(CloudService):
             raise Exception("Error: Folder is not shared")
         
         try:
-            permissions = self.service.permissions().list(fileId=folder.shared).execute()
+            permissions = self.drive_service.permissions().list(fileId=folder._id).execute()
             for permission in permissions.get('permissions', []):
                 if permission['role'] != 'owner':
-                    self.service.permissions().delete(
+                    self.drive_service.permissions().delete(
                         fileId=folder.shared,
                         permissionId=permission['id']
                     ).execute()
@@ -637,7 +513,7 @@ class GoogleDrive(CloudService):
             raise Exception(f"Error unsharing by email: {error}")
 
 
-    def list_shared_folders(self, filter: str = ""):
+    def list_shared_folders(self, filter=""):
         """
         List all shared folders that are either shared with me or that I've shared with others.
         @param filter - Optional suffix to match folder names (like Dropbox).
@@ -681,7 +557,7 @@ class GoogleDrive(CloudService):
                                 shared_with_others = True
                                 members_shared.append(perm["emailAddress"])
                         
-                        if shared_with_others or item.get("sharedWithMe", False):
+                        if shared_with_others:
                             # Get owners
                             owners = [owner.get("emailAddress") for owner in item.get("owners", [])]
                             for owner_email in owners:
@@ -692,9 +568,8 @@ class GoogleDrive(CloudService):
 
                             folder_obj = CloudService.Folder(
                                 id=folder_id,
-                                path=full_path,
-                                shared=True,
-                                members_shared=members_shared
+                                name=folder_name,
+                                shared=True
                             )
                             shared_folders.append(folder_obj)
                 
@@ -719,7 +594,7 @@ class GoogleDrive(CloudService):
 
         try:
             permissions = self.drive_service.permissions().list(
-                fileId=folder.id,
+                fileId=folder._id,
                 fields="permissions(emailAddress, role, type)"
             ).execute()
 
