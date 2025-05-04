@@ -46,12 +46,12 @@ class Gateway:
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
         dropbox1 = DropBox(email)
-        #drive1 = GoogleDrive(email)
+        drive1 = GoogleDrive(email)
         encrypt = AESEncrypt()
         encrypt.set_key(encrypt.generate_key_from_key(master_key))
         # Everything here is for testing
         self.manager = CloudManager(
-            [dropbox1],
+            [drive1,dropbox1],
             "main_session", 
             NoSplit(), 
             encrypt
@@ -135,14 +135,14 @@ class Gateway:
         return self.current_session.download_file(file_path)
 
     @promise
-    def download_folder(self, folder_id):
+    def download_folder(self, folder_path):
         """
-        Download folder function
-        @param folder_id: the id of the folder to download
-        @return: True if the folder was downloaded successfully, False otherwise
+        Download folder as a ZIP file.
+        @param folder_name: The name of the folder to download.
+        @return: The path to the ZIP file if successful, False otherwise.
         """
-        print(f"Download folder selected {folder_id}")
-        return self.current_session.download_folder(folder_id)
+        print(f"Download folder selected: {folder_path}")
+        return self.current_session.download_folder(folder_path)
     
     @promise
     def upload_file(self, file_path, path):

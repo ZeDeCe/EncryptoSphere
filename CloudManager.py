@@ -1,12 +1,17 @@
 import os
 import tempfile
 import hashlib
+import zipfile
+import shutil
+
 
 from modules import Split
 from modules import Encrypt
 from modules.CloudAPI import CloudService
 import json
 from CloudObjects import Directory, CloudFile
+from typing import Optional
+
 
 import concurrent.futures
 import time
@@ -428,8 +433,6 @@ class CloudManager:
             print(f"Unexpected error while downloading file: {e}")
         return False
 
-
-
     def open_file(self, path):
         """
         Downloads the file from the specified path and opens it with the relevant editor.
@@ -474,13 +477,50 @@ class CloudManager:
         except Exception as e:
             print(f"Error opening file: {e}")
 
-    def download_folder(self, folder_name):
+    def download_folder(self, folder_path: str, destination_path: Optional[str] = None):
         """
-        Using filedescriptor functions, gathers all files under the folder_name and then calls self.download
-        on all of those files. Constructs them as the hierarchy in the filedescriptor on the OS.
+        Download a folder and all its contents (including subfolders and files)
+        from the cloud to a local path. If destination_path is not provided,
+        downloads to the user's Downloads folder.
         """
-        time.sleep(3)
-        return True
+        try:
+            if folder_path not in self.fs or not isinstance(self.fs[folder_path], Directory):
+                raise FileNotFoundError(f"Folder '{folder_path}' does not exist in the cloud.")
+
+            if not destination_path:
+                destination_path = os.path.join(os.path.expanduser("~"), "Downloads")
+
+            folder_name = os.path.basename(folder_path.rstrip("/"))
+            local_folder_path = os.path.join(destination_path, folder_name)
+            os.makedirs(local_folder_path, exist_ok=True)
+
+            for item_path, item in self.fs.items():
+                if item_path == folder_path:
+                    continue  
+
+                if item_path.startswith(folder_path.rstrip("/") + "/"):
+                    relative_path = os.path.relpath(item_path, folder_path)
+                    local_path = os.path.join(local_folder_path, relative_path)
+
+                    if isinstance(item, Directory):
+                        os.makedirs(local_path, exist_ok=True)
+                    elif isinstance(item, CloudFile):
+                        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                        print(f"Downloading file: {item_path}")
+                        self.download_file(item_path) 
+                        downloaded_file = os.path.join(os.path.expanduser("~"), "Downloads", os.path.basename(item_path))
+                        if os.path.exists(downloaded_file):
+                            shutil.move(downloaded_file, local_path)
+                        else:
+                            raise FileNotFoundError(f"Downloaded file not found: {downloaded_file}")
+
+            print(f"Folder '{folder_path}' successfully downloaded to: {local_folder_path}")
+            return local_folder_path
+
+        except Exception as e:
+            print(f"Error downloading folder '{folder_path}': {e}")
+            raise
+
 
     def delete_file(self, path):
         """
