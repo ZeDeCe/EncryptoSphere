@@ -475,21 +475,24 @@ class CloudManager:
         except Exception as e:
             print(f"Error opening file: {e}")
 
-    def download_folder(self, folder_path: str):
+    def download_folder(self, folder_path: str, parent_local_path: str = None):
         """
         Downloads a folder and all its contents (including subfolders and files)
         from the cloud to the user's Downloads folder.
         @param folder_path: The path of the folder in the cloud.
+        @param parent_local_path: The local path of the parent folder (used for recursion).
         """
         try:
-            # Check if the folder exists in the file descriptor
-            if folder_path not in self.fs or not isinstance(self.fs[folder_path], Directory):
-                raise FileNotFoundError(f"Folder '{folder_path}' does not exist in the cloud.")
+            # Set the destination path to the Downloads folder if not provided
+            if parent_local_path is None:
+                downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+                folder_name = os.path.basename(folder_path.rstrip("/"))
+                local_folder_path = os.path.join(downloads_folder, folder_name)
+            else:
+                folder_name = os.path.basename(folder_path.rstrip("/"))
+                local_folder_path = os.path.join(parent_local_path, folder_name)
 
-            # Set the destination path to the Downloads folder
-            downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-            folder_name = os.path.basename(folder_path.rstrip("/"))
-            local_folder_path = os.path.join(downloads_folder, folder_name)
+            # Create the local folder
             os.makedirs(local_folder_path, exist_ok=True)
 
             # Refresh the folder contents to ensure we have the latest data
@@ -502,18 +505,14 @@ class CloudManager:
                 item_type = item.get("type")
 
                 # Construct the local path for the item
-                relative_path = os.path.relpath(item_path, folder_path)
-                local_path = os.path.join(local_folder_path, relative_path)
+                local_path = os.path.join(local_folder_path, item_name)
 
                 if item_type == "folder":
-                    # Create subfolder locally
-                    os.makedirs(local_path, exist_ok=True)
-                    print(f"Created subfolder: {local_path}")
                     # Recursively download the subfolder
-                    self.download_folder(item_path)
+                    print(f"Creating subfolder: {local_path}")
+                    self.download_folder(item_path, local_folder_path)
                 elif item_type == "file":
                     # Download the file
-                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
                     print(f"Downloading file: {item_path}")
                     self.download_file(item_path)
 
