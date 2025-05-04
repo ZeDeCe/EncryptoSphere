@@ -401,9 +401,6 @@ class CloudManager:
                     data[index] = result
                     valid_parts += 1
             
-            if valid_parts < self.split.min_parts:
-                raise ValueError(f"Insufficient valid parts for file {path}. Valid parts: {valid_parts}/{len(data)}")
-
             # Merge and decrypt the data
             if not data:
                 raise ValueError(f"No data downloaded for file {path}.")
@@ -426,7 +423,6 @@ class CloudManager:
             except Exception as e:
                 print(f"Error writing file to {dest_path}: {e}")
                 raise
-
             return True
 
         except ValueError as ve:
@@ -436,6 +432,50 @@ class CloudManager:
         except Exception as e:
             print(f"Unexpected error while downloading file: {e}")
         return False
+
+    def open_file(self, path):
+        """
+        Downloads the file from the specified path and opens it with the relevant editor.
+        Allows the user to choose an application to open the file if desired.
+        @param path: The path to the file in the EncryptoSphere hierarchy.
+        """
+        try:
+            # Download the file
+            print(f"Downloading file from path: {path}")
+            success = self.download_file(path)
+            if not success:
+                raise Exception(f"Failed to download file from path: {path}")
+
+            # Get the downloaded file's path
+            file = self.fs.get(path)
+            if not file:
+                raise Exception(f"File not found in file descriptor: {path}")
+
+            # Determine the file's local path
+            downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+            local_file_path = os.path.join(downloads_folder, file.data.get("name"))
+
+            # Check if the file exists
+            if not os.path.exists(local_file_path):
+                raise FileNotFoundError(f"Downloaded file not found: {local_file_path}")
+
+           
+            # Ask the user if they want to choose an application to open the file
+            #choice = input("Do you want to choose an application to open the file? (y/n): ").strip().lower()
+            #if choice == 'y':
+                # Let the user choose an application
+            #    app_path = input("Enter the full path to the application (e.g., C:\\Program Files\\Notepad++\\notepad++.exe): ").strip()
+            #    if not os.path.exists(app_path):
+            #        raise FileNotFoundError(f"Application not found: {app_path}")
+            #    subprocess.Popen([app_path, local_file_path])
+            #else:
+        
+            # Open the file with the default application
+            print(f"Opening file: {local_file_path}")
+            os.startfile(local_file_path)  # Windows-specific
+
+        except Exception as e:
+            print(f"Error opening file: {e}")
 
     def download_folder(self, folder_path: str, destination_path: Optional[str] = None):
         """
@@ -505,10 +545,62 @@ class CloudManager:
 
     def delete_folder(self, folder_path):
         """
-        Given a path in EncryptoSphere (/EncryptoSphere/...), deletes all files with that path name
-        @param folder_path the path to the folder in the file descriptor
+        Deletes all files and subfolders under the specified folder path in EncryptoSphere.
+        @param folder_path: The path to the folder in the file descriptor.
         """
-        time.sleep(3)
+        if folder_path == "/":
+            raise Exception("Cannot delete the root folder.")
+
+        # Check if the folder exists in the file descriptor
+        folder = self.fs.get(folder_path)
+        if not folder or not isinstance(folder, Directory):
+            raise Exception(f"Folder '{folder_path}' does not exist.")
+
+        # Collect all files and subfolders under the folder
+        files_to_delete = []
+        folders_to_delete = []
+
+        for path, item in self.fs.items():
+            if path.startswith(folder_path):
+                if isinstance(item, CloudFile):
+                    files_to_delete.append(path)
+                elif isinstance(item, Directory):
+                    folders_to_delete.append(path)
+
+        # Use thread pool to delete all files
+        futures = {}
+        with concurrent.futures.ThreadPoolExecutor() as file_executor:
+            for file_path in files_to_delete:
+                print(f"Deleting file: {file_path}")
+                futures[file_executor.submit(self.delete_file, file_path)] = file_path
+
+            # Wait for all file deletions to complete
+            results, success = self._complete_cloud_threads(futures)
+            if not success:
+                print("Failed to delete some files.")
+
+            # Clear the futures dictionary for folder deletions
+            futures = {}
+
+            # Use thread pool to delete all folders (subfolders first)
+            for subfolder_path in sorted(folders_to_delete, key=len, reverse=True):
+                print(f"Deleting folder: {subfolder_path}")
+                folder = self.fs[subfolder_path]
+                for cloud in self.clouds:
+                    futures[file_executor.submit(cloud.delete_file, folder.get(cloud.get_name()))] = subfolder_path
+
+            # Wait for all folder deletions to complete
+            results, success = self._complete_cloud_threads(futures)
+            if not success:
+                print("Failed to delete some folders.")
+
+        # Remove files and folders from the file descriptor
+        for file_path in files_to_delete:
+            self.fs.pop(file_path, None)
+        for subfolder_path in sorted(folders_to_delete, key=len, reverse=True):
+            self.fs.pop(subfolder_path, None)
+
+        print(f"Folder '{folder_path}' and all its contents have been deleted.")
         return True
     
     def get_items_in_folder(self, path):

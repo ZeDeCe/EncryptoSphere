@@ -7,9 +7,41 @@ from customtkinter import filedialog
 import os
 from threading import Thread
 import tkinter.messagebox as messagebox
-import time
 import itertools
 
+
+def clickable(cls):
+    original_init = cls.__init__ if hasattr(cls, '__init__') else lambda f: None
+    #original_del = cls.__del__ if hasattr(cls, '__del__') else lambda f: None
+    
+    def new_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self.controller = App.controller
+        if hasattr(self, "_parent_canvas"):
+            self.bound = self._parent_canvas.bind("<Button>", self.clicked, "+")
+        else:
+            self.bound = self.bind("<Button>", self.clicked, "+")
+
+    def clicked(self, event):
+        print(f"Clicked! {self}")
+        self.controller.button_clicked(self)
+
+    # def new_del(self, *args, **kwargs):
+    #     self.unbind("<Button>", self.bound)
+    #     original_del(self, *args, **kwargs)
+        
+        
+    cls.__init__ = new_init
+    #cls.__del__ = new_del
+    cls.clicked = clicked
+    return cls
+
+clickable(ctk.CTkFrame)
+clickable(ctk.CTkLabel)
+clickable(ctk.CTkScrollableFrame)
+clickable(ctk.CTkButton)
+clickable(ctk.CTkInputDialog)
+clickable(ctk.CTkProgressBar)
 
 """
 TODO: For the advanced UI:
@@ -26,9 +58,9 @@ class App(ctk.CTk):
     """
     This class creates the UI features and the program main window.
     """
-    
+    controller = None
     def __init__(self, gateway):
-        
+        App.controller = self
         ctk.CTk.__init__(self)
         ctk.set_appearance_mode("dark")
         self.title("EncryptoSphere")
@@ -57,6 +89,7 @@ class App(ctk.CTk):
         
         # List of all buttons
         self.buttons = []
+        self.current_popup : Popup = None
         
         # Creating the frames
         for F in (LoginPage, MainPage, SharePage):
@@ -105,27 +138,34 @@ class App(ctk.CTk):
         if self.api.manager:
             self.api.stop_sync_new_sessions_task()
     
-    def register_context_menu(self, context_menu):
-        """
-        Register every new context menu
-        This is because we need to close all context menus when clicking on any button in the app.
-        @param context_menu: The context menu to be registered
-        """
-        self.context_menus.append(context_menu)
+    def set_popup(self, popup):
+        if self.current_popup is not None:
+            self.current_popup.hide_popup()
+        self.current_popup = popup
+
+    def remove_popup(self, popup):
+        if self.current_popup == popup:
+            self.current_popup = None
     
-    def unregister_context_menu(self, context_menu):
-        if context_menu in self.context_menus:
-            self.context_menus.remove(context_menu)
-    
-    def button_clicked(self, button, ignore_list):
+    def button_clicked(self, button):
         """
         When any button is clicked, we need to close all opend context_menu(s)
         @param button: The button that was clicked
         @param ignore_list: List of context menus that should not be closed 
         """
-        for menu in self.context_menus:
-            if menu not in ignore_list:
-                menu.hide_context_menu()
+        if self.current_popup is None:
+            return
+        parent = button
+        while parent != self and parent != self.container:
+            if parent == self.current_popup:
+                return
+            try:
+                parent = parent.master
+            except:
+                print("Got to end of parents but did not hit break, flawed code")
+                break
+        
+        self.current_popup.hide_popup()
 
     def change_folder(self, path):
         """
@@ -250,6 +290,7 @@ class LoginPage(ctk.CTkFrame):
         self.retry_button = ctk.CTkButton(self, text="Retry", command=self.__handle_login, width=200, fg_color="#3A7EBF")
         self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
 
+@clickable
 class MainPage(ctk.CTkFrame):
     """
     This class creates the main page frame -  Where the user can see all the files and folders in the current folder.
@@ -264,7 +305,6 @@ class MainPage(ctk.CTkFrame):
         # Create the side bar
         self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
         self.side_bar.pack(side=ctk.LEFT, fill="y", expand=False)
-        self.side_bar.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
 
         # Add the EncryptoSphere label to the side bar
         self.encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
@@ -318,12 +358,13 @@ class MainPage(ctk.CTkFrame):
         # Create a label that will display current location
         self.curr_path = "/"
 
-        self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
-
         self.uploading_labels= []
 
         self.main_frame.lift()
         self.messages_pannel.lift()
+
+        self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
+        self.url_label.place(relx=1.0, rely=1.0, x=-13, y=-10, anchor="se")
 
 
         # Initialize the context menu
@@ -378,10 +419,9 @@ class MainPage(ctk.CTkFrame):
         """
         print("Upload button clicked")
         if self.context_menu.context_hidden:
-            self.controller.button_clicked(self, [self.context_menu])
-            self.context_menu.show_context_menu(self.upload_button.winfo_x() + 120, self.upload_button.winfo_y())
+            self.context_menu.show_popup(self.upload_button.winfo_x() + 120, self.upload_button.winfo_y())
         else:
-            self.context_menu.hide_context_menu()
+            self.context_menu.hide_popup()
 
     def create_new_folder(self):
         """
@@ -407,7 +447,7 @@ class MainPage(ctk.CTkFrame):
 
         # Get the folder name from the input dialog
         folder_name = input_dialog.get_input()
-        self.context_menu.hide_context_menu()
+        self.context_menu.hide_popup()
         if folder_name:
             folder_path = f"{self.curr_path}/{folder_name}" if self.curr_path != "/" else f"/{folder_name}"
             self.create_new_folder_in_cloud(folder_path)
@@ -432,7 +472,7 @@ class MainPage(ctk.CTkFrame):
         If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file
         """
         file_path = filedialog.askopenfilename()
-        self.context_menu.hide_context_menu()
+        self.context_menu.hide_popup()
         print(file_path)
         if file_path:
             self.upload_file_to_cloud(file_path)
@@ -502,7 +542,7 @@ class MainPage(ctk.CTkFrame):
         If upload folder option is selected in the upload_context_menu, open file explorer and let the user pick a folder
         """
         folder_path = filedialog.askdirectory()
-        self.context_menu.hide_context_menu()
+        self.context_menu.hide_popup()
         if folder_path:
             self.upload_folder_to_cloud(folder_path) # This function returns immediately
 
@@ -543,6 +583,7 @@ class MainPage(ctk.CTkFrame):
         print(f"Current folder: {path}")
         self.curr_path = path
         self.main_frame.pack_forget()
+        self.url_label.configure(text=self.curr_path)
         if path in self.folders:
             self.main_frame = self.folders[path]
         else:
@@ -581,26 +622,27 @@ class MainPage(ctk.CTkFrame):
         print(parts[0])
         return parts[0]
 
-class Folder(ctk.CTkFrame):
+@clickable
+class Folder(ctk.CTkScrollableFrame):
     """
     This class represents the current folder we are in
     It contains all the files and folders that are in the current folder, the current folder, and the frame to display
     """
 
     def __init__(self, parent, controller : App, path):
-        ctk.CTkFrame.__init__(self, parent, corner_radius=0)
+        ctk.CTkScrollableFrame.__init__(self, parent, corner_radius=0)
+        #self._parent_canvas.bind("<Button>", lambda e: print("HAHAHAHA"))
         self.controller = controller
         self.path = path
         self.pack(fill = ctk.BOTH, expand = True)
-        self.bind("<Button-1>", lambda e: self.controller.button_clicked(e, []))
         
         self.file_list = {}
         self.folder_list = {}
         self.is_refreshed = False
 
-        self.url_label = ctk.CTkLabel(self, text=self.path, anchor="e", fg_color="gray30", corner_radius=10)
-        self.url_label.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
-    
+        # Make the scrollbar thinner
+        self._scrollbar.configure(width=16)
+
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
         if self.is_refreshed:
@@ -659,6 +701,7 @@ class Folder(ctk.CTkFrame):
         for deleted in deleted_files:
             self.file_list.pop(deleted)
 
+@clickable
 class IconButton(ctk.CTkFrame):
     """
     This class is an abstract button class for all icons that go in MainFrame
@@ -685,16 +728,25 @@ class IconButton(ctk.CTkFrame):
         self.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
         icon_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
         name_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
+
     
     def on_button1_click(self, event=None):
-        pass
+        self.controller.button_clicked(self)
 
     def on_double_click(self, event=None):
-        pass
+        """
+        When double-clicking on a file, open the file using the `open_file` function.
+        """
+        try:
+            print(f"Opening file: {self.file_data['name']}")
+            self.controller.get_api().manager.open_file(self.file_data["id"])
+        except Exception as e:
+            print(f"Error opening file: {e}")
     
     def on_button3_click(self, event=None):
-        pass
+        self.controller.button_clicked(self)
 
+@clickable
 class FileButton(IconButton):
     """
     This class represents a "file button"
@@ -705,7 +757,7 @@ class FileButton(IconButton):
         self.file_data = file_data
 
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
-        self.context_menu = OptionMenu(master.master.master, self.controller, [
+        self.context_menu = OptionMenu(controller.container, self.controller, [
             {
                 "label": "Download File",
                 "color": "blue",
@@ -718,7 +770,6 @@ class FileButton(IconButton):
              }
         ])
 
-        self.controller.register_context_menu(self.context_menu)
 
     def download_file_from_cloud(self, file_data):
         """
@@ -752,20 +803,45 @@ class FileButton(IconButton):
         # Immediately pop the file from the list
         self.master.file_list.pop(file_data["name"])
 
-    def on_button1_click(self, event=None):
+    def on_button3_click(self, event=None):
         """
         When clicking on a file, open the context menu for that file, double clicking means open-close the context menu
         Click on a file close any other open context menus
         @param event: The event that triggered this function
         """
-        self.controller.button_clicked(self, [self.context_menu])
+        scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
-            self.context_menu.lift()
-            self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.winfo_rooty())
+            self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
         else:
-           self.context_menu.hide_context_menu()
-              
-class OptionMenu(ctk.CTkFrame):
+           self.context_menu.hide_popup()
+
+    def on_button1_click(self, event=None):
+        super().on_button1_click(event)
+    
+    def on_double_click(self, event=None):
+        super().on_double_click(event)
+
+class Popup:
+    def __init__(self, controller : App):
+        self.controller = controller
+        self.context_hidden = True
+
+    def show_popup(self):
+        if self.context_hidden:
+            self.context_hidden = False
+            self.controller.set_popup(self)
+            self.lift()
+
+    def hide_popup(self):
+        if not self.context_hidden:
+            self.context_hidden = True
+            self.controller.remove_popup(self)
+    
+    def lift():
+        pass
+    
+
+class OptionMenu(ctk.CTkFrame, Popup):
     """
     Class to create the context menu option bar
     """
@@ -775,35 +851,34 @@ class OptionMenu(ctk.CTkFrame):
         """
         ctk.CTkFrame.__init__(self, master, corner_radius=0, fg_color="gray25")
         self.controller = controller
-        self.context_hidden = True
         self.buttons = []
-        
+        self.context_hidden = True
         for button in buttons:
             butt = ctk.CTkButton(self, text=button["label"],
                                       command=button["event"],
                                       width=120, height=30, fg_color=button["color"])
             butt.pack(pady=5, padx=10)
-            butt.bind("<Button-1>", lambda event: self.hide_context_menu(), add="+")
+            butt.bind("<Button-1>", lambda event: self.hide_popup(), add="+")
             self.buttons.append(butt)
 
-        self.controller.register_context_menu(self)
-
-    def hide_context_menu(self):
+    def hide_popup(self):
         """
         Hide the current context menu
         """
         if not self.context_hidden:
-            self.context_hidden = True
             self.place_forget()
+        Popup.hide_popup(self)
+            
         
-    def show_context_menu(self, x, y):
+    def show_popup(self, x, y):
         """
         Display the current context menu on the selected location
-        """
-        self.context_hidden = False
-        self.place(x=x, y=y)
+        """ 
+        if self.context_hidden:
+            self.place(x=x, y=y)
+        Popup.show_popup(self)
 
-class MessageNotification(ctk.CTkFrame):
+class MessageNotification(ctk.CTkFrame, Popup):
     """
     This class represents a message notification popup
     """
@@ -821,7 +896,7 @@ class MessageNotification(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, master, width=width, height=height, corner_radius=10)
         self.place(relx=0.5, rely=0.5, anchor="center")  # Center of the parent window
         self.controller = controller
-
+        self.context_hidden = True
         # Bind a click event to the root window
         self.bind("<Button-1>", self._handle_outside_click, add="+")
         
@@ -852,8 +927,9 @@ class MessageNotification(ctk.CTkFrame):
         confirm_button = ctk.CTkButton(buttons_frame, text="Confirm", width=100,
                                        command=lambda: self._handle_confirm(on_confirm))
         confirm_button.grid(row=0, column=1)
-        controller.register_context_menu(self)
-        master.bind("<Button-1>", lambda event: self.close_menu(), add="+")
+        master.bind("<Button-1>", lambda event: self.hide_popup(), add="+")
+
+        Popup.show_popup(self)
 
     def _handle_confirm(self, on_confirm):
         """
@@ -862,7 +938,7 @@ class MessageNotification(ctk.CTkFrame):
         """
         if on_confirm:
             on_confirm()
-        self.close_menu()
+        self.hide_popup()
 
     def _handle_cancel(self, on_cancel):
         """
@@ -871,7 +947,7 @@ class MessageNotification(ctk.CTkFrame):
         """
         if on_cancel:
             on_cancel()
-        self.close_menu()
+        self.hide_popup()
     
     def _handle_outside_click(self, event):
         """
@@ -881,13 +957,11 @@ class MessageNotification(ctk.CTkFrame):
         if not self.winfo_containing(event.x_root, event.y_root) == self:
             self._handle_cancel(None)  # Close the notification
 
-    def hide_context_menu(self):
-        self.close_menu()
-
-    def close_menu(self):
-        self.controller.unregister_context_menu(self)
+    def hide_popup(self):
+        Popup.hide_popup(self)
         self.destroy()
 
+@clickable
 class FolderButton(IconButton):
     """
     This class represents a "folder button"
@@ -920,7 +994,6 @@ class FolderButton(IconButton):
                  "event": lambda: self.delete_folder_from_cloud() 
              }
         ])
-        self.controller.register_context_menu(self.context_menu)
     
     
     def delete_folder_from_cloud(self):
@@ -930,19 +1003,20 @@ class FolderButton(IconButton):
         """
         desc_text = f'"{self.folder_path}" will be permanently deleted.'
         title = "Delete This Folder?"
+        mainpage = self.master.master.master.master.master # Metallica
         def on_confirm():
-            label = self.master.master.master.add_message_label(f"Deleting folder {self.folder_path}")
+            label = mainpage.add_message_label(f"Deleting folder {self.folder_path}")
             self.controller.get_api().delete_folder(
             lambda f: (
-                self.master.master.master.remove_message(label),
-                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.master.master.master.refresh()
+                mainpage.remove_message(label),
+                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else mainpage.refresh()
             ),
             self.folder_path
             )
             # Immediately pop the folder from the list
             self.master.folder_list.pop(self.folder_name)
 
-        self.master.master.master.show_message_notification(desc_text, title, on_confirm)
+        mainpage.show_message_notification(desc_text, title, on_confirm)
 
     
     def download_folder(self):
@@ -965,15 +1039,20 @@ class FolderButton(IconButton):
         When double clicking on a folder, Display the folder contents
         @param event: The event that triggered this function
         """
+        super().on_double_click(event)
         self.controller.change_folder(self.folder_path)
     
     def on_button3_click(self, event=None):
         if self.context_menu.context_hidden:
             self.context_menu.lift()
-            self.context_menu.show_context_menu(event.x_root - self.master.master.winfo_rootx(), event.y_root - self.master.master.master.winfo_rooty())
+            self.context_menu.show_popup(event.x_root - self.master.master.winfo_rootx(), event.y_root - self.master.master.master.winfo_rooty())
         else:
-            self.context_menu.hide_context_menu()
+            self.context_menu.hide_popup()
+    
+    def on_button1_click(self, event=None):
+        super().on_button1_click(event)
 
+@clickable
 class SharePageMainPage(MainPage):
     def __init__(self, parent, controller, uid):
         self.uid = uid
@@ -996,9 +1075,7 @@ class SharePageMainPage(MainPage):
         """
         self._change_folder(path)
 
-
-
-
+@clickable
 class SharePage(ctk.CTkFrame):
     """
     This class creates the share page frame -  Where the user can share folders with other users and view shared folders.
@@ -1044,8 +1121,11 @@ class SharePage(ctk.CTkFrame):
         self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
 
         
-        self.main_frame = ctk.CTkFrame(self.container, corner_radius=0)
+        self.main_frame = ctk.CTkScrollableFrame(self.container, corner_radius=0)
         self.main_frame.pack(fill = ctk.BOTH, expand = True)
+
+        # Make the scrollbar thinner
+        self.main_frame._scrollbar.configure(width=16)
 
         self.shared_folder_list = {}
 
@@ -1189,8 +1269,8 @@ class SharePage(ctk.CTkFrame):
             col = index % columns   
             folder.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             index +=1
- 
 
+@clickable
 class SharedFolderButton(IconButton):
     """
     This class represents a "shared folder button"
@@ -1228,7 +1308,6 @@ class SharedFolderButton(IconButton):
              }
         ])
 
-        self.controller.register_context_menu(self.context_menu)
 
     def on_double_click(self, event=None):
         """
@@ -1238,6 +1317,10 @@ class SharedFolderButton(IconButton):
         # Add here the correct function
         self.controller.change_session(self.uid)
         self.controller.show_frame(self.controller.get_shared_page(self.uid))
+        super().on_double_click(event)
+    
+    def on_button1_click(self, event=None):
+        super().on_button1_click(event)
 
         
     def manage_share_permissions(self):
@@ -1381,9 +1464,7 @@ class SharedFolderButton(IconButton):
         Click on a file close any other open context menu
         @param event: The event that triggered this function
         """
-        self.controller.button_clicked(self, [self.context_menu])
         if self.context_menu.context_hidden:
-            self.context_menu.lift()
-            self.context_menu.show_context_menu(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.winfo_rooty())
+            self.context_menu.show_popup(event.x_root - self.master.winfo_rootx(), event.y_root - self.master.winfo_rooty())
         else:
-           self.context_menu.hide_context_menu()
+           self.context_menu.hide_popup()
