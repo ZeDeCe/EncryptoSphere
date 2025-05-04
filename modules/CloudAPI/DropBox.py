@@ -332,8 +332,8 @@ class DropBox(CloudService):
         try:
             # Check if the folder is already shared
             shared_members = self.get_members_shared(folder)
-            id = folder._id
-            if shared_members == False:
+            id = folder.shared
+            if not id or shared_members == False:
                 metadata = self._share_folder(folder._id)
                 if not metadata:
                     raise Exception(f"Dropbox: Failed to share folder {folder.name}")
@@ -397,8 +397,7 @@ class DropBox(CloudService):
         """
         Unshare a folder by given email address
         """
-        folder_id = folder.id
-        if not folder.shared:
+        if not folder.is_shared():
             raise Exception("Error: Folder ID should be a shared ID")
         success = True
         for email in emails:

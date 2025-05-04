@@ -1401,7 +1401,7 @@ class SharedFolderButton(IconButton):
             print(f"Adding to share with emails: {emails}")
             
             # Call the API with the final array
-            self.controller.get_api().add_users_to_share(None, self.full_folder_name, emails)
+            self.controller.get_api().add_users_to_share(None, self.uid, emails)
             # Close the new window
             new_window.destroy()
 
@@ -1414,7 +1414,7 @@ class SharedFolderButton(IconButton):
         shared_with_label.grid(row=3, column=0, padx=(0, 10), pady=(10, 5), sticky="w")
 
         # List of emails already shared
-        self.shared_emails = self.controller.get_api().get_shared_emails(self.full_folder_name)  # Fetch shared emails from API
+        self.shared_emails = self.controller.get_api().get_shared_emails(self.uid)  # Fetch shared emails from API
 
         def remove_email(display_email, email):
             """
@@ -1429,7 +1429,7 @@ class SharedFolderButton(IconButton):
                     lambda f, display_email=display_email: (
                         remove_email_and_rearrange(display_email) if not f.exception() else messagebox.showerror("Error", f"Failed to revoke user: {f.exception()}")
                     ),
-                    self.full_folder_name,
+                    self.uid,
                     email
                 )
 

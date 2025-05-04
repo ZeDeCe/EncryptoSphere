@@ -53,7 +53,7 @@ class Gateway:
         self.manager = CloudManager(
             [drive1,dropbox1],
             "main_session", 
-            NoSplit(), 
+            ShamirSplit(), 
             encrypt
         )
 
@@ -134,7 +134,7 @@ class Gateway:
         print(f"Open file selected: {file_path}")
         return self.current_session.open_file(file_path)
     
-    
+
     @promise
     def download_file(self, file_path):
         """
@@ -264,7 +264,7 @@ class Gateway:
     def unshare_file(self):
         pass
     """
-    def get_shared_emails(self, folder_path):
+    def get_shared_emails(self, shared_session_name):
         """
         Returns the list of emails that are shared with the given folder
         @param folder_path: the path of the folder to get the shared emails from
@@ -272,12 +272,16 @@ class Gateway:
         """
         share = None
         for root_folder, session in self.session_manager.sessions.items():
-            if folder_path == root_folder:
+            if shared_session_name == root_folder:
                 share = session
+                break
+        if share is None:
+            print(f"Error: No such session {shared_session_name} exists")
+            return None
         return share.get_shared_emails()
     
     @promise
-    def revoke_user_from_share(self, folder_path ,email_dict):
+    def revoke_user_from_share(self, shared_session_name ,email_dict):
         """
         unshare emails from given shared folder
         @param folder name (will be convertet to session)
@@ -287,11 +291,11 @@ class Gateway:
         As of this POC we are given only one email and support only dropbox and google drive using the same email address!
 
         """
-        share = self.session_manager.sessions.get(folder_path)
+        share = self.session_manager.sessions.get(shared_session_name)
         share.revoke_user_from_share(email_dict)
 
     @promise
-    def add_users_to_share(self, folder_path ,emails):
+    def add_users_to_share(self, shared_session_name ,emails):
         """
         share email with given folder
         @param folder name ==> session
@@ -301,7 +305,7 @@ class Gateway:
         As of this POC we are given only one email and support only dropbox and google drive using the same email address!
 
         """
-        share = self.session_manager.sessions.get(folder_path)
+        share = self.session_manager.sessions.get(shared_session_name)
         share_with = []
         for email in emails:
             user_dict = {}

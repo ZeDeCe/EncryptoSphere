@@ -478,7 +478,7 @@ class GoogleDrive(CloudService):
 
         try:
             permissions = self.drive_service.permissions().list(
-                fileId=folder.id,
+                fileId=folder._id,
                 fields="permissions(id, emailAddress, type, role)"
             ).execute()
 
@@ -488,10 +488,10 @@ class GoogleDrive(CloudService):
                 for permission in permission_list:
                     if permission.get('emailAddress') == email and permission['type'] == 'user':
                         self.drive_service.permissions().delete(
-                            fileId=folder.id,
+                            fileId=folder._id,
                             permissionId=permission['id']
                         ).execute()
-                        print(f"Removed {email} from folder '{folder.path}'.")
+                        print(f"Removed {email} from folder '{folder.name}'.")
 
             return True
 

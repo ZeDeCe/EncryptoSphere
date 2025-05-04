@@ -33,7 +33,7 @@ class SharedCloudManager(CloudManager):
         assert (shared_with is None and not root_folder is None) or (not shared_with is None and root_folder is None)
         super().__init__(clouds, root, split, encrypt)
         self.root = f"{self.root}{SharedCloudManager.shared_suffix}"
-        self.users = None
+        self.users = []
         self.loaded = False
         self.uuid = None
         self.root_folder = root_folder
@@ -73,6 +73,7 @@ class SharedCloudManager(CloudManager):
             # load_metadata changes encryption and splitting classes
             self.load_metadata()
             self.encrypt.set_key(key)
+
         if key:
             # Set UID
             files = self.clouds[0].list_files(self.root_folder.get(self.clouds[0].get_name()), "$UID")
@@ -321,14 +322,20 @@ class SharedCloudManager(CloudManager):
 
             try:
                 # Unshare the folder with the specified user
-                folder = cloud.get_folder(self.root_folder)
-                cloud.unshare_by_email(folder, [email])
+                root = self.root_folder.get(cloud_name)
+                cloud.unshare_by_email(root, [email])
                 print(f"User {email} revoked from share session on {cloud_name}.")
 
                 # Delete the user's specific FEK file
                 fek_file_name = f"$FEK_{email}"
+                fek = cloud.list_files(root, fek_file_name)
+                for f in fek:
+                    fek = f
+                    break
+                if not fek:
+                    raise FileNotFoundError(f"FEK file '{fek_file_name}' not found for user {email} on {cloud_name}.")
                 try:
-                    cloud.delete_file(fek_file_name, self.root_folder)
+                    cloud.delete_file(fek)
                     print(f"Deleted FEK file '{fek_file_name}' for user {email} on {cloud_name}.")
                 except Exception as e:
                     print(f"Failed to delete FEK file '{fek_file_name}' for user {email} on {cloud_name}: {e}")
@@ -338,17 +345,6 @@ class SharedCloudManager(CloudManager):
                     self.users = [
                         user for user in self.users if not (cloud_name in user and user[cloud_name] == email)
                     ]
-
-                """
-                # Check if there are any remaining shared users
-                remaining_members = cloud.get_members_shared(folder)
-                if not remaining_members or len(remaining_members) < 2:
-                    # If no more shared users, delete the global FEK and convert to a normal session
-                    print(f"No more shared users in the session for {cloud_name}. Converting to a normal session.")
-                    cloud.delete_file("$FEK", self.root_folder)  # Delete the global FEK file
-                    cloud.unshare_folder(folder)  # Unshare the folder completely
-                    print(f"Session on {cloud_name} converted to a normal session.")
-                """
 
             except Exception as e:
                 print(f"Failed to remove user {email} from shared session on {cloud_name}: {e}")
@@ -368,13 +364,9 @@ class SharedCloudManager(CloudManager):
 
                 try:
                     # Share the folder with the new user
-                    folder = cloud.get_folder(self.root_folder)
-                    cloud.share_folder(folder, [email])
+                    root = self.root_folder.get(cloud_name)
+                    cloud.share_folder(root, [email])
                     print(f"User {email} added to shared session on {cloud_name}.")
-
-                    # Update self.users to include the new user
-                    if self.users is None:
-                        self.users = []
                     
                 except Exception as e:
                     print(f"Failed to add user {email} to shared session on {cloud_name}: {e}")
@@ -430,4 +422,19 @@ class SharedCloudManager(CloudManager):
         @param cloud_name the name of the cloud to get the emails from
         @return a list of emails of the users shared in the session
         """
+        cloud = self.clouds[0]
+        feks = cloud.list_files(self.root_folder.get(cloud.get_name()), "$FEK")
+        users = set()
+        for fek in feks:
+            if not re.match(r"\$FEK_.+?@.+", fek.get_name()):
+                continue
+            email = fek.get_name()[5:]
+            if email == "" or email == cloud.get_email():
+                continue
+            users.add(email)
+        for user in users:
+            u = {}
+            for cloud in self.clouds:
+                    u[cloud.get_name()] = user
+            self.users.append(u)
         return self.users
