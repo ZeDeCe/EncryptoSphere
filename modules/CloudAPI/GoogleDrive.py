@@ -11,6 +11,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from modules.CloudAPI.CloudService import CloudService
 from google_auth_httplib2 import AuthorizedHttp
+from modules.CloudDataManager import CloudDataManager
 import httplib2
 
 load_dotenv()
@@ -25,30 +26,28 @@ class GoogleDrive(CloudService):
     
     def authenticate_cloud(self):
         """
-        Authenticate with Google Drive, using token stored in JSON by email.
+        Authenticate with Google Drive using CloudDataManager.
+        Loads the token from JSON by email, or initiates new login if needed.
         Also creates the root folder if it does not exist.
         """
         if self.authenticated:
             return True
 
+        self.token_manager = CloudDataManager("EncryptoSphereApp", "google")
         creds = None
 
         try:
-            # Load token from JSON if exists
-            if os.path.exists(GOOGLE_TOKEN_PATH):
-                with open(GOOGLE_TOKEN_PATH, "r") as token_file:
-                    print("Google Drive     : Loading clouds token file...")
-                    token_data = json.load(token_file)
-                    user_data = token_data.get(self.email, {}).get("google_token")
-                    if user_data:
-                        creds = Credentials(
-                            token=user_data.get('token'),
-                            refresh_token=user_data.get('refresh_token'),
-                            token_uri=user_data.get('token_uri'),
-                            client_id=user_data.get('client_id'),
-                            client_secret=user_data.get('client_secret'),
-                            scopes=user_data.get('scopes')
-                        )
+            print("Google Drive     : Loading clouds token file...")
+            token_data = self.token_manager.get_data(self.email)
+            if token_data:
+                creds = Credentials(
+                    token=token_data.get('token'),
+                    refresh_token=token_data.get('refresh_token'),
+                    token_uri=token_data.get('token_uri'),
+                    client_id=token_data.get('client_id'),
+                    client_secret=token_data.get('client_secret'),
+                    scopes=token_data.get('scopes')
+                )
 
             # Refresh or start new authentication
             if creds and not creds.expired:
@@ -57,7 +56,7 @@ class GoogleDrive(CloudService):
                 creds.refresh(Request())
                 self._save_google_token_to_json(creds)
             else:
-                # New login flow
+                # Start new authentication flow
                 flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
                 creds = flow.run_local_server(port=0)
 
@@ -94,18 +93,8 @@ class GoogleDrive(CloudService):
 
     
     def _save_google_token_to_json(self, creds):
-        """
-        Save Google token in the same structure as Dropbox, under the same file.
-        """
         try:
-            if os.path.exists(GOOGLE_TOKEN_PATH):
-                with open(GOOGLE_TOKEN_PATH, "r") as token_file:
-                    token_data = json.load(token_file)
-            else:
-                token_data = {}
-
-            token_data[self.email] = token_data.get(self.email, {})
-            token_data[self.email]["google_token"] = {
+            token_data = {
                 'token': creds.token,
                 'refresh_token': creds.refresh_token,
                 'token_uri': creds.token_uri,
@@ -113,11 +102,8 @@ class GoogleDrive(CloudService):
                 'client_secret': creds.client_secret,
                 'scopes': creds.scopes
             }
-
-            with open(GOOGLE_TOKEN_PATH, "w") as token_file:
-                json.dump(token_data, token_file)
+            self.token_manager.add_data({self.email: token_data})
             print("Google Drive     : Token saved successfully.")
-
         except Exception as e:
             print(f"Google Drive     : Error saving token: {e}")
 
