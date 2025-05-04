@@ -1039,11 +1039,12 @@ class FolderButton(IconButton):
         Download folder from the cloud and refresh the page
         @param folder_path: The path of the folder to be downloaded
         """
-        label = self.master.master.master.add_message_label(f"Downloading folder {self.folder_path}")
+        mainpage = self.master.master.master.master.master
+        label = mainpage.add_message_label(f"Downloading folder {self.folder_path}")
         self.controller.get_api().download_folder(
             lambda f: (
-                self.master.master.master.remove_message(label),
-                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.master.master.master.refresh()
+                mainpage.remove_message(label),
+                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else mainpage.refresh()
             ),
             self.folder_path
             )
