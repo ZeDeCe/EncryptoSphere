@@ -425,6 +425,7 @@ class SharedCloudManager(CloudManager):
         cloud = self.clouds[0]
         feks = cloud.list_files(self.root_folder.get(cloud.get_name()), "$FEK")
         users = set()
+        self.users = []
         for fek in feks:
             if not re.match(r"\$FEK_.+?@.+", fek.get_name()):
                 continue

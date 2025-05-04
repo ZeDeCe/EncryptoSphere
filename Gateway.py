@@ -270,11 +270,7 @@ class Gateway:
         @param folder_path: the path of the folder to get the shared emails from
         @return: list of emails that are shared with the folder
         """
-        share = None
-        for root_folder, session in self.session_manager.sessions.items():
-            if shared_session_name == root_folder:
-                share = session
-                break
+        share = self.session_manager.sessions.get(shared_session_name)
         if share is None:
             print(f"Error: No such session {shared_session_name} exists")
             return None
