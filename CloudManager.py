@@ -475,45 +475,57 @@ class CloudManager:
         except Exception as e:
             print(f"Error opening file: {e}")
 
-    def download_folder(self, folder_path: str, destination_path: Optional[str] = None):
+    def download_folder(self, folder_path: str):
         """
-        Download a folder and all its contents (including subfolders and files)
-        from the cloud to a local path. If destination_path is not provided,
-        downloads to the user's Downloads folder.
+        Downloads a folder and all its contents (including subfolders and files)
+        from the cloud to the user's Downloads folder.
+        @param folder_path: The path of the folder in the cloud.
         """
         try:
+            # Check if the folder exists in the file descriptor
             if folder_path not in self.fs or not isinstance(self.fs[folder_path], Directory):
                 raise FileNotFoundError(f"Folder '{folder_path}' does not exist in the cloud.")
 
-            if not destination_path:
-                destination_path = os.path.join(os.path.expanduser("~"), "Downloads")
-
+            # Set the destination path to the Downloads folder
+            downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
             folder_name = os.path.basename(folder_path.rstrip("/"))
-            local_folder_path = os.path.join(destination_path, folder_name)
+            local_folder_path = os.path.join(downloads_folder, folder_name)
             os.makedirs(local_folder_path, exist_ok=True)
 
-            for item_path, item in self.fs.items():
-                if item_path == folder_path:
-                    continue  
+            # Refresh the folder contents to ensure we have the latest data
+            items = list(self.get_items_in_folder(folder_path))
 
-                if item_path.startswith(folder_path.rstrip("/") + "/"):
-                    relative_path = os.path.relpath(item_path, folder_path)
-                    local_path = os.path.join(local_folder_path, relative_path)
+            # Iterate through all items in the folder
+            for item in items:
+                item_path = item.get("path")
+                item_name = item.get("name")
+                item_type = item.get("type")
 
-                    if isinstance(item, Directory):
-                        os.makedirs(local_path, exist_ok=True)
-                    elif isinstance(item, CloudFile):
-                        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                        print(f"Downloading file: {item_path}")
-                        self.download_file(item_path) 
-                        downloaded_file = os.path.join(os.path.expanduser("~"), "Downloads", os.path.basename(item_path))
-                        if os.path.exists(downloaded_file):
-                            shutil.move(downloaded_file, local_path)
-                        else:
-                            raise FileNotFoundError(f"Downloaded file not found: {downloaded_file}")
+                # Construct the local path for the item
+                relative_path = os.path.relpath(item_path, folder_path)
+                local_path = os.path.join(local_folder_path, relative_path)
+
+                if item_type == "folder":
+                    # Create subfolder locally
+                    os.makedirs(local_path, exist_ok=True)
+                    print(f"Created subfolder: {local_path}")
+                    # Recursively download the subfolder
+                    self.download_folder(item_path)
+                elif item_type == "file":
+                    # Download the file
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    print(f"Downloading file: {item_path}")
+                    self.download_file(item_path)
+
+                    # Move the downloaded file to the correct location
+                    downloaded_file = os.path.join(os.path.expanduser("~"), "Downloads", os.path.basename(item_path))
+                    if os.path.exists(downloaded_file):
+                        shutil.move(downloaded_file, local_path)
+                        print(f"Moved file to: {local_path}")
+                    else:
+                        raise FileNotFoundError(f"Downloaded file not found: {downloaded_file}")
 
             print(f"Folder '{folder_path}' successfully downloaded to: {local_folder_path}")
-            return local_folder_path
 
         except Exception as e:
             print(f"Error downloading folder '{folder_path}': {e}")
