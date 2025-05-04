@@ -734,14 +734,7 @@ class IconButton(ctk.CTkFrame):
         self.controller.button_clicked(self)
 
     def on_double_click(self, event=None):
-        """
-        When double-clicking on a file, open the file using the `open_file` function.
-        """
-        try:
-            print(f"Opening file: {self.file_data['name']}")
-            self.controller.get_api().manager.open_file(self.file_data["id"])
-        except Exception as e:
-            print(f"Error opening file: {e}")
+        self.controller.button_clicked(self)
     
     def on_button3_click(self, event=None):
         self.controller.button_clicked(self)
@@ -776,11 +769,12 @@ class FileButton(IconButton):
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
-        label = self.master.master.master.add_message_label(f"Downloading file {file_data['name']}")
+        mainpage = self.master.master.master.master.master
+        label = mainpage.add_message_label(f"Downloading file {file_data['name']}")
 
         self.controller.get_api().download_file(
             lambda f: (
-                self.master.master.master.remove_message(label),
+                mainpage.remove_message(label),
                 messagebox.showerror("Application Error", str(f.exception())) if f.exception() else None
             ),
             file_data["id"]
@@ -791,11 +785,12 @@ class FileButton(IconButton):
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        label = self.master.master.master.add_message_label(f"Deleting file {file_data['name']}")
+        mainpage = self.master.master.master.master.master
+        label = mainpage.add_message_label(f"Deleting file {file_data['name']}")
 
         self.controller.get_api().delete_file(
             lambda f: (
-                self.master.master.master.remove_message(label),
+                mainpage.remove_message(label),
                 messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             file_data["id"]
@@ -819,7 +814,15 @@ class FileButton(IconButton):
         super().on_button1_click(event)
     
     def on_double_click(self, event=None):
+        """
+        When double-clicking on a file, open the file using the `open_file` function.
+        """
         super().on_double_click(event)
+        try:
+            print(f"Opening file: {self.file_data['name']}")
+            self.controller.get_api().manager.open_file(self.file_data["id"])
+        except Exception as e:
+            print(f"Error opening file: {e}")
 
 class Popup:
     def __init__(self, controller : App):
