@@ -42,8 +42,7 @@ class CloudDataManager:
     
     def add_data(self, data: dict) -> None:
         current_data = self.get_data()
-        if not current_data:
-            self.set_data(data)
-        else:
+        if current_data:
             current_data.update(data)
-        #self.set_data(current_data)
+        self.set_data(current_data)
+            

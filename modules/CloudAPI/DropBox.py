@@ -30,19 +30,24 @@ class DropBox(CloudService):
         self.token_manager = CloudDataManager("EncryptoSphereApp", "dropbox")
         access_token = self.token_manager.get_data(self.email)
         if access_token:
-            print("DropBox : Loading clouds token file...")
-            # Load the tokens from the JSON file
-            
-            self.dbx = dropbox.Dropbox(access_token)
-            
-            # Verify the stored token email matches the current user
-            current_email = self.dbx.users_get_current_account().email
-            if current_email == self.email:
-                self.authenticated = True
-                self.user_id = self.dbx.users_get_current_account().account_id
-            else:
-                print("DropBox : Email mismatch with stored Dropbox token.")
-        else:
+            try:
+                print("DropBox : Loading clouds token file...")
+                # Load the tokens from the JSON file
+                
+                self.dbx = dropbox.Dropbox(access_token)
+                
+                # Verify the stored token email matches the current user
+                current_email = self.dbx.users_get_current_account().email
+                if current_email == self.email:
+                    self.authenticated = True
+                    self.user_id = self.dbx.users_get_current_account().account_id
+                else:
+                    print("DropBox : Email mismatch with stored Dropbox token.")
+            except dropbox.exceptions.AuthError as e:
+                print(f"DropBox : Error {e}")
+                self.authenticated = False
+                access_token = None
+        if not self.authenticated:
             print("DropBox : No token found, starting authentication...")
             # Start the OAuth flow
             auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
