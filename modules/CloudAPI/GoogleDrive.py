@@ -272,10 +272,10 @@ class GoogleDrive(CloudService):
             return file_data
 
         except HttpError as e:
-            print(f"Google Drive-Error {e}")
+            print(f"Google Drive- HTTP error failed to download file {file.name}: {e}")
             return None
         except FileNotFoundError:
-            print("Google Drive: The specified file was not found.")
+            print(f"Google Drive: Failed to download file, the file {file.name} was not found.")
             return None
         except Exception as e:
             raise Exception(f"Google Drive-Error: {e}")

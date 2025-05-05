@@ -145,10 +145,12 @@ class SharedCloudManager(CloudManager):
             futures.append(self.executor.submit(self.check_key_status, cloud))
         for future in concurrent.futures.as_completed(futures):
             try:
-                result = future.result()
+                result, sync = future.result()
                 if result and isinstance(result, bytes):
                     # First key we get we break
                     my_key = result
+                    if sync:
+                        self.sync_fek(my_key)
                     break
             except Exception as e:
                 pass
@@ -176,7 +178,7 @@ class SharedCloudManager(CloudManager):
         If it finds TFEK but no response, return False
         If it finds nothing, upload a TFEK pair.
         @param cloud the cloud to use
-        @return the encrypted key if found, if not then False
+        @return a tuple containing encrypted key if found and if a sync FEK is needed, if no key is found returns (False, False)
         """
         current_root = self.root_folder.get(cloud.get_name())
         special_files = cloud.list_files(current_root, "$")
@@ -188,7 +190,7 @@ class SharedCloudManager(CloudManager):
                 continue
             if file.get_name() == f"$FEK_{cloud.get_email()}":
                 try:
-                    return cloud.download_file(file)
+                    return cloud.download_file(file), False
                 except:
                     print("Found FEK but could not download")
                     continue
@@ -219,12 +221,12 @@ class SharedCloudManager(CloudManager):
                         label=None
                     )
                 )
-                self.sync_fek(shared_secret)
-                return self._encrypt(shared_secret)
+                
+                return self._encrypt(shared_secret), True
             
         if not tfek or not public_file:
             self.executor.submit(self.upload_TFEK, cloud)
-        return False
+        return False, False
         
     def upload_TFEK(self, cloud : CloudService):
         """

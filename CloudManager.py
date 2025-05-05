@@ -47,7 +47,10 @@ class CloudManager:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.clouds) * 5)
 
     def __del__(self):
-        self.executor.shutdown(wait=True)
+        try:
+            self.executor.shutdown(wait=True)
+        except RuntimeError as e:
+            print(f"Error shutting down executor: {e}")
 
     def _complete_cloud_threads(self, futures: dict[concurrent.futures.Future, str]) -> tuple[list[tuple[any, any]], bool]:
         """
