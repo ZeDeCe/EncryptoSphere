@@ -177,7 +177,7 @@ class CloudManager:
             print(f"Error during authentication, loading of file descriptor: {e}")
             return False
         
-    def upload_file(self, os_filepath, path="/", executor=None):
+    def upload_file(self, os_filepath, path="/"):
         """
         Uploads a single file to the cloud.
         
@@ -185,8 +185,6 @@ class CloudManager:
         @param path: The root path for the file in EncryptoSphere hierarchy.
         @param sync: Whether to sync the file descriptor after uploading. Defaults to True.
         """
-        if executor is None:
-            executor = self.executor
 
         if not os.path.isfile(os_filepath):
             raise OSError()
@@ -208,7 +206,7 @@ class CloudManager:
             cloud = self.clouds[cloud_index]
             for file_index, file_content in enumerate(f):
                 file_name = f"{file_index+1}{FILE_INDEX_SEPERATOR}{filebasename}"
-                futures[executor.submit(cloud.upload_file, file_content, file_name, self._get_directory(path).get(cloud.get_name()))] = cloud
+                futures[self.executor.submit(cloud.upload_file, file_content, file_name, self._get_directory(path).get(cloud.get_name()))] = cloud
         results, success = self._complete_cloud_threads(futures)
         if not success:
             pass # TODO: one part didn't load correctly, check if this is fine according to our split
@@ -345,18 +343,19 @@ class CloudManager:
         futures[self.executor.submit(self.create_folder, f"{path}{folder_name}")] = f"{path}{folder_name}"
         
         # Create all subdirectories
-        for root, dirs, _ in os.walk(os_folder):
-            root_arr = root.split(os.sep)
-            root_arr = root_arr[root_arr.index(folder_name):]
-            encrypto_root = f"{path}{'/'.join(root_arr)}"
-            if encrypto_root[-1] != "/":
-                encrypto_root = f"{encrypto_root}/"
-            for dir in dirs:
-                print(f"Doing folder: {encrypto_root}{dir}")
-                futures[self.executor.submit(self.create_folder, f"{encrypto_root}{dir}")] = f"{encrypto_root}{dir}"
-        results, success = self._complete_cloud_threads(futures)
-        if not success:
-            raise Exception("Failed to upload folders in given folder.")
+        with concurrent.futures.ThreadPoolExecutor() as folder_executor:
+            for root, dirs, _ in os.walk(os_folder):
+                root_arr = root.split(os.sep)
+                root_arr = root_arr[root_arr.index(folder_name):]
+                encrypto_root = f"{path}{'/'.join(root_arr)}"
+                if encrypto_root[-1] != "/":
+                    encrypto_root = f"{encrypto_root}/"
+                for dir in dirs:
+                    print(f"Doing folder: {encrypto_root}{dir}")
+                    futures[folder_executor.submit(self.create_folder, f"{encrypto_root}{dir}")] = f"{encrypto_root}{dir}"
+            results, success = self._complete_cloud_threads(futures)
+            if not success:
+                raise Exception("Failed to upload folders in given folder.")
         
         # Create all files
         futures = {}
@@ -367,7 +366,7 @@ class CloudManager:
                 encrypto_root = f"{path}{'/'.join(root_arr)}"
                 for file in files:
                     print(f"Doing file: {encrypto_root}{file}")
-                    futures[self.executor.submit(self.upload_file, os.path.join(root, file), encrypto_root, file_executor)] = f"{encrypto_root}-{file}"
+                    futures[file_executor.submit(self.upload_file, os.path.join(root, file), encrypto_root)] = f"{encrypto_root}-{file}"
             results, success = self._complete_cloud_threads(futures)
             if not success:
                 raise Exception("Failed to upload files in folders.")
