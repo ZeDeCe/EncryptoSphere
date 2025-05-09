@@ -17,7 +17,7 @@ def clickable(cls):
     def new_init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
         self.controller = App.controller
-        if hasattr(self, "_parent_canvas"):
+        if isinstance(self, ctk.CTkScrollableFrame) and hasattr(self, "_parent_canvas"):
             self.bound = self._parent_canvas.bind("<Button>", self.clicked, "+")
         else:
             self.bound = self.bind("<Button>", self.clicked, "+")
@@ -316,15 +316,24 @@ class MainPage(ctk.CTkFrame):
                                            command=lambda: self.open_upload_menu(),
                                            width=120, height=30, fg_color="gray25", hover=False)
         self.upload_button.pack(anchor="nw", padx=10, pady=10, expand=False)
+        
+        home_icon = ctk.CTkImage(light_image=Image.open("resources/home_icon.png"), size=(20, 20))
+        self.homepage_button = ctk.CTkButton(self.side_bar, image=home_icon, text="Home", compound="left",
+                                                 command=lambda: (self.change_folder("/"), self.search_entry.delete(0, 'end')),
+                                                 width=120, height=30, fg_color="gray25", hover=False)
+        self.homepage_button.pack(anchor="nw", padx=10, pady=5, expand=False)
 
         self.shared_files_button = ctk.CTkButton(self.side_bar, text="Shared Files",
                                                  command=lambda: self.controller.show_frame(SharePage),
                                                  width=120, height=30, fg_color="gray25", hover=False)
-        self.shared_files_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+        self.shared_files_button.pack(anchor="nw", padx=10, pady=0, expand=False)
 
         # Bind hover events to the buttons (to change font to bold)
         self.upload_button.bind("<Enter>", lambda e: self.set_bold(self.upload_button))
         self.upload_button.bind("<Leave>", lambda e: self.set_normal(self.upload_button))
+
+        self.homepage_button.bind("<Enter>", lambda e: self.set_bold(self.homepage_button), add="+")
+        self.homepage_button.bind("<Leave>", lambda e: self.set_normal(self.homepage_button), add="+")
 
         self.shared_files_button.bind("<Enter>", lambda e: self.set_bold(self.shared_files_button))
         self.shared_files_button.bind("<Leave>", lambda e: self.set_normal(self.shared_files_button))
@@ -433,8 +442,8 @@ class MainPage(ctk.CTkFrame):
             """
             query = self.search_entry.get()
             print(f"Searching for: {query}")
+            self.search_results_folder.set_query(query)
             self._change_folder(self.search_results_folder)
-            self.search_results_folder.refresh()
 
     def reset_search_placeholder(self):
         """
@@ -737,10 +746,18 @@ class SearchResultsFolder(Folder):
         Folder.__init__(self, parent, controller, None)
         self.controller = controller
         self.path = None
+        self.query = None
+
+    def set_query(self, query):
+        """
+        Set the query for the search results folder
+        @param query: The query to be set
+        """
+        self.query = query
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
-        self.controller.get_api().get_search_results_async(lambda f: self._refresh(f.result()), self.path)
+        self.controller.get_api().get_search_results_async(lambda f: self._refresh(f.result()), self.query)
 
 @clickable
 class IconButton(ctk.CTkFrame):
