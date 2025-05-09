@@ -3,7 +3,7 @@
 import dropbox
 import webbrowser
 import os
-import json
+import re
 
 import dropbox.exceptions 
 from modules.CloudAPI.CloudService import CloudService
@@ -435,7 +435,8 @@ class DropBox(CloudService):
             # Iterate through each shared folder
             for folder in shared_folders.entries:
                 # Check if the folder has a valid path or is already mounted
-                if not folder.name.endswith(filter):
+                name = re.sub(r" \(\d+\)$", "", folder.name) # Remove duplicates
+                if not name.endswith(filter):
                     continue
                 if not folder.path_lower:
                     print(f"Folder {folder.name} isn't joined. Attempting to join folder...")
@@ -446,7 +447,7 @@ class DropBox(CloudService):
                         print(f"Failed to mount folder {folder.name}: {e}")
                         continue  # Skip this folder if we can't mount it
                 
-                yield CloudService.Folder(id=folder.path_display, name=folder.name, shared=folder.shared_folder_id)
+                yield CloudService.Folder(id=folder.path_display, name=name, shared=folder.shared_folder_id)
 
         except dropbox.exceptions.ApiError as e:
             print(f"Error occurred: {e}")
