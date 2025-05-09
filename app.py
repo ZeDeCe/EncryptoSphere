@@ -25,6 +25,7 @@ def clickable(cls):
     def clicked(self, event):
         print(f"Clicked! {self}")
         self.controller.button_clicked(self)
+        event.widget.focus_set()
 
     # def new_del(self, *args, **kwargs):
     #     self.unbind("<Button>", self.bound)
@@ -334,6 +335,17 @@ class MainPage(ctk.CTkFrame):
         self.search_bar = ctk.CTkFrame(self.container, fg_color="gray25", height=50, corner_radius=0)
         self.search_bar.pack(side=ctk.TOP, fill=ctk.X)
 
+        # Add a search entry field to the search bar
+        self.search_entry = ctk.CTkEntry(self.search_bar, placeholder_text="Search in EncryptoSphere", width=400, height=30, corner_radius=15)
+        self.search_entry.pack(side=ctk.LEFT, padx=10, pady=10)
+
+        # Bind the "Enter" key to trigger the search
+        self.search_entry.bind("<Return>", lambda event: self.perform_search(), add="+")
+
+        # Bind focus-out event to reset placeholder
+        self.search_entry.bind("<FocusOut>", lambda event: self.reset_search_placeholder(), add="+")
+
+
         # Add refresh button to the search bar
         refresh_icon = ctk.CTkImage(light_image=Image.open("resources/refresh_icon.png"), size=(20, 20))
         self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.sync_to_clouds(), width=20, height=20, corner_radius=10, fg_color="gray30", hover_color="gray40")
@@ -365,6 +377,9 @@ class MainPage(ctk.CTkFrame):
 
         self.url_label = ctk.CTkLabel(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
         self.url_label.place(relx=1.0, rely=1.0, x=-13, y=-10, anchor="se")
+
+        self.search_results_folder = SearchResultsFolder(self.container, self.controller)
+        self.search_results_folder.pack_forget()
 
 
         # Initialize the context menu
@@ -412,6 +427,21 @@ class MainPage(ctk.CTkFrame):
         """
         self.controller.get_api().sync_fd_to_clouds(lambda f: self.main_frame.refresh())
         
+    def perform_search(self):
+            """
+            Perform a search based on the input in the search entry field.
+            """
+            query = self.search_entry.get()
+            print(f"Searching for: {query}")
+            self._change_folder(self.search_results_folder)
+            self.search_results_folder.refresh()
+
+    def reset_search_placeholder(self):
+        """
+        Reset the placeholder text of the search entry when it loses focus.
+        """
+        if not self.search_entry.get():
+            self.search_entry.configure(placeholder_text="Search in EncryptoSphere")
 
     def open_upload_menu(self):
         """
@@ -571,26 +601,25 @@ class MainPage(ctk.CTkFrame):
             self.back_button.pack_forget()
         else:
             self.back_button.pack(anchor="nw", padx=10, pady=5, expand=False)
-    def change_folder(self, path):
-        self._change_folder(path)
-        self.change_back_button(path)
-
-    def _change_folder(self, path):
-        """
-        Changes the folder viewed in main_frame
-        @param path: The path to the folder to be changed to
-        """
+    def change_folder(self, path : str):
         print(f"Current folder: {path}")
         self.curr_path = path
-        self.main_frame.pack_forget()
-        self.url_label.configure(text=self.curr_path)
         if path in self.folders:
-            self.main_frame = self.folders[path]
+            self._change_folder(self.folders[path])
         else:
             new_folder = Folder(self.container, self.controller, path)
             self.folders[path] = new_folder
-            self.main_frame = new_folder
+            self._change_folder(new_folder)
+        self.change_back_button(path)
 
+    def _change_folder(self, folder):
+        """
+        Changes the folder viewed in main_frame
+        @param path: Folder object to the folder to be changed to
+        """
+        self.main_frame.pack_forget()
+        self.url_label.configure(text=self.curr_path)
+        self.main_frame = folder
         self.main_frame.refresh()
         self.main_frame.lift()
         self.messages_pannel.lift()
@@ -638,21 +667,16 @@ class Folder(ctk.CTkScrollableFrame):
         
         self.file_list = {}
         self.folder_list = {}
-        self.is_refreshed = False
 
         # Make the scrollbar thinner
         self._scrollbar.configure(width=16)
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
-        if self.is_refreshed:
-            self.controller.get_api().get_items_in_folder_async(lambda f: self.__refresh(f.result()), self.path)
-        else:
-            generator = self.controller.get_api().get_items_in_folder(self.path)
-            self.__refresh(generator)
-            self.is_refreshed = True
+        self.controller.get_api().get_items_in_folder_async(lambda f: self._refresh(f.result()), self.path)
+        
 
-    def __refresh(self, generator):
+    def _refresh(self, generator):
         """
         Refresh the frame and display all updates
         """
@@ -700,6 +724,23 @@ class Folder(ctk.CTkScrollableFrame):
             self.folder_list.pop(deleted)
         for deleted in deleted_files:
             self.file_list.pop(deleted)
+
+@clickable
+class SearchResultsFolder(Folder):
+    """
+    This class represents the search results folder, it is a subclass of Folder and is used to display the search results in a separate folder.
+    """
+    def __init__(self, parent, controller : App, path=None):
+        """
+        path is unused in this class, but we need to pass it to the parent class constructor
+        """
+        Folder.__init__(self, parent, controller, None)
+        self.controller = controller
+        self.path = None
+
+    def refresh(self):
+        self.pack(fill=ctk.BOTH, expand=True)
+        self.controller.get_api().get_search_results_async(lambda f: self._refresh(f.result()), self.path)
 
 @clickable
 class IconButton(ctk.CTkFrame):
@@ -1299,7 +1340,7 @@ class SharedFolderButton(IconButton):
         self.uid = uid
         self.name = uid.split("$")[0]
 
-        super().__init__(master, width, height, "resources/folder_icon.png", self.name, controller)
+        super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, controller)
         self.controller = controller
         self.master = master
         

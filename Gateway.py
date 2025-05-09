@@ -99,6 +99,16 @@ class Gateway:
         return self.current_session.get_items_in_folder(path)
     
     @promise
+    def get_search_results_async(self, search_string):
+        """
+        @param path: the path to the folder
+        @return: Yielded iterable (generator) for every file in the current session in the folder given
+        """
+        #return self.current_session.get_search_results(search_string)
+        print(f"Searching for {search_string}")
+        return iter([])
+    
+    @promise
     def sync_fd_to_clouds(self, callback=None):
         if not self.active_fd_sync:
             self.active_fd_sync = True
