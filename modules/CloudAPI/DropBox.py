@@ -3,7 +3,7 @@
 import dropbox
 import webbrowser
 import os
-import re
+import json
 
 import dropbox.exceptions 
 from modules.CloudAPI.CloudService import CloudService
@@ -30,24 +30,19 @@ class DropBox(CloudService):
         self.token_manager = CloudDataManager("EncryptoSphereApp", "dropbox")
         access_token = self.token_manager.get_data(self.email)
         if access_token:
-            try:
-                print("DropBox : Loading clouds token file...")
-                # Load the tokens from the JSON file
-                
-                self.dbx = dropbox.Dropbox(access_token)
-                
-                # Verify the stored token email matches the current user
-                current_email = self.dbx.users_get_current_account().email
-                if current_email == self.email:
-                    self.authenticated = True
-                    self.user_id = self.dbx.users_get_current_account().account_id
-                else:
-                    print("DropBox : Email mismatch with stored Dropbox token.")
-            except dropbox.exceptions.AuthError as e:
-                print(f"DropBox : Error {e}")
-                self.authenticated = False
-                access_token = None
-        if not self.authenticated:
+            print("DropBox : Loading clouds token file...")
+            # Load the tokens from the JSON file
+            
+            self.dbx = dropbox.Dropbox(access_token)
+            
+            # Verify the stored token email matches the current user
+            current_email = self.dbx.users_get_current_account().email
+            if current_email == self.email:
+                self.authenticated = True
+                self.user_id = self.dbx.users_get_current_account().account_id
+            else:
+                print("DropBox : Email mismatch with stored Dropbox token.")
+        else:
             print("DropBox : No token found, starting authentication...")
             # Start the OAuth flow
             auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
@@ -161,8 +156,6 @@ class DropBox(CloudService):
             print(f"Dropbox: API error: {e}")
             raise Exception(f"Error {e}")
 
-    def get_items_by_name(self, filter, folders):
-        pass
 
     def upload_file(self, data, file_name: str, parent : CloudService.Folder):
         """
@@ -225,6 +218,24 @@ class DropBox(CloudService):
         except dropbox.exceptions.ApiError as e:
             raise Exception(f"DropBox-Error deleting file: {e}")
         
+    def delete_folder(self, folder: CloudService.Folder):
+        """
+        Delete a folder from Dropbox.
+        @param folder: The folder object to delete.
+        @return: True if the folder was deleted successfully, otherwise raises an exception.
+        """
+        try:
+            # Use the Dropbox API to delete the folder
+            self.dbx.files_delete_v2(folder._id)
+            print(f"DropBox: Folder '{folder.name}' deleted successfully.")
+            return True
+        except dropbox.exceptions.ApiError as e:
+            print(f"DropBox-Error deleting folder '{folder.name}': {e}")
+            raise Exception(f"DropBox-Error deleting folder: {e}")
+        except Exception as e:
+            print(f"Unexpected error while deleting folder '{folder.name}': {e}")
+            raise
+        
     def get_session_folder(self, name : str) -> CloudService.Folder:
         children = self.get_children(self.root_folder)
         for child in children:
@@ -233,18 +244,6 @@ class DropBox(CloudService):
         new = self.create_folder(name, self.root_folder)
         new.name = "/"
         return new
-    
-    def delete_folder(self, folder : CloudService.Folder):
-        """
-        Delete folder from DropBox by name
-        """
-        try:
-            self.dbx.files_delete_v2(folder._id)
-            print(f"DropBox: {folder.name} deleted successfully.")
-            return True
-        except dropbox.exceptions.ApiError as e:
-            raise Exception(f"DropBox-Error deleting folder: {e}")
-        
 
     # def get_folder(self, folder_path : str) -> CloudService.Folder:
     #     """
@@ -351,8 +350,8 @@ class DropBox(CloudService):
         try:
             # Check if the folder is already shared
             shared_members = self.get_members_shared(folder)
-            id = folder.shared
-            if not id or shared_members == False:
+            id = folder._id
+            if shared_members == False:
                 metadata = self._share_folder(folder._id)
                 if not metadata:
                     raise Exception(f"Dropbox: Failed to share folder {folder.name}")
@@ -416,7 +415,8 @@ class DropBox(CloudService):
         """
         Unshare a folder by given email address
         """
-        if not folder.is_shared():
+        folder_id = folder.id
+        if not folder.shared:
             raise Exception("Error: Folder ID should be a shared ID")
         success = True
         for email in emails:
@@ -449,8 +449,7 @@ class DropBox(CloudService):
             # Iterate through each shared folder
             for folder in shared_folders.entries:
                 # Check if the folder has a valid path or is already mounted
-                name = re.sub(r" \(\d+\)$", "", folder.name) # Remove duplicates
-                if not name.endswith(filter):
+                if not folder.name.endswith(filter):
                     continue
                 if not folder.path_lower:
                     print(f"Folder {folder.name} isn't joined. Attempting to join folder...")
@@ -461,7 +460,7 @@ class DropBox(CloudService):
                         print(f"Failed to mount folder {folder.name}: {e}")
                         continue  # Skip this folder if we can't mount it
                 
-                yield CloudService.Folder(id=folder.path_display, name=name, shared=folder.shared_folder_id)
+                yield CloudService.Folder(id=folder.path_display, name=folder.name, shared=folder.shared_folder_id)
 
         except dropbox.exceptions.ApiError as e:
             print(f"Error occurred: {e}")
@@ -487,6 +486,36 @@ class DropBox(CloudService):
     def get_name(self):
         return "D"
 
+    def get_items_by_name(self, filter: str, folders: list[CloudService.Folder]):
+        """
+        Get all files and folders with the specified filter in the specified folders.
+        The name of the item must contain the "filter" string fully.
+        @param filter: The filter to search for.
+        @param folders: The folder objects to search in.
+        @return: An iterable of file and folder objects that match the name.
+        """
+        try:
+            matching_items = []
+
+            # Iterate through each folder
+            for folder in folders:
+                print(f"Searching in folder: {folder.name}")
+                try:
+                    # List all children of the folder
+                    children = self.get_children(folder)
+                    for child in children:
+                        # Check if the name contains the filter string
+                        if filter.lower() in child.get_name().lower():
+                            matching_items.append(child)
+                except Exception as e:
+                    print(f"Error while searching in folder '{folder.name}': {e}")
+                    continue
+
+            return matching_items
+
+        except Exception as e:
+            print(f"Error in get_items_by_name: {e}")
+            raise
 
 # Unit Test, make sure to enter email!
 '''
