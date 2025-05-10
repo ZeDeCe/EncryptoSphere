@@ -598,7 +598,7 @@ class CloudManager:
                 print(f"Deleting folder: {subfolder_path}")
                 folder = self.fs[subfolder_path]
                 for cloud in self.clouds:
-                    futures[file_executor.submit(cloud.delete_file, folder.get(cloud.get_name()))] = subfolder_path
+                    futures[file_executor.submit(cloud.delete_folder, folder.get(cloud.get_name()))] = subfolder_path
 
             # Wait for all folder deletions to complete
             results, success = self._complete_cloud_threads(futures)

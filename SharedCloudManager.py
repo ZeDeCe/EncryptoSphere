@@ -418,26 +418,38 @@ class SharedCloudManager(CloudManager):
         return self.uid
     
 
-    def get_shared_emails(self) -> list[str]:
+    def get_shared_emails(self) -> dict[str, list[dict[str, str]]]:
         """
-        Returns the emails of the users shared in the session
-        @param cloud_name the name of the cloud to get the emails from
-        @return a list of emails of the users shared in the session
+        Returns the emails of the users shared in the session, categorized as active and pending.
+        Each user is represented as a dictionary with the cloud name as the key and the email as the value.
+        @return: A dictionary with "active" and "pending" keys, each containing a list of user dictionaries.
         """
         cloud = self.clouds[0]
         feks = cloud.list_files(self.root_folder.get(cloud.get_name()), "$FEK")
-        users = set()
-        self.users = []
+        pending_files = cloud.list_files(self.root_folder.get(cloud.get_name()), "$TFEK") + \
+                        cloud.list_files(self.root_folder.get(cloud.get_name()), "$SHARED")
+        
+        active_users = []
+        pending_users = []
+
+        # Extract active users from FEK files
         for fek in feks:
-            if not re.match(r"\$FEK_.+?@.+", fek.get_name()):
-                continue
-            email = fek.get_name()[5:]
-            if email == "" or email == cloud.get_email():
-                continue
-            users.add(email)
-        for user in users:
-            u = {}
-            for cloud in self.clouds:
-                    u[cloud.get_name()] = user
-            self.users.append(u)
-        return self.users
+            if re.match(r"\$FEK_.+?@.+", fek.get_name()):
+                email = fek.get_name()[5:]
+                if email and email != cloud.get_email():
+                    active_users.append({cloud.get_name(): email})
+
+        # Extract pending users from TFEK and SHARED files
+        for pending_file in pending_files:
+            if re.match(r"\$(TFEK|SHARED)_.+?@.+", pending_file.get_name()):
+                email = pending_file.get_name().split("_", 1)[1]
+                if email and not any(email in user.values() for user in active_users):
+                    pending_users.append({cloud.get_name(): email})
+
+        # Update self.users with active and pending users
+        self.users = active_users + pending_users
+
+        return {
+            "active": active_users,
+            "pending": pending_users
+        }
