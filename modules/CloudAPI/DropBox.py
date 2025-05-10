@@ -161,6 +161,8 @@ class DropBox(CloudService):
             print(f"Dropbox: API error: {e}")
             raise Exception(f"Error {e}")
 
+    def get_items_by_name(self, filter, folders):
+        pass
 
     def upload_file(self, data, file_name: str, parent : CloudService.Folder):
         """
@@ -231,6 +233,18 @@ class DropBox(CloudService):
         new = self.create_folder(name, self.root_folder)
         new.name = "/"
         return new
+    
+    def delete_folder(self, folder : CloudService.Folder):
+        """
+        Delete folder from DropBox by name
+        """
+        try:
+            self.dbx.files_delete_v2(folder._id)
+            print(f"DropBox: {folder.name} deleted successfully.")
+            return True
+        except dropbox.exceptions.ApiError as e:
+            raise Exception(f"DropBox-Error deleting folder: {e}")
+        
 
     # def get_folder(self, folder_path : str) -> CloudService.Folder:
     #     """
