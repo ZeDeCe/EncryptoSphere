@@ -107,15 +107,6 @@ class Gateway:
         #return self.current_session.get_search_results(search_string)
         print(f"Searching for {search_string}")
         return iter([])
-    
-    @promise
-    def sync_fd_to_clouds(self, callback=None):
-        if not self.active_fd_sync:
-            self.active_fd_sync = True
-            print(f"Syncing FD to clouds")
-            
-            print(f"Syncing FD to clouds, status: {str(True)}")
-            return True
         
     @promise    
     def sync_new_sessions(self):
@@ -126,8 +117,16 @@ class Gateway:
             print(f"Finished searching for new sessions")
             self.active_sessions_sync = False
             return ret
-        
-        
+        return False
+    
+    @promise
+    def sync_session(self):
+        print("Refresh button clicked")
+        ret = self.session_manager.sync_new_sessions()
+        print(f"Finished refreshing")
+        return ret
+    
+
     @promise
     def refresh_shared_folder(self):
         # We don't actually need to do anything, just call get_items_in_folder for that shared folder
@@ -260,7 +259,15 @@ class Gateway:
         """
         ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
         #res = self.session_manager.sync_new_sessions()
-        return self.session_manager.sessions.keys()
+        uids = self.session_manager.sessions.keys()
+        ret = []
+        for uid in uids:
+            ret.append({
+                "name": uid,
+                "type": "session",
+                "uid": uid
+            })
+        return ret
 
     #TODO: Advanced sharing options
     """
