@@ -15,6 +15,13 @@ class SessionManager():
         self.sessions : dict[SharedCloudManager] = {}
         self.sessions_lock = Lock()
         self.syncing_sessions = False
+        self.sessions_ready = False
+
+    def shared_sessions_ready(self):
+        """
+        Returns True if the sessions are ready to be used, False otherwise
+        """
+        return self.sessions_ready
 
     def get_key(self):
         """
@@ -78,7 +85,7 @@ class SessionManager():
                 new_sessions.get(id)["folders"] = new_sessions.get(id).get("folders") if new_sessions.get(id).get("folders") else {}
                 new_sessions.get(id).get("clouds").append(cloud)
                 new_sessions.get(id).get("folders")[cloud.get_name()] = folder
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             for id, obj in new_sessions.items():
                 name = id.split("$")[0].replace(SharedCloudManager.shared_suffix,"")
                 folders = obj.get("folders")
@@ -86,6 +93,7 @@ class SessionManager():
                 dir = Directory(folders, "/")
                 future = executor.submit(self.add_session,
                     SharedCloudManager(None, dir, clouds, name, self.main_session.split.copy(), self.main_session.encrypt.copy()))
+        self.sessions_ready = True
         self.syncing_sessions = False
         self.sync_known_sessions()
         return True
