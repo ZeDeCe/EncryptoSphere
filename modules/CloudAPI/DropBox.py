@@ -518,14 +518,24 @@ class DropBox(CloudService):
 
             # Iterate through each folder
             for folder in folders:
-                print(f"Searching in folder: {folder.name}")
+                print(f"Searching recursively in folder: {folder.name}")
                 try:
-                    # List all children of the folder
-                    children = self.get_children(folder)
-                    for child in children:
-                        # Check if the name contains the filter string
-                        if filter.lower() in child.get_name().lower():
-                            matching_items.append(child)
+                    # Use Dropbox API to list all items recursively
+                    result = self.dbx.files_list_folder(folder._id, recursive=True)
+                    while True:
+                        for entry in result.entries:
+                            # Check if the entry matches the filter
+                            if filter.lower() in entry.name.lower():
+                                if isinstance(entry, dropbox.files.FileMetadata):
+                                    matching_items.append(CloudService.File(id=entry.path_display, name=entry.name))
+                                elif isinstance(entry, dropbox.files.FolderMetadata):
+                                    matching_items.append(CloudService.Folder(id=entry.path_display, name=entry.name))
+                        
+                        # Continue if there are more entries
+                        if result.has_more:
+                            result = self.dbx.files_list_folder_continue(result.cursor)
+                        else:
+                            break
                 except Exception as e:
                     print(f"Error while searching in folder '{folder.name}': {e}")
                     continue
@@ -595,8 +605,20 @@ def test():
     dbx.unshare_folder(shared)
     print("Done")
 
+def test2():
+    """
+    Test function for DropBox
+    """
+    dbx = DropBox("hadas.shalev10@cs.colman.ac.il")
+    dbx.authenticate_cloud()
+    folder = dbx.get_session_folder("test")
+    print(dbx.get_children(folder))
+    get_items_by_name = dbx.get_items_by_name("test", [folder])
+    for item in get_items_by_name:
+        print(f"Found: {item.get_name()} ({item.__class__.__name__})")
+
     
 
 if __name__ == "__main__":
-    test()
+    test2()
 '''

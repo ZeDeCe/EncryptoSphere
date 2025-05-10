@@ -396,7 +396,7 @@ class CloudManager:
                 raise Exception("Failed to upload files in folders.")
         return True
 
-    def download_file(self, path):
+    def download_file(self, path, open=False):
         """
         Downloads a file from the various clouds
         file_id is a FileDescriptor ID of the file.
@@ -436,10 +436,14 @@ class CloudManager:
             except Exception as e:
                 raise Exception(f"Error merging or decrypting data for file {path}: {e}")
 
-            # Set the destination path to the Downloads folder
-            downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-            dest_path = os.path.join(downloads_folder, file.data.get("name"))
-
+            if not open:
+                # Set the destination path to the Downloads folder
+                downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+                dest_path = os.path.join(downloads_folder, file.data.get("name"))
+            else:
+                # Set the destination path to the temporary folder
+                dest_path = self.get_temp_file_path(file.data.get("name"))
+            
             # Write the reconstructed file to the destination path
             try:
                 with open(dest_path, 'wb') as output:
@@ -466,7 +470,7 @@ class CloudManager:
         try:
             # Download the file
             print(f"Downloading file from path: {path}")
-            success = self.download_file(path)
+            success = self.download_file(path, True)
             if not success:
                 raise Exception(f"Failed to download file from path: {path}")
 
@@ -476,16 +480,7 @@ class CloudManager:
                 raise Exception(f"File not found in file descriptor: {path}")
 
             # Determine the temporary file path
-            temp_file_path = self.get_temp_file_path(file.data.get("name"))
-
-            # Move the downloaded file to the temporary folder
-            downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-            downloaded_file_path = os.path.join(downloads_folder, file.data.get("name"))
-            if os.path.exists(downloaded_file_path):
-                shutil.move(downloaded_file_path, temp_file_path)
-                print(f"Moved file to temporary location: {temp_file_path}")
-            else:
-                raise FileNotFoundError(f"Downloaded file not found: {downloaded_file_path}")
+            temp_file_path = self.get_temp_file_path(file.name)
 
             # Open the file with the default application
             print(f"Opening file: {temp_file_path}")
