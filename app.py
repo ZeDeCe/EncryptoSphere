@@ -737,6 +737,7 @@ class MainPage(ctk.CTkFrame):
         self.current_session.change_folder("/")
         self.current_session.pack(fill=ctk.BOTH, expand=True)
         self.current_session.lift()
+        self.messages_pannel.lift()
 
     def refresh(self):
         """
@@ -1311,202 +1312,6 @@ class FolderButton(IconButton):
     def on_button1_click(self, event=None):
         super().on_button1_click(event)
 
-
-@clickable
-class SharePage(ctk.CTkFrame):
-    """
-    This class creates the share page frame -  Where the user can share folders with other users and view shared folders.
-    This class inherits ctk.CTkFrame class.
-    """
-    def __init__(self, parent, controller):
-        
-        self.controller = controller
-        ctk.CTkFrame.__init__(self, parent)
-        # Create the side bar
-        self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
-        self.side_bar.pack(side = ctk.LEFT,fill="y", expand = False)
-
-        # Add the EncryptoSphere label to the side bar
-        encryptosphere_label = ctk.CTkLabel(self.side_bar, text="Shared Folders", font=("Verdana", 15))
-        encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand = False)
-
-        # Create the upload button and create share buttons
-        self.share_folder_button = ctk.CTkButton(self.side_bar, text="New Share",
-                                      command=lambda: self.open_sharing_window(),
-                                      width=120, height=30, fg_color="gray25", hover=False)
-        self.share_folder_button.pack(anchor="nw", padx=10, pady=5, expand = False)
-
-        self.share_folder_button.bind("<Enter>", lambda e: self.set_bold(self.share_folder_button))
-        self.share_folder_button.bind("<Leave>", lambda e: self.set_normal(self.share_folder_button))
-        self.back_button = ctk.CTkButton(self.side_bar, text="Back ⏎",
-                                                 command=lambda: self.back_to_main_window(),
-                                                 width=120, height=30, fg_color="gray25", hover=False)
-        self.back_button.pack(anchor="nw", padx=10, pady=10, expand=False)
-
-        self.back_button.bind("<Enter>", lambda e: self.set_bold(self.back_button))
-        self.back_button.bind("<Leave>", lambda e: self.set_normal(self.back_button))
-
-        self.container = ctk.CTkFrame(self, fg_color="transparent")
-        self.container.pack(fill = ctk.BOTH, expand = True)
-
-        self.search_bar = ctk.CTkFrame(self.container, fg_color="gray25", height=50, corner_radius=0)
-        self.search_bar.pack(side=ctk.TOP, fill=ctk.X)
-
-        # Add refresh button to the search bar
-        refresh_icon = ctk.CTkImage(light_image=Image.open("resources/refresh_icon.png"), size=(20, 20))
-        self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.sync_to_clouds(), width=20, height=20, corner_radius=10, fg_color="gray30", hover_color="gray40")
-        self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
-
-        
-        self.main_frame = ctk.CTkScrollableFrame(self.container, corner_radius=0)
-        self.main_frame.pack(fill = ctk.BOTH, expand = True)
-
-        # Make the scrollbar thinner
-        self.main_frame._scrollbar.configure(width=16)
-
-        self.shared_folder_list = {}
-
-
-    def set_bold(self, button):
-        """
-        Change the button text to bold on hover
-        @param button: The button to be changed
-        """
-        button.configure(font=("Verdana", 13, "bold"))
-
-    def set_normal(self, button):
-        """
-        Revert the button text to normal when not hovered
-        @param button: The button to be changed
-        """
-        button.configure(font=("Verdana", 13))
-    
-    def back_to_main_window(self):
-        """
-        This function is called when the user clicks the back button to return to the main page
-        """
-        self.controller.get_api().change_session()
-        self.controller.show_frame(MainPage)
-
-    def sync_to_clouds(self):
-        """
-        Sync the current folder to the clouds
-        """
-        self.controller.get_api().sync_new_sessions(lambda f: self.refresh())
-
-    def open_sharing_window(self):
-        """
-        This function opens the upload menu with inputs for folder name and email list
-
-        TODO: Add an option to select clouds to share with and for each member to select different email for each cloud
-
-        """ 
-        new_window = ctk.CTkToplevel(self)
-        new_window.title("New Share")
-        # Bring to front & keep it on top of the main window
-        new_window.lift()  
-        new_window.transient(self)  
-
-        # Get the position and size of the parent (controller) window
-        main_x = self.controller.winfo_x()
-        main_y = self.controller.winfo_y()
-        main_w = self.controller.winfo_width()
-        main_h = self.controller.winfo_height()
-        # Size of the new window
-        # TODO: dynamic sizing
-        new_w, new_h = 400, 350  
-
-        # Calculate the position to center the new window over the parent window
-        new_x = main_x + (main_w // 2) - (new_w // 2)
-        new_y = main_y + (main_h // 2) - (new_h // 2)
-        new_window.geometry(f"{new_w}x{new_h}+{new_x}+{new_y}")
-
-        # Create a frame for the scrollable area
-        frame = ctk.CTkFrame(new_window)
-        frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
-
-        # Create a scrollable frame inside the main frame
-        scrollable_frame = ctk.CTkScrollableFrame(frame)
-        scrollable_frame.pack(fill=ctk.BOTH, expand=True)
-
-        # Folder name input (label above the entry field)
-        folder_label = ctk.CTkLabel(scrollable_frame, text="Enter Folder Name:", anchor="w")
-        folder_label.grid(row=0, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
-        folder_name_entry = ctk.CTkEntry(scrollable_frame, width=200)
-        folder_name_entry.grid(row=1, column=0, pady=5, sticky="w")
-
-        # Share with header
-        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w")
-        share_with_label.grid(row=2, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
-        
-        # Email list input
-        email_frame = ctk.CTkFrame(scrollable_frame, fg_color=scrollable_frame.cget('fg_color'))  # Match background
-        email_frame.grid(row=3, column=0, columnspan=2, pady=0, sticky="w")
-
-        # List to hold email input fields
-        email_inputs = []  
-
-        # Initial email input field
-        initial_email_entry = ctk.CTkEntry(email_frame, width=200)
-        initial_email_entry.grid(row=1, column=0, pady=5, padx=(0, 10), sticky="w")
-        email_inputs.append(initial_email_entry)
-
-        # Function to add new email input
-        def add_email_input():
-            if len(email_inputs) < 5:
-                new_email_entry = ctk.CTkEntry(email_frame, width=200)
-                new_email_entry.grid(row=len(email_inputs) + 1, column=0, pady=5, padx=(0, 10), sticky="w")
-                email_inputs.append(new_email_entry)
-
-        # "+" button to add email inputs (styled as a small circular button)
-        plus_button = ctk.CTkButton(email_frame, text="+", command=add_email_input, width=30, height=30, corner_radius=15)
-        plus_button.grid(row=1, column=1, padx=10, pady=5)
-
-        # Function to handle the creation of new share
-        def create_new_share():
-            folder_name = folder_name_entry.get()
-            emails = [email.get() for email in email_inputs]
-            print(f"Creating share with folder: {folder_name} and emails: {emails}")
-            # Call a new function with the folder and emails (replace this with your logic)
-            self.controller.get_api().create_shared_session(lambda f: self.refresh(), folder_name, emails)
-            # Close the new window
-            new_window.destroy()
-
-        # Create new share button (this now does both actions: create share and close the window)
-        create_share_button = ctk.CTkButton(scrollable_frame, text="Create New Share", command=create_new_share)
-        create_share_button.grid(row=100, column=0, pady=50, padx=100, sticky="s")
-
-        # Adjust the scrollbar to make it thinner (no slider_length argument)
-        new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
-    
-
-    
-    def refresh(self):
-        """
-        Refresh the frame and display all updates
-        """
-        folder_list = self.controller.get_api().get_shared_folders()
-        
-        for folder in folder_list:
-            if folder not in self.shared_folder_list:
-                self.shared_folder_list[folder] = SharedFolderButton(self.main_frame, width=120, height=120, uid=folder, controller=self.controller)
-
-        columns = 6
-
-        for widget in self.main_frame.winfo_children():
-            widget.grid_forget()
-        
-
-        for col in range(columns):
-            self.main_frame.grid_columnconfigure(col, weight=1, uniform="file_grid")
-
-        index = 0
-        for folder in self.shared_folder_list.values():
-            row = index // columns  
-            col = index % columns   
-            folder.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-            index +=1
-
 @clickable
 class SharedFolderButton(IconButton):
     """
@@ -1529,19 +1334,19 @@ class SharedFolderButton(IconButton):
         self.context_menu = OptionMenu(self.controller.container, self.controller, [
             {
                 "label": "Manage Permissions",
-                "color": "green4",
-                "event": lambda: self.manage_share_permissions() #TODO: add the function to add member
+                "color": "gray25",
+                "event": lambda: self.manage_share_permissions()
              },
              
             {
                 "label": "Leave Share",
-                "color": "red",
-                "event": lambda: Thread(target=self.leave_shared_folder, args=(), daemon=True).start() #TODO: this
+                "color": "gray25",
+                "event": lambda: self.leave_shared_folder()
              },
              {
                  "label": "Delete Share",
-                 "color": "red",
-                 "event": lambda: Thread(target=self.delete_shared_folder, args=(), daemon=True).start() #TODO: this
+                 "color": "gray25",
+                 "event": lambda: self.delete_shared_folder()
              }
         ])
 
@@ -1558,7 +1363,16 @@ class SharedFolderButton(IconButton):
     def on_button1_click(self, event=None):
         super().on_button1_click(event)
 
-        
+    def leave_shared_folder(self):
+        print("clickeeeeeeeeeeeeeeeeeeeeeed")
+        label = self.controller.add_message_label(f"Leaving share {self.name}")
+        # Call a new function with the folder and emails (replace this with your logic)
+        self.controller.get_api().leave_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
+
+
+    def delete_shared_folder(self):
+        pass
+
     def manage_share_permissions(self):
         new_window = ctk.CTkToplevel(self)
         new_window.title("Manage Share Permissions")
