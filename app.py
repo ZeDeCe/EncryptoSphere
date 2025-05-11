@@ -1337,7 +1337,6 @@ class SharedFolderButton(IconButton):
                 "color": "gray25",
                 "event": lambda: self.manage_share_permissions()
              },
-             
             {
                 "label": "Leave Share",
                 "color": "gray25",
@@ -1364,14 +1363,14 @@ class SharedFolderButton(IconButton):
         super().on_button1_click(event)
 
     def leave_shared_folder(self):
-        print("clickeeeeeeeeeeeeeeeeeeeeeed")
+        print("leave_share_clicked")
         label = self.controller.add_message_label(f"Leaving share {self.name}")
         # Call a new function with the folder and emails (replace this with your logic)
         self.controller.get_api().leave_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
 
 
     def delete_shared_folder(self):
-        pass
+        print("delete_share_clicked")
 
     def manage_share_permissions(self):
         new_window = ctk.CTkToplevel(self)
@@ -1501,12 +1500,6 @@ class SharedFolderButton(IconButton):
 
         # Adjust the scrollbar to make it thinner (no slider_length argument)
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
-
-    def leave_shared_folder(self):
-        pass
-
-    def delete_shared_folder(self):
-        pass
 
     def on_button3_click(self, event=None):
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)

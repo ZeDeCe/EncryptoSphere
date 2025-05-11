@@ -273,14 +273,16 @@ class Gateway:
     """
     def share_file(self):
         pass
-
-
-    def unshare_folder(self):
-        pass
-
-    def unshare_file(self):
-        pass
     """
+    
+    @promise
+    def leave_shared_folder(self):
+        print("boooooooooooooooo")
+
+    def delete_shared_folder(self):
+        pass
+    
+
     def get_shared_emails(self, shared_session_name):
         """
         Returns the list of emails that are shared with the given folder
