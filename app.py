@@ -596,8 +596,9 @@ class MainPage(ctk.CTkFrame):
             folder_name = folder_name_entry.get()
             emails = [email.get() for email in email_inputs]
             print(f"Creating share with folder: {folder_name} and emails: {emails}")
+            label = self.add_message_label(f"The folder {folder_name} is being shared")
             # Call a new function with the folder and emails (replace this with your logic)
-            self.controller.get_api().create_shared_session(lambda f: self.refresh(), folder_name, emails)
+            self.controller.get_api().create_shared_session(lambda f: (self.refresh(), self.remove_message(label)), folder_name, emails)
             # Close the new window
             new_window.destroy()
 
@@ -771,50 +772,6 @@ class MainPage(ctk.CTkFrame):
         return parts[0]
 
 @clickable
-class Breadcrumb(ctk.CTkFrame):
-    """
-    This class represents the breadcrumb in the app, it is a subclass of CTkFrame and is used to display the breadcrumb in the main page.
-    """ 
-    def __init__(self, parent, controller : App):
-        ctk.CTkFrame.__init__(self, parent, corner_radius=0)
-        self.controller = controller
-        self.pack(side=ctk.TOP, fill=ctk.X)
-
-    def push_breadcrumb(self, folder_name):
-        """
-        Push a new breadcrumb to the breadcrumb list
-        @param path: The path to be added to the breadcrumb
-        """
-        # Create a new label for the breadcrumb
-        breadcrumb_label = ctk.CTkButton(self, text=folder_name, anchor="w", corner_radius=0, padx=10, pady=5)
-        breadcrumb_label.bind("<Button-1>", lambda e: self.pop_until(breadcrumb_label))
-        breadcrumb_label.pack(side="left", pady=2, padx=10, anchor="w")
-        breadcrumb_label.lift()
-    
-    def pop_until(self, breadcrumb_label):
-        """
-        Pop all breadcrumbs until the given label
-        @param breadcrumb_label: The label to pop until
-        """
-        # Get the index of the breadcrumb label in the list
-        index = self.winfo_children().index(breadcrumb_label)
-        
-        # Remove all breadcrumbs after the given label
-        for i in range(index + 1, len(self.winfo_children())):
-            self.winfo_children()[i].pack_forget()
-        
-        # Change the folder to the one represented by the clicked breadcrumb
-        path = ""
-        for child in self.winfo_children():
-            '/'.join(path, child.cget("text"))
-            if child == breadcrumb_label:
-                break
-            # Get the text of the breadcrumb label and change the folder to it
-            
-        self.master.change_folder(path)
-
-
-@clickable
 class Session(ctk.CTkFrame):
     """
     This class represents a session in the app, it is a subclass of CTkFrame and is used to display the session in the main page.
@@ -828,9 +785,7 @@ class Session(ctk.CTkFrame):
         self.folders = {"/": root_folder}
         self.curr_path = "/"
 
-        self.breadcrumb_path = Breadcrumb(self, text=self.curr_path, anchor="e", fg_color="gray30", corner_radius=10)
-        self.breadcrumb_path.pack(anchor="nw", fill="x", padx=10, pady=5)
-        self.breadcrumb_path.lift()
+
 
     def change_folder(self, path, calling_folder=None):
         """
@@ -849,8 +804,6 @@ class Session(ctk.CTkFrame):
             tofolder = new_folder
 
         self.folders[self.curr_path].pack_forget()
-        self.url_label.configure(text=self.curr_path)
-        self.url_label.lift()
         self.curr_path = path
 
         tofolder.refresh()
