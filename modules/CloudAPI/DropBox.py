@@ -486,6 +486,61 @@ class DropBox(CloudService):
 
     def get_name(self):
         return "D"
+    
+    def delete_folder(self, folder: CloudService.Folder):
+        """
+        Delete a folder from Dropbox.
+        @param folder: The folder object to delete.
+        @return: True if the folder was deleted successfully, otherwise raises an exception.
+        """
+        try:
+            # Use the Dropbox API to delete the folder
+            self.dbx.files_delete_v2(folder._id)
+            print(f"DropBox: Folder '{folder.name}' deleted successfully.")
+            return True
+        except dropbox.exceptions.ApiError as e:
+            print(f"DropBox-Error deleting folder '{folder.name}': {e}")
+            raise Exception(f"DropBox-Error deleting folder: {e}")
+        except Exception as e:
+            print(f"Unexpected error while deleting folder '{folder.name}': {e}")
+            raise
+        
+    def get_items_by_name(self, filter: str, folders: list[CloudService.Folder]):
+        """
+        Get all files and folders with the specified filter in the specified folders.
+        The name of the item must contain the "filter" string fully.
+        @param filter: The filter to search for.
+        @param folders: The folder objects to search in.
+        @return: An iterable of file and folder objects that match the name.
+        """
+        try:
+            # Iterate through each folder
+            for folder in folders:
+                print(f"Searching recursively in folder: {folder.name}")
+                try:
+                    # Use Dropbox API to list all items recursively
+                    result = self.dbx.files_list_folder(folder._id, recursive=True)
+                    while True:
+                        for entry in result.entries:
+                            # Check if the entry matches the filter
+                            if filter.lower() in entry.name.lower():
+                                if isinstance(entry, dropbox.files.FileMetadata):
+                                    yield CloudService.File(id=entry.path_display, name=entry.name)
+                                elif isinstance(entry, dropbox.files.FolderMetadata):
+                                    yield CloudService.Folder(id=entry.path_display, name=entry.name)
+                        
+                        # Continue if there are more entries
+                        if result.has_more:
+                            result = self.dbx.files_list_folder_continue(result.cursor)
+                        else:
+                            break
+                except Exception as e:
+                    print(f"Error while searching in folder '{folder.name}': {e}")
+                    continue
+
+        except Exception as e:
+            print(f"Error in get_items_by_name: {e}")
+            raise
 
 
 # Unit Test, make sure to enter email!
@@ -546,8 +601,19 @@ def test():
     dbx.unshare_folder(shared)
     print("Done")
 
+def test2():
+    """
+    Test function for DropBox
+    """
+    dbx = DropBox("hadas.shalev10@cs.colman.ac.il")
+    dbx.authenticate_cloud()
+    folder = dbx.get_session_folder("test")
+    get_items_by_name = dbx.get_items_by_name("test", [folder])
+    for item in get_items_by_name:
+        print(f"Found: {item.get_name()} ({item.__class__.__name__})")
+
     
 
 if __name__ == "__main__":
-    test()
+    test2()
 '''
