@@ -514,8 +514,6 @@ class DropBox(CloudService):
         @return: An iterable of file and folder objects that match the name.
         """
         try:
-            matching_items = []
-
             # Iterate through each folder
             for folder in folders:
                 print(f"Searching recursively in folder: {folder.name}")
@@ -527,9 +525,9 @@ class DropBox(CloudService):
                             # Check if the entry matches the filter
                             if filter.lower() in entry.name.lower():
                                 if isinstance(entry, dropbox.files.FileMetadata):
-                                    matching_items.append(CloudService.File(id=entry.path_display, name=entry.name))
+                                    yield CloudService.File(id=entry.path_display, name=entry.name)
                                 elif isinstance(entry, dropbox.files.FolderMetadata):
-                                    matching_items.append(CloudService.Folder(id=entry.path_display, name=entry.name))
+                                    yield CloudService.Folder(id=entry.path_display, name=entry.name)
                         
                         # Continue if there are more entries
                         if result.has_more:
@@ -539,8 +537,6 @@ class DropBox(CloudService):
                 except Exception as e:
                     print(f"Error while searching in folder '{folder.name}': {e}")
                     continue
-
-            return matching_items
 
         except Exception as e:
             print(f"Error in get_items_by_name: {e}")
@@ -612,7 +608,6 @@ def test2():
     dbx = DropBox("hadas.shalev10@cs.colman.ac.il")
     dbx.authenticate_cloud()
     folder = dbx.get_session_folder("test")
-    print(dbx.get_children(folder))
     get_items_by_name = dbx.get_items_by_name("test", [folder])
     for item in get_items_by_name:
         print(f"Found: {item.get_name()} ({item.__class__.__name__})")
