@@ -255,7 +255,8 @@ class Gateway:
             ret.append({
                 "name": uid,
                 "type": "session",
-                "uid": uid
+                "uid": uid,
+                "isowner": self.session_manager.sessions[uid].is_owner()
             })
         return ret
 

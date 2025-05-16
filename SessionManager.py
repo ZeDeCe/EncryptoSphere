@@ -12,7 +12,7 @@ class SessionManager():
     def __init__(self, master_key, main_session):
         self.key = master_key
         self.main_session : CloudManager = main_session
-        self.sessions : dict[SharedCloudManager] = {}
+        self.sessions : dict[str, SharedCloudManager] = {}
         self.sessions_lock = Lock()
         self.syncing_sessions = False
         self.sessions_ready = False
