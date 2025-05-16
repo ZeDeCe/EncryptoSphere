@@ -235,7 +235,8 @@ class CloudService(ABC):
     def leave_shared_folder(self, folder : Folder) -> bool:
         """
         Leave a shared folder
-        Exit the shared folder without deleting it
+        If you are the owner of the folder, raises an error
+        Exits the shared folder without deleting it
         @param folder the folder object to leave
         @return success, if fails throws an error
         """

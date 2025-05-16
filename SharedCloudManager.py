@@ -36,6 +36,7 @@ class SharedCloudManager(CloudManager):
         self.users = []
         self.loaded = False
         self.uuid = None
+        self.is_owner = False
         self.root_folder = root_folder
         if root_folder:
             self.fs["/"] = root_folder
@@ -84,6 +85,7 @@ class SharedCloudManager(CloudManager):
             if self.uid is None:
                 print("Cannot get UID for cloud manager")
                 return False
+            self.is_owner = self.clouds[0].get_owner(self.root_folder.get(self.clouds[0].get_name())) == self.clouds[0].get_email()
             # loaded from this point
             self.loaded = True
             self.share_keys()
@@ -91,6 +93,13 @@ class SharedCloudManager(CloudManager):
         print("Failed to authenticate shared session")
         return False
     
+
+    def user_is_owner(self) -> bool:
+        """
+        Returns True if the current user is the owner of the session, False otherwise
+        """
+        return self.is_owner
+
     def create_new_session(self) -> bytes:
         """
         Create a first time share, generate a shared key and upload FEK
