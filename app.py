@@ -127,6 +127,7 @@ class App(ctk.CTk):
         """    
         self.destroy() 
         if self.api.manager:
+            self.api.manager.cleanup_temp_folder() 
             self.api.stop_sync_new_sessions_task()
     
     def set_popup(self, popup):

@@ -110,6 +110,17 @@ class CloudService(ABC):
         pass
 
     @abstractmethod
+    def get_items_by_name(self, filter : str, folders : list[Folder]) -> Iterable[File|Folder]:
+        """
+        Get all files and folders with the specified filter in the specified folders
+        The name of the item must contain the "filter" string fully 
+        @param filter the filter to search for
+        @param folders the folder objects to search in
+        @return a list of file objects that match the name
+        """
+        pass
+
+    @abstractmethod
     def upload_file(self, data : bytes, file_name : str, parent : Folder) -> File:
         """
         Upload a file to the cloud storage
@@ -135,6 +146,15 @@ class CloudService(ABC):
         """
         Delete a file from the cloud storage
         @param file_path the path to the file in the cloud storage
+        @return success, if fails throws an error
+        """
+        pass
+    
+    @abstractmethod
+    def delete_folder(self, folder : Folder) -> bool:
+        """
+        Delete a folder from the cloud storage
+        @param folder the folder object to delete
         @return success, if fails throws an error
         """
         pass
@@ -216,6 +236,7 @@ class CloudService(ABC):
         @param folder the folder object
         """
         pass
+
 
     @abstractmethod
     def get_name(self) -> str:

@@ -331,7 +331,7 @@ class Gateway:
 
     def start_sync_new_sessions_task(self):
         """
-        Starts a background task to call sync_new_sessions every 10 minutes using the thread pool.
+        Starts a background task to call sync_new_sessions every X minutes using the thread pool.
         """
         self.stop_event = threading.Event()  # Create a stop event
 
