@@ -766,11 +766,14 @@ class MainPage(ctk.CTkFrame):
         """
         if self.current_session is None:
             return
+        
+        self.refresh_button.configure(state="disabled")
         if self.current_session == self.sessions_folder:
-            self.controller.get_api().sync_session(lambda f: self.sessions_folder.refresh())
+            self.controller.get_api().sync_session(lambda f: (self.sessions_folder.refresh(), self.refresh_button.configure(state="normal")))
             return
         else:
             self.current_session.refresh()
+            self.refresh_button.configure(state="normal")
     
 
     def get_previous_window(self, path):

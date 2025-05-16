@@ -108,17 +108,6 @@ class Gateway:
         #return self.current_session.get_search_results(search_string)
         print(f"Searching for {search_string}")
         return iter([])
-        
-    @promise    
-    def sync_new_sessions(self):
-        if not self.active_sessions_sync:
-            self.active_sessions_sync = True
-            print(f"Searchinng for new sessions...")
-            ret = self.session_manager.sync_new_sessions()
-            print(f"Finished searching for new sessions")
-            self.active_sessions_sync = False
-            return ret
-        return False
     
     @promise
     def sync_session(self):
