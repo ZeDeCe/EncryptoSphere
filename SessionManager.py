@@ -1,4 +1,9 @@
 from SharedCloudManager import SharedCloudManager
+from CloudManager import CloudManager
+from modules.CloudAPI.CloudService import CloudService
+from CloudObjects import Directory
+import concurrent.futures
+from threading import Lock
 
 class SessionManager():
     """
@@ -6,8 +11,17 @@ class SessionManager():
     """
     def __init__(self, master_key, main_session):
         self.key = master_key
-        self.main_session = main_session
-        self.sessions = {}
+        self.main_session : CloudManager = main_session
+        self.sessions : dict[SharedCloudManager] = {}
+        self.sessions_lock = Lock()
+        self.syncing_sessions = False
+        self.sessions_ready = False
+
+    def shared_sessions_ready(self):
+        """
+        Returns True if the sessions are ready to be used, False otherwise
+        """
+        return self.sessions_ready
 
     def get_key(self):
         """
@@ -15,23 +29,30 @@ class SessionManager():
         """
         return self.key
     
-    def add_session(self, session : SharedCloudManager):
+    def add_session(self, session : SharedCloudManager, session_name=None):
         """
         Adds a new shared session to the sessions list
         """
-        session.authenticate()
-        self.sessions[session.root_folder] = session
+        status = session.authenticate()
+        if not status: # if failed to authenticate for any reason don't show (including pending sessions)
+            # we might change this later to show pending sessions as a grayed out folder maybe?
+            print(f"Session authentication failed for session {session.root}")
+            return
+        if session_name is None:
+            session_name = session.get_uid()
+        with self.sessions_lock:
+            self.sessions[session_name] = session
 
-    def end_session(self, session : SharedCloudManager):
+    def end_session(self, session : SharedCloudManager | str):
         """
         End a session from the session list if test_session returned false from SharedCloudManager
         """
-
+        assert isinstance(session, str) or isinstance(session, SharedCloudManager)
         try:
             if isinstance(session, str):
                 self.sessions.pop(session)
-            else:
-                self.sessions.pop(session.root_folder)
+            elif isinstance(session, SharedCloudManager):
+                self.sessions.pop(session.get_uid())
         except KeyError as e:
             print("No such session exists")
             return
@@ -41,28 +62,52 @@ class SessionManager():
         Looks in all clouds for shared sessions
         If one is found, create a SharedCloudManager for the folder and add it to self.sessions using add_session
         """
+        if self.syncing_sessions:
+            return False
+        self.syncing_sessions = True
+
         new_sessions = {}
         for cloud in self.main_session.clouds:
-            shared_folders = cloud.list_shared_folders()
+            shared_folders = cloud.list_shared_folders(filter=SharedCloudManager.shared_suffix)
             if shared_folders is None:
                 return
             for folder in shared_folders:
-                if not SharedCloudManager.is_valid_session_root(cloud, folder):
+                # if not SharedCloudManager.is_valid_session_root(cloud, folder):
+                #     continue
+                uid = self.__get_shared_folder_uid(cloud, folder)
+                if uid is None or uid == "":
                     continue
-                for session in self.sessions.keys():
-                    if session == folder.path:
-                        continue
-                temp = new_sessions.get(folder.path) if new_sessions.get(folder.path) else []
-                temp.append(cloud)
-                new_sessions[folder.path] = temp
-        for folder,clouds in new_sessions.items():
-            self.add_session(SharedCloudManager(None, clouds, folder, self.main_session.split, self.main_session.encrypt))
+                id : str = f"{folder.get_name().replace(SharedCloudManager.shared_suffix, '')}${uid}"
+                if self.sessions.get(id):
+                    continue
+                new_sessions[id] = new_sessions.get(id) if new_sessions.get(id) else {}
+                new_sessions.get(id)["clouds"] = new_sessions.get(id).get("clouds") if new_sessions.get(id).get("clouds") else []
+                new_sessions.get(id)["folders"] = new_sessions.get(id).get("folders") if new_sessions.get(id).get("folders") else {}
+                new_sessions.get(id).get("clouds").append(cloud)
+                new_sessions.get(id).get("folders")[cloud.get_name()] = folder
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            for id, obj in new_sessions.items():
+                name = id.split("$")[0].replace(SharedCloudManager.shared_suffix,"")
+                folders = obj.get("folders")
+                clouds = obj.get("clouds")
+                dir = Directory(folders, "/")
+                future = executor.submit(self.add_session,
+                    SharedCloudManager(None, dir, clouds, name, self.main_session.split.copy(), self.main_session.encrypt.copy()))
+        self.sessions_ready = True
+        self.syncing_sessions = False
         self.sync_known_sessions()
-                
-    def get_session(self, path=None):
-        if not path:
+        return True
+    
+    def __get_shared_folder_uid(self, cloud : CloudService, folder : CloudService.Folder) -> str | None:
+        files = cloud.list_files(folder, "$UID_")
+        for file in files:
+            return file.get_name()[5:]
+        return None
+
+    def get_session(self, uid=None):
+        if not uid:
             return self.main_session
-        return self.sessions.get(path)
+        return self.sessions.get(uid)
         
     def sync_known_sessions(self):
         """

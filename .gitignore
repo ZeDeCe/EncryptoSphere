@@ -3,6 +3,7 @@
 .env
 client_secret.json
 Test/
+clouddata/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -178,3 +179,5 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+token.json
+cloud_tokens.json

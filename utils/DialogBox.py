@@ -1,7 +1,22 @@
 import customtkinter as ctk
+from app import App
+import concurrent.futures
+
 
 #Implement gui dialogbox
 def input_dialog(title, text):
+    root = App.get_global_app()
+    future = concurrent.futures.Future()
+    def run_input_dialog():
+        # Run the input dialog in a separate thread
+        result = _input_dialog(title, text)
+        future.set_result(result)
+
+    root.after(0, run_input_dialog)
+    return future
+
+def _input_dialog(title, text):
+    
     # Create the input dialog
     dialog = ctk.CTkInputDialog(text=text, title=title)
     
@@ -28,5 +43,4 @@ def input_dialog(title, text):
     
     # Return the input received from the dialog
     return dialog.get_input()
-    
     

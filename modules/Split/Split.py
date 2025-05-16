@@ -6,6 +6,13 @@ class Split(ABC):
         for cls in Split.__subclasses__():
             if cls.get_name() == sig:
                 return cls
+    
+    def __init__(self):
+        """
+        Change copies_per_cloud according to the amount of copies there should be per cloud
+        """
+        self.copies_per_cloud = 1
+        self.min_parts = 1
 
     @abstractmethod
     def split(self, data : bytes, clouds_num : int) -> str:
@@ -23,6 +30,8 @@ class Split(ABC):
         @return the merged file bytes
         """
         pass
+    def copy(self):
+        return self.__class__()
     
     @staticmethod
     @abstractmethod

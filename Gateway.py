@@ -13,6 +13,11 @@ from modules.CloudAPI import *
 from FileDescriptor import FileDescriptor
 from SessionManager import SessionManager
 import customtkinter as ctk
+from threading import Thread
+import concurrent.futures
+import time
+import threading
+from functools import wraps
 
 import utils.DialogBox as DialogBox
 import app as app
@@ -20,6 +25,8 @@ import app as app
 
 # This is temporary:
 from cryptography.fernet import Fernet
+
+SYNC_TIME = 90 # 1 min 30 sec
 
 class Gateway:
     """
@@ -30,8 +37,25 @@ class Gateway:
     def __init__(self):
         self.manager = None
         self.session_manager = None
+        self.executor = concurrent.futures.ThreadPoolExecutor()
+        self.active_fd_sync = False
+        self.active_sessions_sync = False
+        self.active_shared_folder_sync = False
+    def promise(func):
+        """
+        Decorator to run a function in a separate thread and return a Future object
+        Also attaches a callback to the function if given
+        """
+        @wraps(func)
+        def wrapper(self, callback, *args, **kwargs):
+            future : concurrent.futures.Future = self.executor.submit(func, self, *args, **kwargs)
+            if not callback is None:
+                future.add_done_callback(callback)
+            return future
+        return wrapper
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
+    @promise
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
         dropbox1 = DropBox(email)
@@ -40,54 +64,107 @@ class Gateway:
         encrypt.set_key(encrypt.generate_key_from_key(master_key))
         # Everything here is for testing
         self.manager = CloudManager(
-            [drive1, dropbox1],
-            "/EncryptoSphere", 
+            [drive1,dropbox1],
+            "main_session", 
             ShamirSplit(), 
             encrypt
         )
 
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
-        print(f"Status: {status}")
         self.current_session = self.manager
-        self.session_manager.sync_new_sessions() # this can take a long time, look at the output window
+        self.start_sync_new_sessions_task()
+        print(f"Status: {status}")
         return status
     
-    def change_session(self, path=None):
+    
+    def change_session(self, uid=None):
         """
         Change the current session to the one specified by path
         @param path: the path to the session to change to
         """
-        if path:
-           self.current_session = self.session_manager.get_session(path)
+        if uid:
+           self.current_session = self.session_manager.get_session(uid)
         else:
             self.current_session = self.session_manager.main_session
     
-    """ 
-    def get_files(self):
-        return self.current_session.get_file_list()
-    """ 
-    
-    def get_files(self, path="/"):
+    def get_items_in_folder(self, path="/"):
         """
-        @return: list of files in the current session in the FD format
+        @param path: the path to the folder
+        @return: Yielded iterable (generator) for every file in the current session in the folder given
         """
-        return self.manager.get_items_in_folder(path)
+        return self.current_session.get_items_in_folder(path)
     
-    def download_file(self, file_id):
+    @promise
+    def get_items_in_folder_async(self, path="/"):
+        return self.current_session.get_items_in_folder(path)
+    
+    @promise
+    def get_search_results_async(self, search_string):
+        """
+        @param path: the path to the folder
+        @return: Yielded iterable (generator) for every file in the current session in the folder given
+        """
+        #return self.current_session.get_search_results(search_string)
+        print(f"Searching for {search_string}")
+        return iter([])
+        
+    @promise    
+    def sync_new_sessions(self):
+        if not self.active_sessions_sync:
+            self.active_sessions_sync = True
+            print(f"Searchinng for new sessions...")
+            ret = self.session_manager.sync_new_sessions()
+            print(f"Finished searching for new sessions")
+            self.active_sessions_sync = False
+            return ret
+        return False
+    
+    @promise
+    def sync_session(self):
+        print("Refresh button clicked")
+        ret = self.session_manager.sync_new_sessions()
+        print(f"Finished refreshing")
+        return ret
+    
+
+    @promise
+    def refresh_shared_folder(self):
+        # We don't actually need to do anything, just call get_items_in_folder for that shared folder
+        pass
+
+        
+    @promise
+    def open_file(self, file_path):
+        """
+        Open file function
+        @param file_id: the id of the file to open
+        @return: True if the file was opened successfully, False otherwise
+        """
+        print(f"Open file selected: {file_path}")
+        return self.current_session.open_file(file_path)
+    
+
+    @promise
+    def download_file(self, file_path):
         """
         Download file function
         @param file_id: the id of the file to download
         @return: True if the file was downloaded successfully, False otherwise
         """
-        return self.current_session.download_file(file_id)
+        return self.current_session.download_file(file_path)
 
-    """
-    def download_folder(self, folder_id):
-        self.current_session.download_folder(folder_id)
-        return True # TODO: Handle correctly!!
-    """
+    @promise
+    def download_folder(self, folder_path):
+        """
+        Download folder as a ZIP file.
+        @param folder_name: The name of the folder to download.
+        @return: The path to the ZIP file if successful, False otherwise.
+        """
+        print(f"Download folder selected: {folder_path}")
+        return self.current_session.download_folder(folder_path)
     
+    @promise
     def upload_file(self, file_path, path):
         """
         Upload file function
@@ -98,7 +175,7 @@ class Gateway:
         print(f"Upload file selected: {file_path}")
         return self.current_session.upload_file(file_path, path)
 
-    
+    @promise
     def upload_folder(self, folder_path, path):
         """
         Upload folder function
@@ -109,26 +186,38 @@ class Gateway:
         print(f"Upload folder selected {folder_path}")
         return self.current_session.upload_folder(folder_path, path)
 
-    
-    def delete_file(self, file_id):
+    @promise
+    def delete_file(self, file_path):
         """
         Delete file function
         @param file_id: the id of the file to delete
         @return: True if the file was deleted successfully, False otherwise
         """
-        print(f"Delete file selected {file_id}")
-        return self.current_session.delete_file(file_id)
+        print(f"Delete file selected {file_path}")
+        return self.current_session.delete_file(file_path)
 
-    
-    def delete_folder(self, path):
+    @promise
+    def delete_folder(self, folder_path):
         """
         Delete folder function
         @param path: the path of the folder to delete
         @return: True if the folder was deleted successfully, False otherwise
         """
-        return self.current_session.delete_folder(path)
+        print(f"Delete folder selected {folder_path}")
+        return self.current_session.delete_folder(folder_path)
     
-
+    @promise
+    def create_folder(self, folder_path):
+        """
+        Create folder function
+        @param folder_name: the name of the folder to create
+        @param path: the path in the cloud to create the folder in
+        @return: True if the folder was created successfully, False otherwise
+        """
+        print(f"Create folder selected {folder_path}")
+        return self.current_session.create_folder(folder_path)
+    
+    @promise
     def create_shared_session(self, folder_name, emails):
         """
         Create new shared session
@@ -152,10 +241,11 @@ class Gateway:
             
         new_session = SharedCloudManager(
             shared_with,
-            self.manager.clouds,
-            f"/{folder_name}_ENCRYPTOSPHERE_SHARE", 
-            self.manager.split,
-            self.manager.encrypt, 
+            None,
+            list(self.manager.clouds),
+            folder_name, 
+            self.manager.split.copy(),
+            self.manager.encrypt.copy(),
         )
 
         self.session_manager.add_session(new_session)
@@ -168,22 +258,59 @@ class Gateway:
         Returns the list of shared folders
         @return: list of shared folders names
         """
-        return self.session_manager.sessions.keys()
+        ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
+        #res = self.session_manager.sync_new_sessions()
+        uids = self.session_manager.sessions.keys()
+        ret = []
+        for uid in uids:
+            ret.append({
+                "name": uid,
+                "type": "session",
+                "uid": uid
+            })
+        return ret
 
     #TODO: Advanced sharing options
     """
     def share_file(self):
         pass
-
-
-    def unshare_folder(self):
-        pass
-
-    def unshare_file(self):
-        pass
     """
+    
+    @promise
+    def leave_shared_folder(self, shared_session_name):
+        share = self.session_manager.sessions.get(shared_session_name)
+        share.leave_shared_folder()
+        
 
-    def revoke_user_from_share(self, folder_path ,emails):
+    @promise
+    def delete_shared_folder(self, shared_session_name):
+        share = self.session_manager.sessions.get(shared_session_name)
+        try:
+            share.unshare_folder()
+        except Exception as e:
+            print(f"Error: {e}")
+        try:
+            share.delete_shared_folder()
+        except Exception as e:
+            print(f"Error: {e}")
+            
+        self.session_manager.remove_session(shared_session_name)
+    
+
+    def get_shared_emails(self, shared_session_name):
+        """
+        Returns the list of emails that are shared with the given folder
+        @param folder_path: the path of the folder to get the shared emails from
+        @return: list of emails that are shared with the folder
+        """
+        share = self.session_manager.sessions.get(shared_session_name)
+        if share is None:
+            print(f"Error: No such session {shared_session_name} exists")
+            return None
+        return share.get_shared_emails()
+    
+    @promise
+    def revoke_user_from_share(self, shared_session_name ,email_dict):
         """
         unshare emails from given shared folder
         @param folder name (will be convertet to session)
@@ -193,19 +320,11 @@ class Gateway:
         As of this POC we are given only one email and support only dropbox and google drive using the same email address!
 
         """
-        share = None
-        for session in self.session_manager.sessions:
-            if folder_path ==  session.root_folder:
-                share = session
-        unshare_with = []
-        for email in emails:
-            user_dict = {}
-            for cloud in self.manager.clouds:
-                user_dict[cloud.get_name()] = email
-            unshare_with.append(user_dict)
-        share.revoke_user_from_share(unshare_with)
+        share = self.session_manager.sessions.get(shared_session_name)
+        share.revoke_user_from_share(email_dict)
 
-    def add_user_to_share(self, folder_path ,emails):
+    @promise
+    def add_users_to_share(self, shared_session_name ,emails):
         """
         share email with given folder
         @param folder name ==> session
@@ -215,19 +334,47 @@ class Gateway:
         As of this POC we are given only one email and support only dropbox and google drive using the same email address!
 
         """
-        share = None
-        for session in self.session_manager.sessions:
-            if folder_path ==  session.root_folder:
-                share = session
+        share = self.session_manager.sessions.get(shared_session_name)
         share_with = []
         for email in emails:
             user_dict = {}
             for cloud in self.manager.clouds:
                 user_dict[cloud.get_name()] = email
             share_with.append(user_dict)
-        share.revoke_user_from_share(share_with)
+        share.add_users_to_share(share_with)
 
+    def start_sync_new_sessions_task(self):
+        """
+        Starts a background task to call sync_new_sessions every X minutes using the thread pool.
+        """
+        self.stop_event = threading.Event()  # Create a stop event
 
+        def sync_task():
+            while not self.stop_event.is_set():  # Check if stop_event is set
+                try:
+                    print("Running sync_new_sessions...")
+                    ret = self.session_manager.sync_new_sessions()
+                except Exception as e:
+                    print(f"Error during sync_new_sessions: {e}")
+                # Wait for the next sync interval, but check stop_event periodically
+                for _ in range(SYNC_TIME):  # SYNC_TIME is the total wait time in seconds
+                    if self.stop_event.is_set():
+                        print("Stopping sync_new_sessions task...")
+                        return  # Exit the loop if stop_event is set
+                    time.sleep(1)  # Sleep for 1 second and check again
+
+        # Submit the sync task to the thread pool
+        self.executor.submit(sync_task)
+        print("sync_new_sessions task submitted to thread pool.")
+
+    def stop_sync_new_sessions_task(self):
+        """
+        Stops the sync_new_sessions task.
+        """
+        if hasattr(self, 'stop_event'):
+            self.stop_event.set()  # Signal the task to stop
+            print("sync_new_sessions task stopped.")
+            
 def main():
     """
     Encryptosphere main program
@@ -239,4 +386,3 @@ def main():
     
 if __name__=="__main__":
     main()
-
