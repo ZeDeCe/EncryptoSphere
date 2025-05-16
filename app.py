@@ -749,8 +749,9 @@ class MainPage(ctk.CTkFrame):
         if self.current_session is not None:
             self.current_session.pack_forget()
         self.current_session = session
-        self.current_session.change_folder("/")
         self.current_session.pack(fill=ctk.BOTH, expand=True)
+        self.current_session.change_folder("/")
+        self.current_session.refresh()
         self.current_session.lift()
         self.messages_pannel.lift()
 

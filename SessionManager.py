@@ -65,26 +65,36 @@ class SessionManager():
         if self.syncing_sessions:
             return False
         self.syncing_sessions = True
+        if self.sessions_ready:
+            self.sync_known_sessions()
 
         new_sessions = {}
+        def add_folder_uid(cloud, folder):
+            uid = self.__get_shared_folder_uid(cloud, folder)
+            if uid is None or uid == "":
+                return None, None
+            id : str = f"{folder.get_name().replace(SharedCloudManager.shared_suffix, '')}${uid}"
+            if self.sessions.get(id):
+                return None, None
+            return folder, id
+        shared_folders_iterables = {}
         for cloud in self.main_session.clouds:
             shared_folders = cloud.list_shared_folders(filter=SharedCloudManager.shared_suffix)
             if shared_folders is None:
-                return
-            for folder in shared_folders:
-                # if not SharedCloudManager.is_valid_session_root(cloud, folder):
-                #     continue
-                uid = self.__get_shared_folder_uid(cloud, folder)
-                if uid is None or uid == "":
-                    continue
-                id : str = f"{folder.get_name().replace(SharedCloudManager.shared_suffix, '')}${uid}"
-                if self.sessions.get(id):
-                    continue
-                new_sessions[id] = new_sessions.get(id) if new_sessions.get(id) else {}
-                new_sessions.get(id)["clouds"] = new_sessions.get(id).get("clouds") if new_sessions.get(id).get("clouds") else []
-                new_sessions.get(id)["folders"] = new_sessions.get(id).get("folders") if new_sessions.get(id).get("folders") else {}
-                new_sessions.get(id).get("clouds").append(cloud)
-                new_sessions.get(id).get("folders")[cloud.get_name()] = folder
+                continue
+            shared_folders_iterables[cloud] = shared_folders
+
+        for cloud, shared_folders in shared_folders_iterables.items():
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                for folder, id in executor.map(lambda folder, cloud=cloud: add_folder_uid(cloud, folder), shared_folders):
+                    if folder is None or id is None:
+                        continue
+                    new_sessions[id] = new_sessions.get(id) if new_sessions.get(id) else {}
+                    new_sessions.get(id)["clouds"] = new_sessions.get(id).get("clouds") if new_sessions.get(id).get("clouds") else []
+                    new_sessions.get(id)["folders"] = new_sessions.get(id).get("folders") if new_sessions.get(id).get("folders") else {}
+                    new_sessions.get(id).get("clouds").append(cloud)
+                    new_sessions.get(id).get("folders")[cloud.get_name()] = folder
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             for id, obj in new_sessions.items():
                 name = id.split("$")[0].replace(SharedCloudManager.shared_suffix,"")
@@ -95,9 +105,15 @@ class SessionManager():
                     SharedCloudManager(None, dir, clouds, name, self.main_session.split.copy(), self.main_session.encrypt.copy()))
         self.sessions_ready = True
         self.syncing_sessions = False
-        self.sync_known_sessions()
+        print(f"Finished syncing new sessions, found {len(new_sessions)} new sessions")
         return True
     
+    def is_sessions_ready(self):
+        """
+        Returns True if the sessions are ready to be used, False otherwise
+        """
+        return self.sessions_ready
+
     def __get_shared_folder_uid(self, cloud : CloudService, folder : CloudService.Folder) -> str | None:
         files = cloud.list_files(folder, "$UID_")
         for file in files:
