@@ -375,6 +375,9 @@ class SharedCloudManager(CloudManager):
                     user.pop(cloud_name, None)  # Remove the cloud from the user dictionary if sharing fails
             self.users.append(user)
 
+
+
+
     @staticmethod
     def is_valid_session_root(cloud : CloudService, root : CloudService.Folder) -> bool:
         """

@@ -41,8 +41,21 @@ class Gateway:
         self.active_fd_sync = False
         self.active_sessions_sync = False
         self.active_shared_folder_sync = False
+    def promise(func):
+        """
+        Decorator to run a function in a separate thread and return a Future object
+        Also attaches a callback to the function if given
+        """
+        @wraps(func)
+        def wrapper(self, callback, *args, **kwargs):
+            future : concurrent.futures.Future = self.executor.submit(func, self, *args, **kwargs)
+            if not callback is None:
+                future.add_done_callback(callback)
+            return future
+        return wrapper
 
     # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
+    @promise
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
         dropbox1 = DropBox(email)
@@ -64,19 +77,7 @@ class Gateway:
         print(f"Status: {status}")
         return status
     
-    def promise(func):
-        """
-        Decorator to run a function in a separate thread and return a Future object
-        Also attaches a callback to the function if given
-        """
-        @wraps(func)
-        def wrapper(self, callback, *args, **kwargs):
-            future : concurrent.futures.Future = self.executor.submit(func, self, *args, **kwargs)
-            if not callback is None:
-                future.add_done_callback(callback)
-            return future
-        return wrapper
-
+    
     def change_session(self, uid=None):
         """
         Change the current session to the one specified by path
@@ -99,13 +100,14 @@ class Gateway:
         return self.current_session.get_items_in_folder(path)
     
     @promise
-    def sync_fd_to_clouds(self, callback=None):
-        if not self.active_fd_sync:
-            self.active_fd_sync = True
-            print(f"Syncing FD to clouds")
-            
-            print(f"Syncing FD to clouds, status: {str(True)}")
-            return True
+    def get_search_results_async(self, search_string):
+        """
+        @param path: the path to the folder
+        @return: Yielded iterable (generator) for every file in the current session in the folder given
+        """
+        #return self.current_session.get_search_results(search_string)
+        print(f"Searching for {search_string}")
+        return iter([])
         
     @promise    
     def sync_new_sessions(self):
@@ -116,8 +118,16 @@ class Gateway:
             print(f"Finished searching for new sessions")
             self.active_sessions_sync = False
             return ret
-        
-        
+        return False
+    
+    @promise
+    def sync_session(self):
+        print("Refresh button clicked")
+        ret = self.session_manager.sync_new_sessions()
+        print(f"Finished refreshing")
+        return ret
+    
+
     @promise
     def refresh_shared_folder(self):
         # We don't actually need to do anything, just call get_items_in_folder for that shared folder
@@ -250,20 +260,43 @@ class Gateway:
         """
         ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
         #res = self.session_manager.sync_new_sessions()
-        return self.session_manager.sessions.keys()
+        uids = self.session_manager.sessions.keys()
+        ret = []
+        for uid in uids:
+            ret.append({
+                "name": uid,
+                "type": "session",
+                "uid": uid
+            })
+        return ret
 
     #TODO: Advanced sharing options
     """
     def share_file(self):
         pass
-
-
-    def unshare_folder(self):
-        pass
-
-    def unshare_file(self):
-        pass
     """
+    
+    @promise
+    def leave_shared_folder(self, shared_session_name):
+        share = self.session_manager.sessions.get(shared_session_name)
+        share.leave_shared_folder()
+        
+
+    @promise
+    def delete_shared_folder(self, shared_session_name):
+        share = self.session_manager.sessions.get(shared_session_name)
+        try:
+            share.unshare_folder()
+        except Exception as e:
+            print(f"Error: {e}")
+        try:
+            share.delete_shared_folder()
+        except Exception as e:
+            print(f"Error: {e}")
+            
+        self.session_manager.remove_session(shared_session_name)
+    
+
     def get_shared_emails(self, shared_session_name):
         """
         Returns the list of emails that are shared with the given folder
