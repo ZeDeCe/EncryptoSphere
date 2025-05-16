@@ -522,6 +522,11 @@ class GoogleDrive(CloudService):
         except HttpError as e:
             raise Exception(f"Error unsharing folder: {e}")
 
+    def get_owner(self, folder: CloudService.Folder):
+        raise NotImplementedError("Still missing implementation")
+    
+    def leave_shared_folder(self, folder):
+        raise NotImplementedError("Still missing implementation")
 
     def unshare_by_email(self, folder: CloudService.Folder, emails: list[str]):
         """

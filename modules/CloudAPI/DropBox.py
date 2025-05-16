@@ -56,7 +56,7 @@ class DropBox(CloudService):
             # Automatically open the URL in the default browser
             webbrowser.open(auth_url)
             # Get the authorization code from the user
-            auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code")
+            auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code").result()
             
             # Verify if the token is valid for the given email
             auth_result = self._verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
@@ -233,6 +233,12 @@ class DropBox(CloudService):
         new = self.create_folder(name, self.root_folder)
         new.name = "/"
         return new
+    
+    def get_owner(self, folder):
+        raise NotImplementedError("Still missing implementation")
+    
+    def leave_shared_folder(self, folder):
+        raise NotImplementedError("Still missing implementation")
     
     def delete_folder(self, folder : CloudService.Folder):
         """

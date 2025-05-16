@@ -396,7 +396,7 @@ class CloudManager:
                 raise Exception("Failed to upload files in folders.")
         return True
 
-    def download_file(self, path, open=False):
+    def download_file(self, path, isopen=False):
         """
         Downloads a file from the various clouds
         file_id is a FileDescriptor ID of the file.
@@ -436,7 +436,7 @@ class CloudManager:
             except Exception as e:
                 raise Exception(f"Error merging or decrypting data for file {path}: {e}")
 
-            if not open:
+            if not isopen:
                 # Set the destination path to the Downloads folder
                 downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
                 dest_path = os.path.join(downloads_folder, file.data.get("name"))

@@ -7,7 +7,7 @@ from customtkinter import filedialog
 import os
 from threading import Thread
 import tkinter.messagebox as messagebox
-import itertools
+import queue
 
 
 def clickable(cls):
@@ -58,12 +58,26 @@ TODO: For the advanced UI:
       More TODOs: At JIRA
 
 """
+
 class App(ctk.CTk):
     """
     This class creates the UI features and the program main window.
     """
+    
     controller = None
+
+    def __new__(cls, *args, **kwargs):
+        if not hasattr(cls, 'instance'):
+            cls.instance = super(App, cls).__new__(cls)
+        return cls.instance
+    def get_global_app() -> ctk.CTk:
+        """
+        Get the global app instance
+        """
+        return App.instance
+    
     def __init__(self, gateway):
+        app = self
         App.controller = self
         ctk.CTk.__init__(self)
         ctk.set_appearance_mode("dark")
@@ -305,6 +319,7 @@ class LoginPage(ctk.CTkFrame):
     def __error_login(self):
         self.remove_loading()
         self.__show_error("Error While connecting to the Cloud", self.controller.show_frame(LoginPage))
+    
     def __show_error(self, error_message, func):
         """
         If authentication to the clouds fails, display the error and add retry button.
@@ -777,7 +792,10 @@ class Breadcrums(ctk.CTkFrame):
     def __init__(self, parent, controller : App, root : str):
         ctk.CTkFrame.__init__(self, parent, corner_radius=0)
         self.controller = controller
-        self.folders = [self.__create_label(root, "/")]
+        folder = ctk.CTkLabel(self, text=root, anchor="w", corner_radius=0)
+        folder.pack(side="left", pady=2, padx=(5,0))
+        folder.bind("<Button-1>", lambda e,p="/": self.controller.change_folder(p), add="+")
+        self.folders = [folder]
 
     def __create_label(self, text, path):
         folder = ctk.CTkLabel(self, text=text, anchor="w", corner_radius=0)
