@@ -208,7 +208,31 @@ class App(ctk.CTk):
         Get the main page frame
         """
         return self.frames[MainPage]
+
+@clickable
+class LoadingPage(ctk.CTkFrame):
+    def __init__(self, parent, controller):
+        ctk.CTkFrame.__init__(self, parent)
+        self.controller = controller
         
+        # loading bar
+        self.p = ctk.CTkProgressBar(self, orientation="horizontal", mode="indeterminate")
+        self.p.pack(anchor="center", expand=True, fill="x")
+
+    
+    def stop(self):
+        """
+        Stop the loading bar
+        """
+        self.p.stop()
+    def start(self):
+        """
+        Start the loading bar
+        """
+        self.p.start()
+        
+
+
 @clickable
 class LoginPage(ctk.CTkFrame):
     """
@@ -240,7 +264,21 @@ class LoginPage(ctk.CTkFrame):
         # Submit Button
         self.submit_button = ctk.CTkButton(self, text="Submit", command=self.__handle_login, width=200, fg_color="#3A7EBF")
         self.submit_button.grid(row=3, column=0, padx=20, pady=(20, 60), sticky="n")
+
+        self.loadingpage = LoadingPage(self, controller)
     
+    def show_loading(self):
+        self.loadingpage.grid(row=4, column=0, sticky="n")
+        
+        self.loadingpage.start()
+        self.loadingpage.lift()
+        self.update_idletasks()
+
+    def remove_loading(self):
+        self.loadingpage.stop()
+        self.loadingpage.grid_forget()
+        
+
     def refresh(self):
         """
         Login page refresh - as of now we dont need this functionality
@@ -259,46 +297,14 @@ class LoginPage(ctk.CTkFrame):
             self.error_label.grid_forget()
         if hasattr(self, 'retry_button'):
             self.retry_button.configure(state="disabled")
-        
-        # Load GIF
-        self.gif = Image.open("resources/loading-gif.gif")
-        self.frames = [ctk.CTkImage(self.gif.copy().convert("RGBA").resize((100, 100)))]
-
-        # Extract all GIF frames
-        try:
-            while True:
-                self.gif.seek(self.gif.tell() + 1)
-                self.frames.append(ctk.CTkImage(self.gif.copy().convert("RGBA").resize((100, 100))))
-        except EOFError:
-            pass
-
-        # Create a label for the GIF and place it under the submit button
-        self.gif_label = ctk.CTkLabel(self, image=None, text="")
-        self.gif_label.grid(row=4, column=0, pady=(10, 0), sticky="n")
-
-        # Start animation
-        self.frame_iterator = itertools.cycle(self.frames)
-        self.gif_animation_id = None  # Initialize the animation ID
-        Thread(target=self.update_gif()).start()
 
         email = self.entry.get()
-        result = self.controller.get_api().authenticate(email)
-        
-        if not result:
-            self.__show_error("Error While connecting to the Cloud", self.controller.show_frame(LoginPage))
-        else:
-            # Stop the animation
-            if self.gif_animation_id:
-                self.after_cancel(self.gif_animation_id)
-            self.controller.show_frame(MainPage)
-    
-    def update_gif(self):
-        """
-        Loop through frames
-        """
-        self.gif_label.configure(image=next(self.frame_iterator))
-        self.gif_animation_id = self.after(100, self.update_gif)  # Store the after call ID
+        self.show_loading()
+        self.controller.get_api().authenticate(lambda f: self.controller.show_frame(MainPage) if f.result() else self.__error_login(), email)
 
+    def __error_login(self):
+        self.remove_loading()
+        self.__show_error("Error While connecting to the Cloud", self.controller.show_frame(LoginPage))
     def __show_error(self, error_message, func):
         """
         If authentication to the clouds fails, display the error and add retry button.
@@ -307,10 +313,6 @@ class LoginPage(ctk.CTkFrame):
         # Remove the submit button and GIF
         if hasattr(self, 'submit_button'):
             self.submit_button.grid_forget()
-        if hasattr(self, 'gif_label'):
-            self.gif_label.grid_forget()
-            if self.gif_animation_id:
-                self.after_cancel(self.gif_animation_id)
 
         # Display the error message
         self.error_label = ctk.CTkLabel(self, text=error_message, font=("Arial", 12), text_color="red")
@@ -388,16 +390,13 @@ class MainPage(ctk.CTkFrame):
         self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.refresh_button_click(), width=20, height=20, corner_radius=10, fg_color="gray30", hover_color="gray40")
         self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
 
-        self.main_session : Session  = Session(self.container, controller)
+        self.main_session : Session  = Session(self.container, controller, "EncryptoSphere")
         self.current_session : Session = self.main_session
         self.main_session.pack(fill=ctk.BOTH, expand=True)
         self.sessions = {"0": self.main_session}
 
         # Create messages pannel
         self.messages_pannel = ctk.CTkFrame(self.container, corner_radius=0)
-        
-        # Create a label that will display current location
-        self.curr_path : str = "/"
 
         self.uploading_labels : list = []
         
@@ -726,7 +725,7 @@ class MainPage(ctk.CTkFrame):
         if isinstance(uid, str):
             session = self.sessions.get(uid)
             if session is None:
-                self.sessions[uid] = Session(self.container, self.controller)
+                self.sessions[uid] = Session(self.container, self.controller, uid.split("$")[0])
                 session = self.sessions[uid]
         elif isinstance(uid, Session):
             session = uid
@@ -774,21 +773,71 @@ class MainPage(ctk.CTkFrame):
         return parts[0]
 
 @clickable
+class Breadcrums(ctk.CTkFrame):
+    def __init__(self, parent, controller : App, root : str):
+        ctk.CTkFrame.__init__(self, parent, corner_radius=0)
+        self.controller = controller
+        self.folders = [self.__create_label(root, "/")]
+
+    def __create_label(self, text, path):
+        folder = ctk.CTkLabel(self, text=text, anchor="w", corner_radius=0)
+        folder.pack(side="left", pady=2)
+        folder.bind("<Button-1>", lambda e,p=path: self.controller.change_folder(p), add="+")
+        return folder
+
+    def set_path(self, path : str):
+        """
+        Set the path of the breadcrums
+        @param path: The path to be set
+        """
+        assert path.startswith("/"), "Path must start with '/'"
+        folders = path.split("/") if path != "/" else [""]
+        curr_path = ""
+        i = 1 
+        broken = False
+        for i in range(1, len(folders)):
+            f = folders[i]
+            
+            if len(self.folders)-1>=i and f" > {f}" == self.folders[i].cget("text"):
+                curr_path += f"/{f}"
+                continue
+            else:
+                broken = True
+                break
+        if not broken and path != "/":
+            i += 1
+        for i in range(len(self.folders)-1, i-1, -1):
+            self.folders[i].pack_forget()
+            self.folders[i].unbind("<Button-1>")
+            self.folders[i].destroy()
+            self.folders.pop(i)
+
+        for i in range(i, len(folders)):
+            curr_path += f"/{f}"
+            self.folders.insert(i, self.__create_label(f" > {folders[i]}", curr_path))
+            
+
+        
+
+@clickable
 class Session(ctk.CTkFrame):
     """
     This class represents a session in the app, it is a subclass of CTkFrame and is used to display the session in the main page.
     """ 
-    def __init__(self, parent, controller : App):
+    def __init__(self, parent, controller : App, session_name : str):
         ctk.CTkFrame.__init__(self, parent, corner_radius=0)
         self.controller = controller
         self.pack(fill = ctk.BOTH, expand = True)
-        
+        self.session_name = session_name
+
+        self.bread = Breadcrums(self, controller, session_name)
+        self.bread.pack(side="top", fill="x")
+
         root_folder = Folder(self, controller, "/")
         self.folders = {"/": root_folder}
         self.curr_path = "/"
 
-
-
+        
     def change_folder(self, path, calling_folder=None):
         """
         Change the folder in the main page to the given path
@@ -796,7 +845,8 @@ class Session(ctk.CTkFrame):
         @param path: The path to the folder to be changed to
         """
         print(f"Current folder: {path}")
-        
+        if self.curr_path == path:
+            return
         tofolder = None
         if path in self.folders:
             tofolder = self.folders[path]
@@ -811,6 +861,8 @@ class Session(ctk.CTkFrame):
         tofolder.refresh()
         tofolder.pack(fill=ctk.BOTH, expand=True)
         tofolder.lift()
+        self.bread.set_path(path)
+        self.bread.lift()
 
     def refresh(self, folder=None):
         """
@@ -1372,6 +1424,9 @@ class SharedFolderButton(IconButton):
 
     def delete_shared_folder(self):
         print("delete_share_clicked")
+        label = self.controller.add_message_label(f"Deleting share {self.name}")
+        # Call a new function with the folder and emails (replace this with your logic)
+        self.controller.get_api().delete_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
 
     def manage_share_permissions(self):
         new_window = ctk.CTkToplevel(self)
