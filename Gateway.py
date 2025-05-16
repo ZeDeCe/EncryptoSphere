@@ -256,7 +256,7 @@ class Gateway:
                 "name": uid,
                 "type": "session",
                 "uid": uid,
-                "isowner": self.session_manager.sessions[uid].is_owner()
+                "isowner": self.session_manager.sessions[uid].user_is_owner()
             })
         return ret
 
