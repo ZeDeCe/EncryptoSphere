@@ -55,19 +55,23 @@ class SessionManager():
         with self.sessions_lock:
             self.sessions[session_name] = session
 
-    def end_session(self, session : SharedCloudManager | str):
+    def end_session(self, session: SharedCloudManager | str):
         """
-        End a session from the session list if test_session returned false from SharedCloudManager
+        End a session from the session list by calling delete_session in SharedCloudManager.
         """
         assert isinstance(session, str) or isinstance(session, SharedCloudManager)
         try:
             if isinstance(session, str):
-                self.sessions.pop(session)
-            elif isinstance(session, SharedCloudManager):
-                self.sessions.pop(session.get_uid())
+                session = self.sessions.get(session)
+                if not session:
+                    raise KeyError(f"No such session '{session}' exists.")
+            session.delete_session()  # Call delete_session in SharedCloudManager
+            self.sessions.pop(session.get_uid(), None)
+            print(f"Session '{session.get_uid()}' ended successfully.")
         except KeyError as e:
-            print("No such session exists")
-            return
+            print(f"No such session exists: {e}")
+        except Exception as e:
+            print(f"Error ending session: {e}")
 
     def sync_new_sessions(self):
         """

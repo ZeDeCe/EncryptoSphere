@@ -391,9 +391,6 @@ class SharedCloudManager(CloudManager):
                     user.pop(cloud_name, None)  # Remove the cloud from the user dictionary if sharing fails
             self.users.append(user)
 
-
-
-
     @staticmethod
     def is_valid_session_root(cloud : CloudService, root : CloudService.Folder) -> bool:
         """
@@ -460,3 +457,19 @@ class SharedCloudManager(CloudManager):
                     u[cloud.get_name()] = user
             self.users.append(u)
         return self.users
+    
+    def delete_session(self):
+        """
+        Deletes the shared session by leaving the shared folders in all clouds.
+        If the user is the owner, raises an error.
+        """
+        if self.user_is_owner():
+            raise Exception("Error: Cannot leave the shared folder as the owner. Unshare or delete the folder instead.")
+
+        for cloud in self.clouds:
+            folder = self.root_folder.get(cloud.get_name())
+            if folder and folder.is_shared():
+                print(f"Leaving shared folder '{folder.name}' on cloud '{cloud.get_name()}'.")
+                cloud.leave_shared_folder(folder)
+
+        print(f"Shared session '{self.root}' deleted successfully.")

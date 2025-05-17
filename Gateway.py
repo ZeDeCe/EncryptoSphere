@@ -288,8 +288,17 @@ class Gateway:
     
     @promise
     def leave_shared_folder(self, shared_session_name):
-        raise NotImplementedError("Leaving shared folders is not implemented yet")
-        
+        """
+        Leave a shared folder for the given session name.
+        Delegates the logic to SessionManager.
+        """
+        try:
+            self.session_manager.end_session(shared_session_name)
+            print(f"Successfully left shared folder for session '{shared_session_name}'.")
+            return True
+        except Exception as e:
+            print(f"Error leaving shared folder for session '{shared_session_name}': {e}")
+            return False
 
     @promise
     def delete_shared_folder(self, shared_session_name):
