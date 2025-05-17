@@ -2,8 +2,9 @@ import os
 from argon2 import PasswordHasher
 from argon2.low_level import hash_secret_raw, Type
 from modules import Encrypt
+import hashlib
 
-class LoginModule:
+class LoginManager:
     """
     This class handles secure account creation and login,
     using Argon2 for password hashing and a pluggable encryption module (like AES).
@@ -47,23 +48,64 @@ class LoginModule:
             "encryption_type": encryption_type
         }
 
-    def login(self, input_password: str, salt: bytes, encrypted_data: bytes, encryption_type: str):
+    
+    def login(self, input_password: str, salt: bytes, auth_encrypted_hex: str, auth_hash: str, encryption_type: str):
         """
-        Attempt to decrypt user data using the password and encryption method.
+        Authenticate password by decrypting the encrypted auth blob and comparing its hash.
+
+        :param input_password: Password provided by user
+        :param salt: Salt used for key derivation
+        :param auth_encrypted_hex: The encrypted authentication blob (hex-encoded)
+        :param auth_hash: The expected SHA-256 hash of the decrypted blob
+        :param encryption_type: The encryption algorithm name
+        :raises ValueError: If authentication fails
         """
         encryptor_class = Encrypt.get_class(encryption_type)
         if encryptor_class is None:
             raise ValueError(f"Unsupported encryption type: {encryption_type}")
-        encryptor = encryptor_class()
 
+        encryptor = encryptor_class()
         key = self.create_key_from_password(input_password, salt)
         encryptor.set_key(encryptor.generate_key_from_key(key))
 
         try:
-            decrypted_data = encryptor.decrypt(encrypted_data)
-            return decrypted_data.decode()
-        except Exception:
-            raise ValueError("Invalid password or corrupted data.")
+            auth_encrypted = bytes.fromhex(auth_encrypted_hex)
+            decrypted_blob = encryptor.decrypt(auth_encrypted)
+            decrypted_hash = hashlib.sha256(decrypted_blob).hexdigest()
+
+            if decrypted_hash != auth_hash:
+                raise ValueError("Invalid password: hash mismatch.")
+
+        except Exception as e:
+            raise ValueError(f"Authentication failed: {e}")
+
+
+
+    def add_auth_to_metadata(self, key: bytes, metadata: dict, encryptor_name: str) -> dict:
+        """
+        Adds 'auth_encrypted', 'auth_hash', and 'encrypt' fields to metadata for password authentication.
+
+        :param key: The encryption key derived from the user's password
+        :param metadata: The metadata dictionary to update
+        :param encryptor_name: The name of the encryption algorithm to use (e.g. 'AES')
+        :return: Updated metadata dictionary
+        """
+        encryptor_class = Encrypt.get_class(encryptor_name)
+        if encryptor_class is None:
+            raise ValueError(f"Unsupported encryption type: {encryptor_name}")
+
+        encryptor = encryptor_class()
+        encryptor.set_key(encryptor.generate_key_from_key(key))
+
+        # Create authentication marker
+        auth_plaintext = os.urandom(16)  # random 16-byte marker
+        encrypted = encryptor.encrypt(auth_plaintext)
+
+        metadata["auth_encrypted"] = encrypted.hex()
+        metadata["auth_hash"] = hashlib.sha256(auth_plaintext).hexdigest()
+        metadata["encrypt"] = encryptor_name  # for later decryption
+        return metadata
+
 
 
 """""

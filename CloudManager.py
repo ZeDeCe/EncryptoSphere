@@ -11,6 +11,7 @@ from modules.CloudAPI import CloudService
 import json
 from CloudObjects import Directory, CloudFile
 from typing import Optional
+from LoginManager import LoginManager
 
 
 import concurrent.futures
@@ -45,6 +46,8 @@ class CloudManager:
         self.fs : dict[str, CloudFile | Directory]= {} # filesystem
         self.root = root # Temporary until login module
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.clouds) * 5)
+        self.login_manager = LoginManager()
+
 
     def __del__(self):
         try:
@@ -678,27 +681,43 @@ class CloudManager:
         
         for item_path in to_remove:
             self.fs.pop(item_path)
-
-        
+    
         
                 
-    def load_metadata(self):
+    def load_metadata(self, password, salt):
         """
-        Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor
+        Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor.
+        Uses given password and salt to generate the authentication key if needed.
         """
         metadata = self._download_replicated("$META")
-        if metadata is None: # Metadata does not exist, new session, make our own
-            self.metadata = {"encrypt": self.encrypt.get_name(), "split": self.split.get_name(), "order": self.cloud_name_list}
+
+        if metadata is None:
+            self.metadata = {
+                "encrypt": self.encrypt.get_name(),
+                "split": self.split.get_name(),
+                "order": self.cloud_name_list
+            }
+
+            key = self.login_manager.create_key_from_password(password, salt)
+            self.metadata = self.login_manager.add_auth_to_metadata(
+                key, self.metadata, self.encrypt.get_name()
+            )
+
             self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
+
         else:
             self.metadata = json.loads(metadata)
+
             for cloudname in self.metadata.get("order"):
-                if not cloudname in self.cloud_name_list: # TODO: Make it so only the needed amount of clouds are checked
+                if cloudname not in self.cloud_name_list:
                     raise Exception(f"Missing a required cloud for session: {cloudname}")
+
             self.cloud_name_list = self.metadata.get("order")
+
             if self.split.get_name() != self.metadata.get("split"):
                 print(f"Changing splitting algorithm for session {self.root}")
                 self.split = Split.get_class(self.metadata.get("split"))()
+
             if self.encrypt.get_name() != self.metadata.get("encrypt"):
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()

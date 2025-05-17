@@ -18,6 +18,7 @@ import concurrent.futures
 import time
 import threading
 from functools import wraps
+from LoginManager import LoginManager
 
 import utils.DialogBox as DialogBox
 import app as app
@@ -41,8 +42,8 @@ class Gateway:
         self.active_fd_sync = False
         self.active_sessions_sync = False
         self.active_shared_folder_sync = False
-
-    # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
+    
+    #NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
         dropbox1 = DropBox(email)
@@ -63,6 +64,26 @@ class Gateway:
         self.start_sync_new_sessions_task()
         print(f"Status: {status}")
         return status
+
+
+    def cloud_authenticate(self, cloud_name: str, email: str):
+        """
+        Authenticates a single cloud service by name and email.
+        Supported names: 'drive', 'dropbox'
+        """
+        if cloud_name.lower() == "drive":
+            cloud = GoogleDrive(email)
+        elif cloud_name.lower() == "dropbox":
+            cloud = DropBox(email)
+        else:
+            raise ValueError(f"Unsupported cloud service: {cloud_name}")
+
+        status = cloud.authenticate()
+        if not status:
+            raise Exception(f"Authentication failed for {cloud_name}")
+        
+        return cloud
+    
     
     def promise(func):
         """
@@ -340,8 +361,9 @@ class Gateway:
         """
         if hasattr(self, 'stop_event'):
             self.stop_event.set()  # Signal the task to stop
-            print("sync_new_sessions task stopped.")
-            
+            print("sync_new_sessions task stopped.")            
+
+
 def main():
     """
     Encryptosphere main program
