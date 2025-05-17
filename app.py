@@ -230,7 +230,7 @@ class LoadingPage(ctk.CTkFrame):
         
         # loading bar
         self.p = ctk.CTkProgressBar(self, orientation="horizontal", mode="indeterminate")
-        self.p.pack(anchor="center", expand=True, fill="x")
+        self.p.pack(anchor=ctk.CENTER, expand=True, fill=ctk.BOTH)
 
     
     def stop(self):
@@ -973,7 +973,8 @@ class SessionsFolder(Folder):
     def __init__(self, parent, controller : App, path=None):
         Folder.__init__(self, parent, controller, path)
         self.loadingpage = LoadingPage(self, controller)
-        self.loadingpage.pack(anchor=ctk.CENTER, fill="x", expand=True)
+
+        self.loadingpage.pack(anchor=ctk.N, fill=ctk.BOTH, expand=True, padx=5, pady=3)
         self.loadingpage.start()
         self.controller.get_api().add_callback_to_sync_task(lambda: self.remove_loading())
 
