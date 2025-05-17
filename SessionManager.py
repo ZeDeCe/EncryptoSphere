@@ -40,7 +40,8 @@ class SessionManager():
         if not status:  # If failed to authenticate, add to pending folders
             print(f"Session {session.root} is not yet authenticated.")
             if session not in self.pending_folders:
-                self.pending_folders.append(session)
+                with self.sessions_lock:
+                    self.pending_folders.append(session)
             return
 
         # If the session is authenticated, remove it from pending folders
