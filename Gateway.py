@@ -311,8 +311,21 @@ class Gateway:
 
         """
         share = self.session_manager.sessions.get(shared_session_name)
-        share.revoke_user_from_share(email_dict)
-
+        if share.user_is_owner():
+            share.revoke_user_from_share(email_dict)
+    
+    def check_if_user_is_owner(self, shared_session_name):
+        """
+        Check if the user is the owner of the given session
+        @param folder name (will be convertet to session)
+        @return: True if the user is the owner, False otherwise
+        """
+        share = self.session_manager.sessions.get(shared_session_name)
+        if share is None:
+            print(f"Error: No such session {shared_session_name} exists")
+            return False
+        return share.user_is_owner()
+    
     @promise
     def add_users_to_share(self, shared_session_name ,emails):
         """
@@ -325,13 +338,14 @@ class Gateway:
 
         """
         share = self.session_manager.sessions.get(shared_session_name)
-        share_with = []
-        for email in emails:
-            user_dict = {}
-            for cloud in self.manager.clouds:
-                user_dict[cloud.get_name()] = email
-            share_with.append(user_dict)
-        share.add_users_to_share(share_with)
+        if share.user_is_owner():
+            share_with = []
+            for email in emails:
+                user_dict = {}
+                for cloud in self.manager.clouds:
+                    user_dict[cloud.get_name()] = email
+                share_with.append(user_dict)
+            share.add_users_to_share(share_with)
 
     def start_sync_new_sessions_task(self):
         """

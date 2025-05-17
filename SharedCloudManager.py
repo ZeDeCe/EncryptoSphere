@@ -58,6 +58,17 @@ class SharedCloudManager(CloudManager):
             print("One of the clouds provided cannot authenticate for shared session")
             return False
         key = None
+        
+        # Set UID
+        files = self.clouds[0].list_files(self.root_folder.get(self.clouds[0].get_name()), "$UID")
+        self.uid = None
+        for file in files:
+            self.uid = f"{self.root.replace(SharedCloudManager.shared_suffix, '')}${file.get_name()[5:]}"
+            break
+        if self.uid is None:
+            print("Cannot get UID for cloud manager")
+            return False
+        
         if self.users:
             # This is a new session to be created
             try:
@@ -76,15 +87,7 @@ class SharedCloudManager(CloudManager):
             self.encrypt.set_key(key)
 
         if key:
-            # Set UID
-            files = self.clouds[0].list_files(self.root_folder.get(self.clouds[0].get_name()), "$UID")
-            self.uid = None
-            for file in files:
-                self.uid = f"{self.root.replace(SharedCloudManager.shared_suffix, '')}${file.get_name()[5:]}"
-                break
-            if self.uid is None:
-                print("Cannot get UID for cloud manager")
-                return False
+            
             self.is_owner = self.clouds[0].get_owner(self.root_folder.get(self.clouds[0].get_name())) == self.clouds[0].get_email()
             # loaded from this point
             self.loaded = True

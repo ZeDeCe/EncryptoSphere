@@ -911,7 +911,7 @@ class Folder(ctk.CTkScrollableFrame):
         self.file_list : list[IconButton] = []
         self.folder_list : list[IconButton] = []
         self.session_list : list[IconButton] = []
-        self.item_lists = [self.session_list, self.folder_list, self.file_list]
+        self.item_lists = [self.folder_list, self.file_list]
 
         # Make the scrollbar thinner
         self._scrollbar.configure(width=16)
@@ -931,8 +931,9 @@ class Folder(ctk.CTkScrollableFrame):
             if item.get("type") == "folder" and item.get("name") not in self.folder_list:
                 new_item = FolderButton(self, width=120, height=120, folder_path=item.get("path"), controller=self.controller, session=self.master.master.master)
             if item.get("type") == "session" and item.get("name") not in self.folder_list:
-                new_item = SharedFolderButton(self, width=120, height=120, uid=item.get("uid"), controller=self.controller)
-            
+                new_item = SharedFolderButton(self, width=120, height=120, uid=item.get("uid"), is_owner=item.get("isowner"), controller=self.controller)
+            if item.get("type") == "pending" and item.get("name") not in self.folder_list:
+                new_item = PendingSharedFolderButton(self, width=120, height=120, uid=item.get("uid"), controller=self.controller)
             if new_item is not None:
                 item_list.append(new_item)
         
@@ -1394,35 +1395,46 @@ class SharedFolderButton(IconButton):
     A shared folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder 
     """
     
-    def __init__(self, master, width, height, uid, controller):
+    def __init__(self, master, width, height, uid, is_owner, controller):
 
         # Get the folder name from the path
         self.uid = uid
         self.name = uid.split("$")[0]
-
         super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, self.uid, controller)
         self.controller = controller
         self.master = master
+
+        self.is_owner = is_owner
         
 
         # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
-        self.context_menu = OptionMenu(self.controller.container, self.controller, [
-            {
-                "label": "Manage Permissions",
-                "color": "gray25",
-                "event": lambda: self.manage_share_permissions()
-             },
-            {
-                "label": "Leave Share",
-                "color": "gray25",
-                "event": lambda: self.leave_shared_folder()
-             },
-             {
-                 "label": "Delete Share",
-                 "color": "gray25",
-                 "event": lambda: self.delete_shared_folder()
-             }
-        ])
+        if is_owner:
+            menu_options = [
+                {
+                    "label": "Manage Permissions",
+                    "color": "gray25",
+                    "event": lambda: self.manage_share_permissions()
+                },
+                {
+                    "label": "Leave Share",
+                    "color": "gray25",
+                    "event": lambda: self.leave_shared_folder()
+                },
+                {
+                    "label": "Delete Share",
+                    "color": "gray25",
+                    "event": lambda: self.delete_shared_folder()
+                }
+            ]
+        else:
+            menu_options = [
+                {
+                    "label": "Leave Share",
+                    "color": "gray25",
+                    "event": lambda: self.leave_shared_folder()
+                }
+            ]
+        self.context_menu = OptionMenu(self.controller.container, self.controller, menu_options)
 
 
     def on_double_click(self, event=None):
@@ -1436,6 +1448,7 @@ class SharedFolderButton(IconButton):
     
     def on_button1_click(self, event=None):
         super().on_button1_click(event)
+
 
     def leave_shared_folder(self):
         print("leave_share_clicked")
@@ -1578,6 +1591,43 @@ class SharedFolderButton(IconButton):
 
         # Adjust the scrollbar to make it thinner (no slider_length argument)
         new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
+
+    def on_button3_click(self, event=None):
+        scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
+        if self.context_menu.context_hidden:
+            self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
+        else:
+           self.context_menu.hide_popup()
+
+@clickable
+class PendingSharedFolderButton(IconButton):
+    """
+    This class represents a "pending shared folder button"
+    A pending shared folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder 
+    """
+    
+    def __init__(self, master, width, height, uid, controller):
+        self.uid = uid
+        self.name = uid.split("$")[0]
+        super().__init__(master, width, height, "resources/folder_icon_pending.png", self.name, self.uid, controller)
+        self.controller = controller
+        self.master = master
+
+        # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
+        menu_options = [
+            {
+                "label": "Decline Share",
+                "color": "gray25",
+                "event": lambda: self.leave_shared_folder()
+            }
+        ]
+        self.context_menu = OptionMenu(self.controller.container, self.controller, menu_options)
+
+    def leave_shared_folder(self):
+        print("leave_share_clicked")
+        label = self.controller.add_message_label(f"Decline share {self.name}")
+        # Call a new function with the folder and emails (replace this with your logic)
+        self.controller.get_api().leave_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
 
     def on_button3_click(self, event=None):
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
