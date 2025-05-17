@@ -280,7 +280,7 @@ class Gateway:
 
         return result
     
-    
+
     #TODO: Advanced sharing options
     """
     def share_file(self):
@@ -289,7 +289,37 @@ class Gateway:
     
     @promise
     def leave_shared_folder(self, shared_session_name):
-        raise NotImplementedError("Leaving shared folders is not implemented yet")
+        """
+        Leave a shared folder for the given session name.
+        If the user is the owner of the folder, raise an error.
+        @param shared_session_name: The name of the shared session to leave.
+        @return: True if the folder was left successfully, False otherwise.
+        """
+        try:
+            # Get the shared session from the session manager
+            share = self.session_manager.sessions.get(shared_session_name)
+            if share is None:
+                raise Exception(f"Error: No such session '{shared_session_name}' exists.")
+
+            # Check if the user is the owner of the shared folder
+            if share.user_is_owner():
+                raise Exception("Error: Cannot leave the shared folder as the owner. Unshare or delete the folder instead.")
+
+            # Leave the shared folder for each cloud service
+            for cloud in share.clouds:
+                folder = share.root_folder.get(cloud.get_name())
+                if folder and folder.is_shared():
+                    print(f"Leaving shared folder '{folder.name}' on cloud '{cloud.get_name()}'.")
+                    cloud.leave_shared_folder(folder)
+
+            # Remove the session from the session manager
+            self.session_manager.end_session(shared_session_name)
+            print(f"Successfully left shared folder for session '{shared_session_name}'.")
+            return True
+
+        except Exception as e:
+            print(f"Error leaving shared folder for session '{shared_session_name}': {e}")
+            return False
         
 
     @promise

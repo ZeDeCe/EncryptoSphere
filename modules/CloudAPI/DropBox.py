@@ -547,6 +547,56 @@ class DropBox(CloudService):
         except Exception as e:
             print(f"Error in get_items_by_name: {e}")
             raise
+    
+    def leave_shared_folder(self, folder: CloudService.Folder):
+        """
+        Leave a shared folder in Dropbox.
+        If the user is the owner of the folder, raises an error.
+        """
+        if not folder.is_shared():
+            raise Exception("Error: Folder is not shared")
+
+        try:
+            # Get the shared folder metadata
+            shared_folder_metadata = self.dbx.sharing_get_folder_metadata(folder._id)
+
+            # Check if the current user is the owner
+            if shared_folder_metadata.access_type.is_owner():
+                raise Exception("Error: Cannot leave folder as the owner. Unshare or delete the folder instead.")
+
+            # Leave the shared folder
+            self.dbx.sharing_remove_folder_member(folder._id, leave_a_copy=False)
+            print(f"Left shared folder '{folder.name}'.")
+            return True
+
+        except dropbox.exceptions.ApiError as error:
+            raise Exception(f"Error leaving shared folder: {error}")
+
+    def get_owner(self, folder: CloudService.Folder) -> str:
+        """
+        Get the owner of the shared folder in Dropbox.
+        If the folder is not shared, raise an error.
+        """
+        if not folder.is_shared():
+            raise Exception("Error: Folder is not shared")
+
+        if hasattr(folder, "_owner"):  # Cache the owner since it doesn't change
+            return folder._owner
+
+        try:
+            # Get the shared folder metadata
+            shared_folder_metadata = self.dbx.sharing_get_folder_metadata(folder._id)
+
+            # Find the owner from the permissions
+            for member in shared_folder_metadata.members:
+                if member.access_type.is_owner():
+                    folder._owner = member.user.email
+                    return member.user.email
+
+            return None  # No owner found (shouldn't happen)
+
+        except dropbox.exceptions.ApiError as error:
+            raise Exception(f"Error getting owner: {error}")
 
 
 # Unit Test, make sure to enter email!
