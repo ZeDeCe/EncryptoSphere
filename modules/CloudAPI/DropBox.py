@@ -56,8 +56,10 @@ class DropBox(CloudService):
             # Automatically open the URL in the default browser
             webbrowser.open(auth_url)
             # Get the authorization code from the user
+
             auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code").result()
-            
+            #auth_code = input("DropBox: Please enter the authorization code from Dropbox: ")
+
             # Verify if the token is valid for the given email
             auth_result = self._verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
             if not auth_result:
@@ -233,12 +235,6 @@ class DropBox(CloudService):
         new = self.create_folder(name, self.root_folder)
         new.name = "/"
         return new
-    
-    def get_owner(self, folder):
-        raise NotImplementedError("Still missing implementation")
-    
-    def leave_shared_folder(self, folder):
-        raise NotImplementedError("Still missing implementation")
     
     def delete_folder(self, folder : CloudService.Folder):
         """
@@ -548,9 +544,63 @@ class DropBox(CloudService):
             print(f"Error in get_items_by_name: {e}")
             raise
 
+    def leave_shared_folder(self, folder):
+        """
+        Leave a shared folder in Dropbox.
+        If the user is the owner of the folder, raises an error.
+        """
+        if not folder.shared:
+            raise Exception("Error: Folder is not shared")
 
-# Unit Test, make sure to enter email!
+        try:
+            # Get the shared folder metadata
+            shared_folder_metadata = self.dbx.sharing_get_folder_metadata(folder.shared)
+
+            # Check if the current user is the owner
+            if shared_folder_metadata.access_type.is_owner():
+                raise Exception("Error: Cannot leave folder as the owner. Unshare or delete the folder instead.")
+
+            # Leave the shared folder
+            self.dbx.sharing_remove_folder_member(
+                folder.shared,
+                dropbox.sharing.MemberSelector.dropbox_id(self.user_id),  # Specify the current user
+                leave_a_copy=False
+            )
+            print(f"Left shared folder '{folder.name}'.")
+            return True
+
+        except dropbox.exceptions.ApiError as error:
+            raise Exception(f"Error leaving shared folder: {error}")
+
+    def get_owner(self, folder):
+        """
+        Get the owner of the shared folder in Dropbox.
+        If the folder is not shared, raise an error.
+        """
+        if not folder.shared:
+            raise Exception("Error: Folder is not shared")
+
+        if hasattr(folder, "_owner"):  # Cache the owner since it doesn't change
+            return folder._owner
+
+        try:
+            # Get the shared folder metadata
+            members = self.dbx.sharing_list_folder_members(folder.shared)
+
+            # Find the owner from the permissions
+            for member in members.users:
+                        if member.access_type.is_owner():
+                            folder._owner = member.user.email
+                            return member.user.email
+
+            return None  # No owner found (shouldn't happen)
+
+        except dropbox.exceptions.ApiError as error:
+            raise Exception(f"Error getting owner: {error}")
+
 '''
+# Unit Test, make sure to enter email!
+
 import customtkinter as ctk
 def input_dialog(title, text):
     # Create the input dialog
@@ -607,6 +657,7 @@ def test():
     dbx.unshare_folder(shared)
     print("Done")
 
+    
 def test2():
     """
     Test function for DropBox
@@ -614,12 +665,16 @@ def test2():
     dbx = DropBox("hadas.shalev10@cs.colman.ac.il")
     dbx.authenticate_cloud()
     folder = dbx.get_session_folder("test")
-    get_items_by_name = dbx.get_items_by_name("test", [folder])
-    for item in get_items_by_name:
-        print(f"Found: {item.get_name()} ({item.__class__.__name__})")
-
+    shared_folders = dbx.list_shared_folders()
+    print("Shared folders:")    
+    for folder in shared_folders:
+        print(folder.name)
+        print(dbx.get_owner(folder))
+        leave = dbx.leave_shared_folder(folder)
+        print(f"Left shared folder: {leave}")
     
-
 if __name__ == "__main__":
     test2()
+
 '''
+    
