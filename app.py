@@ -17,27 +17,26 @@ def clickable(cls):
     def new_init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
         self.controller = App.controller
-        
+
         self.bound = self.bind("<Button>", self.clicked, "+") # shaqed
-        
+
         if isinstance(self, ctk.CTkScrollableFrame) and hasattr(self, "_parent_canvas"):
             self.bound = self._parent_canvas.bind("<Button>", self.clicked, "+")
-        #else:
-            #self.bound = self.bind("<Button>", self.clicked, "+")
 
     def clicked(self, event):
         print(f"Clicked! {self}")
         self.controller.button_clicked(self)
         event.widget.focus_set()
 
-    # def new_del(self, *args, **kwargs):
-    #     self.unbind("<Button>", self.bound)
-    #     original_del(self, *args, **kwargs)
-        
-        
     cls.__init__ = new_init
-    #cls.__del__ = new_del
     cls.clicked = clicked
+
+    if cls.__name__ == "CTkButton":
+        old_clicked = cls._clicked if hasattr(cls, "_clicked") else lambda self, event: None
+        def button_clicked(self, event):
+            self.clicked(event)
+            return old_clicked(self, event)
+        cls._clicked = button_clicked
     return cls
 
 clickable(ctk.CTkFrame)
@@ -231,7 +230,7 @@ class LoadingPage(ctk.CTkFrame):
         
         # loading bar
         self.p = ctk.CTkProgressBar(self, orientation="horizontal", mode="indeterminate")
-        self.p.pack(anchor="center", expand=True, fill="x")
+        self.p.pack(anchor=ctk.CENTER, expand=True, fill=ctk.BOTH)
 
     
     def stop(self):
@@ -973,6 +972,19 @@ class Folder(ctk.CTkScrollableFrame):
 class SessionsFolder(Folder):
     def __init__(self, parent, controller : App, path=None):
         Folder.__init__(self, parent, controller, path)
+        self.loadingpage = LoadingPage(self, controller)
+
+        self.loadingpage.pack(anchor=ctk.N, fill=ctk.BOTH, expand=True, padx=5, pady=3)
+        self.loadingpage.start()
+        self.controller.get_api().add_callback_to_sync_task(lambda: self.remove_loading())
+
+    def remove_loading(self):
+        """
+        Remove the loading GIF and display the shared sessions
+        """
+        self.loadingpage.stop()
+        self.loadingpage.pack_forget()
+        self.refresh()
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
@@ -1081,12 +1093,12 @@ class FileButton(IconButton):
         self.context_menu = OptionMenu(controller.container, self.controller, [
             {
                 "label": "Download File",
-                "color": "blue",
+                "color": "gray25",
                 "event": lambda: self.download_file_from_cloud(self.file_data)
              },
              {
                  "label": "Delete File",
-                 "color": "red",
+                 "color": "gray25",
                  "event": lambda: self.delete_file_from_cloud(self.file_data)
              }
         ])
@@ -1195,7 +1207,7 @@ class OptionMenu(ctk.CTkFrame, Popup):
             butt = ctk.CTkButton(self, text=button["label"],
                                       command=button["event"],
                                       width=120, height=30, fg_color=button["color"])
-            butt.pack(pady=5, padx=10)
+            butt.pack(pady=5, padx=10, fill="x")
             butt.bind("<Button-1>", lambda event: self.hide_popup(), add="+")
             self.buttons.append(butt)
 
@@ -1324,12 +1336,12 @@ class FolderButton(IconButton):
         self.context_menu = OptionMenu(self.controller.container, self.controller, [
             {
                 "label": "Download Folder",
-                "color": "blue",
+                "color": "gray25",
                 "event": lambda: self.download_folder()
              },
              {
                  "label": "Delete Folder",
-                 "color": "red",
+                 "color": "gray25",
                  "event": lambda: self.delete_folder_from_cloud() 
              }
         ])
