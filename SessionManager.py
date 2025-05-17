@@ -36,7 +36,7 @@ class SessionManager():
         status = session.authenticate()
         if not status: # if failed to authenticate for any reason don't show (including pending sessions)
             # we might change this later to show pending sessions as a grayed out folder maybe?
-            print(f"Session authentication failed for session {session.root}")
+            print(f"Session {session.root} is not yet authenticated.")
             return
         if session_name is None:
             session_name = session.get_uid()
