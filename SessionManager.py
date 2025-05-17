@@ -37,20 +37,22 @@ class SessionManager():
         If authentication fails, add the session to the pending folders list.
         """
         status = session.authenticate()
-        if not status:  # If failed to authenticate, add to pending folders
-            print(f"Session {session.root} is not yet authenticated.")
-            if session not in self.pending_folders:
-                self.pending_folders.append(session)
-            return
 
-        # If the session is authenticated, remove it from pending folders
-        if session in self.pending_folders:
-            self.pending_folders.remove(session)
-
-        # Add the session to the sessions list
-        if session_name is None:
-            session_name = session.get_uid()
+        # Use a lock to safely access and modify shared resources
         with self.sessions_lock:
+            if not status:  # If failed to authenticate, add to pending folders
+                print(f"Session {session.root} is not yet authenticated.")
+                if session not in self.pending_folders:
+                    self.pending_folders.append(session)
+                return
+
+            # If the session is authenticated, remove it from pending folders
+            if session in self.pending_folders:
+                self.pending_folders.remove(session)
+
+            # Add the session to the sessions list
+            if session_name is None:
+                session_name = session.get_uid()
             self.sessions[session_name] = session
 
     def end_session(self, session : SharedCloudManager | str):
