@@ -249,17 +249,38 @@ class Gateway:
         """
         ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
         #res = self.session_manager.sync_new_sessions()
-        uids = self.session_manager.sessions.keys()
-        ret = []
-        for uid in uids:
-            ret.append({
+        # Get the list of pending folders from the session manager
+        pending_uids = self.session_manager.get_pending_folders()
+
+        # Get the list of ready folders (authenticated sessions)
+        ready_uids = self.session_manager.sessions.keys()
+        
+        result = {
+            "pending": [],
+            "ready": []
+        }
+
+        # Add pending folders to the result
+        for uid in pending_uids:
+            result["pending"].append({
+                "name": uid,
+                "type": "session",
+                "uid": uid,
+                "isowner": False  # Pending folders are not owned yet
+            })
+
+        # Add ready folders to the result
+        for uid in ready_uids:
+            result["ready"].append({
                 "name": uid,
                 "type": "session",
                 "uid": uid,
                 "isowner": self.session_manager.sessions[uid].user_is_owner()
             })
-        return ret
 
+        return result
+    
+    
     #TODO: Advanced sharing options
     """
     def share_file(self):

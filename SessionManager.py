@@ -16,6 +16,8 @@ class SessionManager():
         self.sessions_lock = Lock()
         self.syncing_sessions = False
         self.sessions_ready = False
+        self.pending_folders: list[str] = [] 
+
 
     def shared_sessions_ready(self):
         """
@@ -40,6 +42,16 @@ class SessionManager():
             return
         if session_name is None:
             session_name = session.get_uid()
+        if session_name not in self.pending_folders:
+            self.pending_folders.append(session_name)
+            return
+    
+        # If the session is authenticated, remove it from pending folders
+        if session_name is None:
+            session_name = session.get_uid()
+        if session_name in self.pending_folders:
+            self.pending_folders.remove(session_name)
+
         with self.sessions_lock:
             self.sessions[session_name] = session
 
@@ -125,6 +137,12 @@ class SessionManager():
             return self.main_session
         return self.sessions.get(uid)
         
+    def get_pending_folders(self) -> list[str]:
+        """
+        Returns the list of pending folders.
+        """
+        return self.pending_folders
+    
     def sync_known_sessions(self):
         """
         Goes through all sessions in self.sessions and calls share_keys
