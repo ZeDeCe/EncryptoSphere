@@ -255,25 +255,22 @@ class Gateway:
         # Get the list of ready folders (authenticated sessions)
         ready_uids = self.session_manager.sessions.keys()
         
-        result = {
-            "pending": [],
-            "ready": []
-        }
+        result = []
 
         # Add pending folders to the result
         for uid in pending_uids:
-            result["pending"].append({
+            result.append({
                 "name": uid,
-                "type": "session",
+                "type": "pending",  # Indicate this is a pending session
                 "uid": uid,
                 "isowner": False  # Pending folders are not owned yet
             })
-
+            
         # Add ready folders to the result
         for uid in ready_uids:
-            result["ready"].append({
+            result.append({
                 "name": uid,
-                "type": "session",
+                "type": "session",  # Indicate this is a shared session
                 "uid": uid,
                 "isowner": self.session_manager.sessions[uid].user_is_owner()
             })

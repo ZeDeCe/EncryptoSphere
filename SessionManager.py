@@ -16,7 +16,7 @@ class SessionManager():
         self.sessions_lock = Lock()
         self.syncing_sessions = False
         self.sessions_ready = False
-        self.pending_folders: list[str] = [] 
+        self.pending_folders: list[SharedCloudManager] = []  
 
 
     def shared_sessions_ready(self):
@@ -31,27 +31,25 @@ class SessionManager():
         """
         return self.key
     
-    def add_session(self, session : SharedCloudManager, session_name=None):
+    def add_session(self, session: SharedCloudManager, session_name=None):
         """
-        Adds a new shared session to the sessions list
+        Adds a new shared session to the sessions list.
+        If authentication fails, add the session to the pending folders list.
         """
         status = session.authenticate()
-        if not status: # if failed to authenticate for any reason don't show (including pending sessions)
-            # we might change this later to show pending sessions as a grayed out folder maybe?
+        if not status:  # If failed to authenticate, add to pending folders
             print(f"Session {session.root} is not yet authenticated.")
+            if session not in self.pending_folders:
+                self.pending_folders.append(session)
             return
-        if session_name is None:
-            session_name = session.get_uid()
-        if session_name not in self.pending_folders:
-            self.pending_folders.append(session_name)
-            return
-    
-        # If the session is authenticated, remove it from pending folders
-        if session_name is None:
-            session_name = session.get_uid()
-        if session_name in self.pending_folders:
-            self.pending_folders.remove(session_name)
 
+        # If the session is authenticated, remove it from pending folders
+        if session in self.pending_folders:
+            self.pending_folders.remove(session)
+
+        # Add the session to the sessions list
+        if session_name is None:
+            session_name = session.get_uid()
         with self.sessions_lock:
             self.sessions[session_name] = session
 
