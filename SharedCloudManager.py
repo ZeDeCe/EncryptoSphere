@@ -327,6 +327,10 @@ class SharedCloudManager(CloudManager):
         If it is the last user, converts to a normal session
         @param user a dictionary in the format: {"cloudname": "email", ...}
         """
+        # Check if the current user is the owner of the shared session
+        if not self.user_is_owner():
+            raise Exception("Error: Only the owner of the shared session can revoke users.")
+    
         for cloud_name, email in user.items():
             # Find the cloud service by name
             cloud = next((c for c in self.clouds if c.get_name() == cloud_name), None)
