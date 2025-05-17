@@ -41,6 +41,8 @@ class Gateway:
         self.active_fd_sync = False
         self.active_sessions_sync = False
         self.active_shared_folder_sync = False
+        self.sync_future_callbacks = []
+
     def promise(func):
         """
         Decorator to run a function in a separate thread and return a Future object
@@ -347,6 +349,12 @@ class Gateway:
                 try:
                     print("Running sync_new_sessions...")
                     ret = self.session_manager.sync_new_sessions()
+                    if ret:
+                        print("New sessions synced successfully.")
+                        # Call any registered callbacks
+                        for callback in self.sync_future_callbacks:
+                            callback()
+                        self.sync_future_callbacks.clear() 
                 except Exception as e:
                     print(f"Error during sync_new_sessions: {e}")
                 # Wait for the next sync interval, but check stop_event periodically
@@ -359,6 +367,16 @@ class Gateway:
         # Submit the sync task to the thread pool
         self.executor.submit(sync_task)
         print("sync_new_sessions task submitted to thread pool.")
+
+    def add_callback_to_sync_task(self, callback):
+        """
+        Adds a callback to the sync_new_sessions task.
+        """
+        if callable(callback):
+            self.sync_future_callbacks.append(callback)
+            print("Callback added to sync_new_sessions task.")
+        else:
+            print("Invalid callback provided. Must be callable.")
 
     def stop_sync_new_sessions_task(self):
         """
