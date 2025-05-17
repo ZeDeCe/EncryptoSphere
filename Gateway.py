@@ -268,23 +268,12 @@ class Gateway:
     
     @promise
     def leave_shared_folder(self, shared_session_name):
-        share = self.session_manager.sessions.get(shared_session_name)
-        share.leave_shared_folder()
+        raise NotImplementedError("Leaving shared folders is not implemented yet")
         
 
     @promise
     def delete_shared_folder(self, shared_session_name):
-        share = self.session_manager.sessions.get(shared_session_name)
-        try:
-            share.unshare_folder()
-        except Exception as e:
-            print(f"Error: {e}")
-        try:
-            share.delete_shared_folder()
-        except Exception as e:
-            print(f"Error: {e}")
-            
-        self.session_manager.remove_session(shared_session_name)
+        self.session_manager.end_session(shared_session_name)
     
 
     def get_shared_emails(self, shared_session_name):

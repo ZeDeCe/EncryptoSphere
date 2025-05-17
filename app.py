@@ -1416,11 +1416,6 @@ class SharedFolderButton(IconButton):
                     "event": lambda: self.manage_share_permissions()
                 },
                 {
-                    "label": "Leave Share",
-                    "color": "gray25",
-                    "event": lambda: self.leave_shared_folder()
-                },
-                {
                     "label": "Delete Share",
                     "color": "gray25",
                     "event": lambda: self.delete_shared_folder()
