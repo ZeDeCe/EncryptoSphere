@@ -17,10 +17,12 @@ from LoginManager import LoginManager
 import concurrent.futures
 import time
 import threading
+import tempfile
 
 SYNC_TIME = 300  # Sync time in seconds
 FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
 FILE_INDEX_SEPERATOR = "#"
+SHARED_TEMP_FOLDER = None
 
 class CloudManager:
     """
@@ -46,6 +48,7 @@ class CloudManager:
         self.fs : dict[str, CloudFile | Directory]= {} # filesystem
         self.root = root # Temporary until login module
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.clouds) * 5)
+        self.initialize_temp_folder()
         self.login_manager = LoginManager()
 
 
@@ -101,12 +104,6 @@ class CloudManager:
         if data.endswith(b'\x00'):
             data = data.rstrip(b'\x00')
         return self.encrypt.decrypt(data)
-
-    def _tempfile_from_path(self, os_filepath):
-        file = tempfile.TemporaryFile(dir=os.path.dirname(os_filepath))
-        with open(os_filepath, "r") as osfile:
-            file.write(osfile.read().encode('utf-8'))
-        return file
     
     def _get_directory(self, path : str) -> Directory:
         """
@@ -141,6 +138,33 @@ class CloudManager:
             self.fs[current_path] = parent
         return self.fs[path]
 
+    def initialize_temp_folder(self):
+        """
+        Create a shared temporary folder for the application.
+        """
+        global SHARED_TEMP_FOLDER
+        if SHARED_TEMP_FOLDER is None:
+            SHARED_TEMP_FOLDER = tempfile.mkdtemp(prefix="EncryptoSphere_")
+            print(f"Shared temporary folder created: {SHARED_TEMP_FOLDER}")
+
+    def cleanup_temp_folder(self):
+        """
+        Delete the shared temporary folder and its contents.
+        """
+        global SHARED_TEMP_FOLDER
+        if SHARED_TEMP_FOLDER and os.path.exists(SHARED_TEMP_FOLDER):
+            shutil.rmtree(SHARED_TEMP_FOLDER)
+            print(f"Shared temporary folder deleted: {SHARED_TEMP_FOLDER}")
+            SHARED_TEMP_FOLDER = None
+
+    def get_temp_file_path(self, filename):
+        """
+        Get the full path to a file in the shared temporary folder.
+        """
+        if not SHARED_TEMP_FOLDER:
+            raise Exception("Shared temporary folder is not initialized.")
+        return os.path.join(SHARED_TEMP_FOLDER, filename)
+    
     def authenticate(self):
         """
         Authenticates the clouds and loads the file descriptor.
@@ -375,7 +399,7 @@ class CloudManager:
                 raise Exception("Failed to upload files in folders.")
         return True
 
-    def download_file(self, path):
+    def download_file(self, path, isopen=False):
         """
         Downloads a file from the various clouds
         file_id is a FileDescriptor ID of the file.
@@ -415,10 +439,14 @@ class CloudManager:
             except Exception as e:
                 raise Exception(f"Error merging or decrypting data for file {path}: {e}")
 
-            # Set the destination path to the Downloads folder
-            downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-            dest_path = os.path.join(downloads_folder, file.data.get("name"))
-
+            if not isopen:
+                # Set the destination path to the Downloads folder
+                downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+                dest_path = os.path.join(downloads_folder, file.data.get("name"))
+            else:
+                # Set the destination path to the temporary folder
+                dest_path = self.get_temp_file_path(file.data.get("name"))
+            
             # Write the reconstructed file to the destination path
             try:
                 with open(dest_path, 'wb') as output:
@@ -439,43 +467,27 @@ class CloudManager:
     def open_file(self, path):
         """
         Downloads the file from the specified path and opens it with the relevant editor.
-        Allows the user to choose an application to open the file if desired.
+        The file is downloaded to the persistent temporary folder.
         @param path: The path to the file in the EncryptoSphere hierarchy.
         """
         try:
             # Download the file
             print(f"Downloading file from path: {path}")
-            success = self.download_file(path)
+            success = self.download_file(path, True)
             if not success:
                 raise Exception(f"Failed to download file from path: {path}")
 
-            # Get the downloaded file's path
+            # Get the downloaded file's metadata
             file = self.fs.get(path)
             if not file:
                 raise Exception(f"File not found in file descriptor: {path}")
 
-            # Determine the file's local path
-            downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-            local_file_path = os.path.join(downloads_folder, file.data.get("name"))
+            # Determine the temporary file path
+            temp_file_path = self.get_temp_file_path(file.name)
 
-            # Check if the file exists
-            if not os.path.exists(local_file_path):
-                raise FileNotFoundError(f"Downloaded file not found: {local_file_path}")
-
-           
-            # Ask the user if they want to choose an application to open the file
-            #choice = input("Do you want to choose an application to open the file? (y/n): ").strip().lower()
-            #if choice == 'y':
-                # Let the user choose an application
-            #    app_path = input("Enter the full path to the application (e.g., C:\\Program Files\\Notepad++\\notepad++.exe): ").strip()
-            #    if not os.path.exists(app_path):
-            #        raise FileNotFoundError(f"Application not found: {app_path}")
-            #    subprocess.Popen([app_path, local_file_path])
-            #else:
-        
             # Open the file with the default application
-            print(f"Opening file: {local_file_path}")
-            os.startfile(local_file_path)  # Windows-specific
+            print(f"Opening file: {temp_file_path}")
+            os.startfile(temp_file_path)  # Windows-specific
 
         except Exception as e:
             print(f"Error opening file: {e}")
@@ -601,7 +613,7 @@ class CloudManager:
                 print(f"Deleting folder: {subfolder_path}")
                 folder = self.fs[subfolder_path]
                 for cloud in self.clouds:
-                    futures[file_executor.submit(cloud.delete_file, folder.get(cloud.get_name()))] = subfolder_path
+                    futures[file_executor.submit(cloud.delete_folder, folder.get(cloud.get_name()))] = subfolder_path
 
             # Wait for all folder deletions to complete
             results, success = self._complete_cloud_threads(futures)

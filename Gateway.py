@@ -42,8 +42,23 @@ class Gateway:
         self.active_fd_sync = False
         self.active_sessions_sync = False
         self.active_shared_folder_sync = False
-    
-    #NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
+        self.sync_future_callbacks = []
+
+    def promise(func):
+        """
+        Decorator to run a function in a separate thread and return a Future object
+        Also attaches a callback to the function if given
+        """
+        @wraps(func)
+        def wrapper(self, callback, *args, **kwargs):
+            future : concurrent.futures.Future = self.executor.submit(func, self, *args, **kwargs)
+            if not callback is None:
+                future.add_done_callback(callback)
+            return future
+        return wrapper
+
+    # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
+    @promise
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
         dropbox1 = DropBox(email)
@@ -66,6 +81,8 @@ class Gateway:
         return status
 
 
+
+
     def cloud_authenticate(self, cloud_name: str, email: str):
         """
         Authenticates a single cloud service by name and email.
@@ -85,19 +102,7 @@ class Gateway:
         return cloud
     
     
-    def promise(func):
-        """
-        Decorator to run a function in a separate thread and return a Future object
-        Also attaches a callback to the function if given
-        """
-        @wraps(func)
-        def wrapper(self, callback, *args, **kwargs):
-            future : concurrent.futures.Future = self.executor.submit(func, self, *args, **kwargs)
-            if not callback is None:
-                future.add_done_callback(callback)
-            return future
-        return wrapper
-
+    
     def change_session(self, uid=None):
         """
         Change the current session to the one specified by path
@@ -120,25 +125,23 @@ class Gateway:
         return self.current_session.get_items_in_folder(path)
     
     @promise
-    def sync_fd_to_clouds(self, callback=None):
-        if not self.active_fd_sync:
-            self.active_fd_sync = True
-            print(f"Syncing FD to clouds")
-            
-            print(f"Syncing FD to clouds, status: {str(True)}")
-            return True
-        
-    @promise    
-    def sync_new_sessions(self):
-        if not self.active_sessions_sync:
-            self.active_sessions_sync = True
-            print(f"Searchinng for new sessions...")
-            ret = self.session_manager.sync_new_sessions()
-            print(f"Finished searching for new sessions")
-            self.active_sessions_sync = False
-            return ret
-        
-        
+    def get_search_results_async(self, search_string):
+        """
+        @param path: the path to the folder
+        @return: Yielded iterable (generator) for every file in the current session in the folder given
+        """
+        #return self.current_session.get_search_results(search_string)
+        print(f"Searching for {search_string}")
+        return iter([])
+    
+    @promise
+    def sync_session(self):
+        print("Refresh button clicked")
+        ret = self.session_manager.sync_new_sessions()
+        print(f"Finished refreshing")
+        return ret
+    
+
     @promise
     def refresh_shared_folder(self):
         # We don't actually need to do anything, just call get_items_in_folder for that shared folder
@@ -271,20 +274,51 @@ class Gateway:
         """
         ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
         #res = self.session_manager.sync_new_sessions()
-        return self.session_manager.sessions.keys()
+        # Get the list of pending folders from the session manager
+        pending_uids = self.session_manager.get_pending_folders()
+
+        # Get the list of ready folders (authenticated sessions)
+        ready_uids = self.session_manager.sessions.keys()
+        
+        result = []
+
+        # Add pending folders to the result
+        for uid in pending_uids:
+            result.append({
+                "name": uid,
+                "type": "pending",  # Indicate this is a pending session
+                "uid": uid,
+                "isowner": False  # Pending folders are not owned yet
+            })
+
+        # Add ready folders to the result
+        for uid in ready_uids:
+            result.append({
+                "name": uid,
+                "type": "session",  # Indicate this is a shared session
+                "uid": uid,
+                "isowner": self.session_manager.sessions[uid].user_is_owner()
+            })
+
+        return result
+    
 
     #TODO: Advanced sharing options
     """
     def share_file(self):
         pass
-
-
-    def unshare_folder(self):
-        pass
-
-    def unshare_file(self):
-        pass
     """
+    
+    @promise
+    def leave_shared_folder(self, shared_session_name):
+        raise NotImplementedError("Leaving shared folders is not implemented yet")
+        
+
+    @promise
+    def delete_shared_folder(self, shared_session_name):
+        self.session_manager.end_session(shared_session_name)
+    
+
     def get_shared_emails(self, shared_session_name):
         """
         Returns the list of emails that are shared with the given folder
@@ -309,8 +343,21 @@ class Gateway:
 
         """
         share = self.session_manager.sessions.get(shared_session_name)
-        share.revoke_user_from_share(email_dict)
-
+        if share.user_is_owner():
+            share.revoke_user_from_share(email_dict)
+    
+    def check_if_user_is_owner(self, shared_session_name):
+        """
+        Check if the user is the owner of the given session
+        @param folder name (will be convertet to session)
+        @return: True if the user is the owner, False otherwise
+        """
+        share = self.session_manager.sessions.get(shared_session_name)
+        if share is None:
+            print(f"Error: No such session {shared_session_name} exists")
+            return False
+        return share.user_is_owner()
+    
     @promise
     def add_users_to_share(self, shared_session_name ,emails):
         """
@@ -323,13 +370,14 @@ class Gateway:
 
         """
         share = self.session_manager.sessions.get(shared_session_name)
-        share_with = []
-        for email in emails:
-            user_dict = {}
-            for cloud in self.manager.clouds:
-                user_dict[cloud.get_name()] = email
-            share_with.append(user_dict)
-        share.add_users_to_share(share_with)
+        if share.user_is_owner():
+            share_with = []
+            for email in emails:
+                user_dict = {}
+                for cloud in self.manager.clouds:
+                    user_dict[cloud.get_name()] = email
+                share_with.append(user_dict)
+            share.add_users_to_share(share_with)
 
     def start_sync_new_sessions_task(self):
         """
@@ -342,6 +390,12 @@ class Gateway:
                 try:
                     print("Running sync_new_sessions...")
                     ret = self.session_manager.sync_new_sessions()
+                    if ret:
+                        print("New sessions synced successfully.")
+                        # Call any registered callbacks
+                        for callback in self.sync_future_callbacks:
+                            callback()
+                        self.sync_future_callbacks.clear() 
                 except Exception as e:
                     print(f"Error during sync_new_sessions: {e}")
                 # Wait for the next sync interval, but check stop_event periodically
@@ -354,6 +408,16 @@ class Gateway:
         # Submit the sync task to the thread pool
         self.executor.submit(sync_task)
         print("sync_new_sessions task submitted to thread pool.")
+
+    def add_callback_to_sync_task(self, callback):
+        """
+        Adds a callback to the sync_new_sessions task.
+        """
+        if callable(callback):
+            self.sync_future_callbacks.append(callback)
+            print("Callback added to sync_new_sessions task.")
+        else:
+            print("Invalid callback provided. Must be callable.")
 
     def stop_sync_new_sessions_task(self):
         """

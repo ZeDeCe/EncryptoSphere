@@ -36,6 +36,7 @@ class SharedCloudManager(CloudManager):
         self.users = []
         self.loaded = False
         self.uuid = None
+        self.is_owner = False
         self.root_folder = root_folder
         if root_folder:
             self.fs["/"] = root_folder
@@ -57,6 +58,17 @@ class SharedCloudManager(CloudManager):
             print("One of the clouds provided cannot authenticate for shared session")
             return False
         key = None
+        
+        # Set UID
+        files = self.clouds[0].list_files(self.root_folder.get(self.clouds[0].get_name()), "$UID")
+        self.uid = None
+        for file in files:
+            self.uid = f"{self.root.replace(SharedCloudManager.shared_suffix, '')}${file.get_name()[5:]}"
+            break
+        if self.uid is None:
+            print("Cannot get UID for cloud manager")
+            return False
+        
         if self.users:
             # This is a new session to be created
             try:
@@ -75,15 +87,8 @@ class SharedCloudManager(CloudManager):
             self.encrypt.set_key(key)
 
         if key:
-            # Set UID
-            files = self.clouds[0].list_files(self.root_folder.get(self.clouds[0].get_name()), "$UID")
-            self.uid = None
-            for file in files:
-                self.uid = f"{self.root.replace(SharedCloudManager.shared_suffix, '')}${file.get_name()[5:]}"
-                break
-            if self.uid is None:
-                print("Cannot get UID for cloud manager")
-                return False
+            
+            self.is_owner = self.clouds[0].get_owner(self.root_folder.get(self.clouds[0].get_name())) == self.clouds[0].get_email()
             # loaded from this point
             self.loaded = True
             self.share_keys()
@@ -91,6 +96,13 @@ class SharedCloudManager(CloudManager):
         print("Failed to authenticate shared session")
         return False
     
+
+    def user_is_owner(self) -> bool:
+        """
+        Returns True if the current user is the owner of the session, False otherwise
+        """
+        return self.is_owner
+
     def create_new_session(self) -> bytes:
         """
         Create a first time share, generate a shared key and upload FEK
@@ -315,6 +327,10 @@ class SharedCloudManager(CloudManager):
         If it is the last user, converts to a normal session
         @param user a dictionary in the format: {"cloudname": "email", ...}
         """
+        # Check if the current user is the owner of the shared session
+        if not self.user_is_owner():
+            raise Exception("Error: Only the owner of the shared session can revoke users.")
+    
         for cloud_name, email in user.items():
             # Find the cloud service by name
             cloud = next((c for c in self.clouds if c.get_name() == cloud_name), None)
@@ -374,6 +390,9 @@ class SharedCloudManager(CloudManager):
                     print(f"Failed to add user {email} to shared session on {cloud_name}: {e}")
                     user.pop(cloud_name, None)  # Remove the cloud from the user dictionary if sharing fails
             self.users.append(user)
+
+
+
 
     @staticmethod
     def is_valid_session_root(cloud : CloudService, root : CloudService.Folder) -> bool:

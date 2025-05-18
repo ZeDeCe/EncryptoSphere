@@ -29,6 +29,7 @@ class CloudDataManager:
 
     def get_data(self, key=None) -> dict | list:
         encrypted = self.file.read_bytes()
+        data = None
         try:
             data = json.loads(self.fernet.decrypt(encrypted).decode())
         except Exception as e:
@@ -44,5 +45,7 @@ class CloudDataManager:
         current_data = self.get_data()
         if current_data:
             current_data.update(data)
+        else:
+            current_data = data
         self.set_data(current_data)
             

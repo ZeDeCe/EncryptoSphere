@@ -191,6 +191,16 @@ class CloudService(ABC):
         @return the folder object of the now shared folder
         """
         pass
+    
+    @abstractmethod
+    def get_owner(self, folder : Folder) -> str:
+        """
+        Get the owner of the shared folder
+        If folder is not shared, raise an error
+        @param folder the folder object
+        @return the email of the owner
+        """
+        pass
 
     @abstractmethod
     def create_shared_session(self, name : str, emails : list[str]) -> Folder:
@@ -221,6 +231,17 @@ class CloudService(ABC):
         """
         pass
     
+    @abstractmethod
+    def leave_shared_folder(self, folder : Folder) -> bool:
+        """
+        Leave a shared folder
+        If you are the owner of the folder, raises an error
+        Exits the shared folder without deleting it
+        @param folder the folder object to leave
+        @return success, if fails throws an error
+        """
+        pass
+
     @abstractmethod
     def list_shared_folders(self, filter="") -> Iterable[Folder]:
         """

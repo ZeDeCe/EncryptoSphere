@@ -522,6 +522,67 @@ class GoogleDrive(CloudService):
         except HttpError as e:
             raise Exception(f"Error unsharing folder: {e}")
 
+    def get_owner(self, folder: CloudService.Folder):
+        """
+        Get the owner of the shared folder
+        If folder is not shared, raise an error
+        """
+        if not folder.shared:
+            raise Exception("Error: Folder is not shared")
+        if hasattr(folder, "_owner"): # cache it because owner doesn't change
+            return folder._owner
+        try:
+            permissions = self.drive_service.permissions().list(
+                fileId=folder._id,
+                fields="permissions(emailAddress, role, type)"
+            ).execute()
+
+            permission_list = permissions.get('permissions', [])
+            for permission in permission_list:
+                if permission['role'] == 'owner':
+                    folder._owner = permission['emailAddress']
+                    return permission['emailAddress']
+
+            return None
+
+        except HttpError as error:
+            raise Exception(f"Error getting owner: {error}")
+    
+    def leave_shared_folder(self, folder):
+        """
+        Leave a shared folder
+        Exit the shared folder without deleting it
+        """
+        if not folder.shared:
+            raise Exception("Error: Folder is not shared")
+
+        try:
+
+            # List permissions for the folder
+            permissions = self.drive_service.permissions().list(
+                fileId=folder._id,
+                fields="permissions(id, emailAddress, role, type)"
+            ).execute()
+
+            permission_list = permissions.get('permissions', [])
+            my_permission_id = None
+
+            for permission in permission_list:
+                if permission.get('emailAddress') == self.get_email() and permission['type'] == 'user':
+                    my_permission_id = permission['id']
+                    break
+
+            if not my_permission_id:
+                raise Exception("Error: Trying to leave folder as owner.") # Call delete_folder or unshare_folder instead
+
+            self.drive_service.permissions().delete(
+                fileId=folder._id,
+                permissionId=my_permission_id
+            ).execute()
+            print(f"Left shared folder '{folder.name}'.")
+            return True
+        except HttpError as error:
+            raise Exception(f"Error leaving shared folder: {error}")
 
     def unshare_by_email(self, folder: CloudService.Folder, emails: list[str]):
         """
