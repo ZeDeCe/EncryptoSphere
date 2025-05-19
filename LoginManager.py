@@ -81,13 +81,14 @@ class LoginManager:
 
 
 
-    def add_auth_to_metadata(self, key: bytes, metadata: dict, encryptor_name: str) -> dict:
+    def add_auth_to_metadata(self, key: bytes, metadata: dict, encryptor_name: str, salt: bytes) -> dict:
         """
-        Adds 'auth_encrypted', 'auth_hash', and 'encrypt' fields to metadata for password authentication.
+        Adds authentication data and salt to metadata for password-based authentication.
 
         :param key: The encryption key derived from the user's password
         :param metadata: The metadata dictionary to update
-        :param encryptor_name: The name of the encryption algorithm to use (e.g. 'AES')
+        :param encryptor_name: The name of the encryption algorithm (e.g. 'AES')
+        :param salt: The salt used in key derivation (should be saved!)
         :return: Updated metadata dictionary
         """
         encryptor_class = Encrypt.get_class(encryptor_name)
@@ -103,7 +104,8 @@ class LoginManager:
 
         metadata["auth_encrypted"] = encrypted.hex()
         metadata["auth_hash"] = hashlib.sha256(auth_plaintext).hexdigest()
-        metadata["encrypt"] = encryptor_name  # for later decryption
+        metadata["encrypt"] = encryptor_name
+        metadata["salt"] = salt.hex()
         return metadata
 
 

@@ -696,10 +696,10 @@ class CloudManager:
     
         
                 
-    def load_metadata(self, password, salt):
+    def load_metadata(self):
         """
-        Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor.
-        Uses given password and salt to generate the authentication key if needed.
+        Downloads the filedescriptor from the clouds and sets it as this object's file descriptor.
+        This function does NOT perform authentication or key creation — it only loads metadata.
         """
         metadata = self._download_replicated("$META")
 
@@ -709,13 +709,6 @@ class CloudManager:
                 "split": self.split.get_name(),
                 "order": self.cloud_name_list
             }
-
-            key = self.login_manager.create_key_from_password(password, salt)
-            self.metadata = self.login_manager.add_auth_to_metadata(
-                key, self.metadata, self.encrypt.get_name()
-            )
-
-            self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
 
         else:
             self.metadata = json.loads(metadata)
@@ -733,5 +726,10 @@ class CloudManager:
             if self.encrypt.get_name() != self.metadata.get("encrypt"):
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
+
+            salt_hex = self.metadata.get("salt")
+            if salt_hex:
+                self.salt = bytes.fromhex(salt_hex)
+
 
 

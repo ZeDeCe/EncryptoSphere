@@ -19,6 +19,7 @@ import time
 import threading
 from functools import wraps
 from LoginManager import LoginManager
+import hashlib
 
 import utils.DialogBox as DialogBox
 import app as app
@@ -57,22 +58,77 @@ class Gateway:
             return future
         return wrapper
 
-    # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
     @promise
-    def authenticate(self, email):
-        master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
-        dropbox1 = DropBox(email)
-        drive1 = GoogleDrive(email)
-        encrypt = AESEncrypt()
-        encrypt.set_key(encrypt.generate_key_from_key(master_key))
-        # Everything here is for testing
+    def cloud_authenticate(self, cloud_name: str, email: str):
+        """
+        Authenticates a single cloud service using its short identifier (e.g., 'G' for GoogleDrive).
+        The cloud_name is matched using each class's get_name() method.
+        """
+        supported_clouds = [GoogleDrive, DropBox]
+
+        for cloud_class in supported_clouds:
+            if cloud_class.get_name().lower() == cloud_name.lower():
+                cloud = cloud_class(email)
+                if not cloud.authenticate():
+                    raise Exception(f"Authentication failed for {cloud_name}")
+                return cloud
+
+        raise ValueError(f"Unsupported cloud service: {cloud_name}")
+    
+    
+    @promise
+    def app_authenticate(self, password: str, clouds: list):
+        """
+        Authenticates the application using the provided password and cloud list.
+        Fails if the password is incorrect or if metadata is invalid.
+        """
+        # Step 1: Load metadata using a temporary encryptor (will be replaced later)
+        temp_encrypt = AESEncrypt()  # Temporary encryptor just to allow metadata loading
+        manager = CloudManager(
+            clouds,
+            "main_session",
+            ShamirSplit(),  # Temporary, real one will be created after metadata
+            temp_encrypt
+        )
+        manager.load_metadata()
+
+        # Step 2: Extract metadata and relevant configuration
+        metadata = manager.metadata
+        encryption_type = metadata.get("encrypt")
+        split_type = metadata.get("split")
+        auth_encrypted = bytes.fromhex(metadata.get("auth_encrypted"))
+        auth_hash = metadata.get("auth_hash")
+
+        salt_hex = metadata.get("salt")
+        if not salt_hex:
+            raise ValueError("Missing salt in metadata")
+        salt = bytes.fromhex(salt_hex)
+
+        # Step 3: Generate encryption key from password and salt
+        encryption_class = Encrypt.get_class(encryption_type)
+        encryptor = encryption_class()
+        password_key = encryptor.create_key_from_password(password, salt)
+        key = encryptor.generate_key_from_key(password_key)
+        encryptor.set_key(key)
+
+        # Step 4: Try to decrypt and validate password
+        try:
+            plaintext = encryptor.decrypt(auth_encrypted)
+        except Exception:
+            raise ValueError("Invalid password")
+
+        if hashlib.sha256(plaintext).hexdigest() != auth_hash:
+            raise ValueError("Invalid password")
+
+        # Step 5: Create the real manager with the correct encryptor
         self.manager = CloudManager(
-            [drive1,dropbox1],
-            "main_session", 
-            ShamirSplit(), 
-            encrypt
+            clouds,
+            "main_session",
+            Split.get_class(split_type)(),
+            encryptor
         )
 
+        # Step 6: Regular session setup (same as your original logic)
         self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
         status = self.manager.authenticate()
         self.current_session = self.manager
@@ -80,28 +136,6 @@ class Gateway:
         print(f"Status: {status}")
         return status
 
-
-
-
-    def cloud_authenticate(self, cloud_name: str, email: str):
-        """
-        Authenticates a single cloud service by name and email.
-        Supported names: 'drive', 'dropbox'
-        """
-        if cloud_name.lower() == "drive":
-            cloud = GoogleDrive(email)
-        elif cloud_name.lower() == "dropbox":
-            cloud = DropBox(email)
-        else:
-            raise ValueError(f"Unsupported cloud service: {cloud_name}")
-
-        status = cloud.authenticate()
-        if not status:
-            raise Exception(f"Authentication failed for {cloud_name}")
-        
-        return cloud
-    
-    
     
     def change_session(self, uid=None):
         """
