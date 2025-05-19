@@ -984,7 +984,7 @@ class SessionsFolder(Folder):
         """
         self.loadingpage.stop()
         self.loadingpage.pack_forget()
-        self.refresh()
+        self.update_button_lists(self.controller.get_api().get_shared_folders())
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
