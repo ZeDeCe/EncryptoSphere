@@ -16,7 +16,7 @@ class SessionManager():
         self.sessions_lock = Lock()
         self.syncing_sessions = False
         self.sessions_ready = False
-        self.pending_folders: list[SharedCloudManager] = []  
+        self.pending_folders: dict[str, SharedCloudManager] = {}
 
 
     def shared_sessions_ready(self):
@@ -37,21 +37,20 @@ class SessionManager():
         If authentication fails, add the session to the pending folders list.
         """
         status = session.authenticate()
+        if session_name is None:
+            session_name = session.get_uid()
         if not status:  # If failed to authenticate, add to pending folders
             print(f"Session {session.root} is not yet authenticated.")
             if session not in self.pending_folders:
                 with self.sessions_lock:
-                    self.pending_folders.append(session)
+                    self.pending_folders[session_name] = session
             return
 
         # If the session is authenticated, remove it from pending folders
-        if session in self.pending_folders:
+        if self.pending_folders.get(session_name):
             with self.sessions_lock:
-                self.pending_folders.remove(session)
+                self.pending_folders.pop(session_name)
 
-        # Add the session to the sessions list
-        if session_name is None:
-            session_name = session.get_uid()
         with self.sessions_lock:
             self.sessions[session_name] = session
 
