@@ -176,8 +176,11 @@ class SharedCloudManager(CloudManager):
         return False
 
     def sync_fek(self, key : bytes) -> None:
+        """
+        @param key the encrypted key
+        """
         futures = [
-            self.executor.submit(self._upload_replicated, "$FEK", self._encrypt(key), True),
+            self.executor.submit(self._upload_replicated, "$FEK", key, True),
             self.executor.submit(self._delete_replicated, "$TFEK", True),
             self.executor.submit(self._delete_replicated, "$PUBLIC", True),
             self.executor.submit(self._delete_replicated, "$SHARED", True),
