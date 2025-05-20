@@ -24,7 +24,6 @@ def clickable(cls):
             self.bound = self._parent_canvas.bind("<Button>", self.clicked, "+")
 
     def clicked(self, event):
-        print(f"Clicked! {self}")
         self.controller.button_clicked(self)
         event.widget.focus_set()
 
@@ -1216,13 +1215,16 @@ class OptionMenu(ctk.CTkFrame, Popup):
             self.place_forget()
         Popup.hide_popup(self)
             
-        
+    
     def show_popup(self, x, y):
         """
         Display the current context menu on the selected location
         """ 
         if self.context_hidden:
-            self.place(x=x, y=y)
+            x_anchor = "w" if x < self.master.winfo_width()/2 else "e"
+            # this doesn't work because of the scrollable frame
+            #y_anchor = "s" if y < self.master.winfo_height()/2 else "n"
+            self.place(x=x, y=y, anchor=f"n{x_anchor}")
         Popup.show_popup(self)
 
 class MessageNotification(ctk.CTkFrame, Popup):
