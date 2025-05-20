@@ -135,12 +135,7 @@ class SessionManager():
         if not uid:
             return self.main_session
         return self.sessions.get(uid)
-        
-    def get_pending_folders(self) -> list[str]:
-        """
-        Returns the list of pending folders.
-        """
-        return self.pending_folders
+    
     
     def sync_known_sessions(self):
         """
