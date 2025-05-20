@@ -293,11 +293,22 @@ class SharedCloudManager(CloudManager):
         cloud.upload_file(response, f"$SHARED_{username}", self.root_folder.get(cloud.get_name()))
 
     def __share_keys_cloud(self, cloud : CloudService):
-        # TODO: Check if there is already a $SHARED_ file
-        files = cloud.list_files(self.root_folder.get(cloud.get_name()), "$PUBLIC_")
+        files = list(cloud.list_files(self.root_folder.get(cloud.get_name()), "$"))
+        shared = list(map(lambda f: f.get_name()[8:], filter(lambda f: f.get_name().startswith("$SHARED_"), files)))
+        public = filter(lambda f: f.get_name().startswith("$PUBLIC_"), files)
 
-        for file in files:
-            self.executor.submit(self.__share_keys_from_public, file, cloud)
+        for file in public:
+            if file.get_name()[8:] not in shared:
+                self.executor.submit(self.__share_keys_from_public, file, cloud)
+
+        if self.is_owner:
+            feks = list(map(lambda f: f.get_name()[5:], filter(lambda f: f.get_name().startswith("$FEK_"), files)))
+            files = filter(lambda f: f.get_name().startswith("$SHARED_"), files)
+            for file in files:
+                if file.get_name()[8:] in feks:
+                    print(f"Deleting shared file {file.get_name()}")
+                    self._delete_replicated(file.get_name(), False)
+
 
     def share_keys(self):
         """
