@@ -20,6 +20,7 @@ import threading
 from functools import wraps
 from LoginManager import LoginManager
 import hashlib
+import json
 
 import utils.DialogBox as DialogBox
 import app as app
@@ -135,6 +136,68 @@ class Gateway:
         self.start_sync_new_sessions_task()
         print(f"Status: {status}")
         return status
+
+
+def create_account(self, password: str, clouds: list) -> bool:
+    """
+    Creates a new account by initializing cloud metadata if it doesn't already exist.
+    Returns True if account created successfully.
+    Raises descriptive exceptions if something fails.
+    """
+    if not password or len(password) < 6:
+        raise ValueError("Password is too short")
+
+    if not clouds:
+        raise ValueError("No cloud services provided")
+
+    # check if metadata already exists
+    try:
+        temp_encryptor = AESEncrypt()
+        manager = CloudManager(
+            clouds,
+            "main_session",
+            ShamirSplit(),
+            temp_encryptor
+        )
+    except Exception as e:
+        raise RuntimeError(f"Failed to initialize CloudManager: {e}")
+
+    try:
+        existing = manager._download_replicated("$META")
+    except Exception:
+        raise RuntimeError("Could not access cloud to check for existing account")
+
+    if existing is not None:
+        raise Exception("Account already exists – metadata found in cloud")
+
+    # Generate salt and encryption key
+    try:
+        salt = os.urandom(16)
+        key = temp_encryptor.create_key_from_password(password, salt)
+    except Exception as e:
+        raise RuntimeError(f"Key generation failed: {e}")
+
+    # Build metadata
+    metadata = {
+        "encrypt": temp_encryptor.get_name(),
+        "split": "shamir",
+        "order": [cloud.get_name() for cloud in clouds]
+    }
+
+    try:
+        metadata = self.login_manager.add_auth_to_metadata(
+            key, metadata, temp_encryptor.get_name(), salt
+        )
+    except Exception as e:
+        raise RuntimeError(f"Failed to generate authentication metadata: {e}")
+
+    # Upload metadata
+    try:
+        manager._upload_replicated("$META", json.dumps(metadata).encode("utf-8"))
+    except Exception as e:
+        raise RuntimeError(f"Failed to upload metadata to cloud: {e}")
+
+    return True
 
     
     def change_session(self, uid=None):
