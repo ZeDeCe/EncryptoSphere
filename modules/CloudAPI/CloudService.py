@@ -79,6 +79,16 @@ class CloudService(ABC):
         """
         return self.authenticated
     
+    def authenticate_by_token(self) -> bool:
+        """
+        Authenticate with the cloud service using a token
+        Make sure to call this function before overriding
+        Make sure to set the self.authenticated flag to True after authentication has occured so that the platform
+        won't need to go through authentication twice
+        @return success, if fails throws an error
+        """
+        return self.authenticated
+    
     def authenticate_cloud(self) -> bool:
         """
         Authenticate with the cloud service
@@ -265,3 +275,11 @@ class CloudService(ABC):
          @return the string name of the cloud service
         """
         pass
+    
+    @staticmethod
+    def get_cloud_classes() -> list:
+        """
+        Returns a list of all the cloud classes
+        """
+        return CloudService.__subclasses__()
+    
