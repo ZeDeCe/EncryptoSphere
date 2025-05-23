@@ -65,17 +65,32 @@ class Gateway:
         Authenticates a single cloud service using its short identifier (e.g., 'G' for GoogleDrive).
         The cloud_name is matched using each class's get_name() method.
         """
-        supported_clouds = [GoogleDrive, DropBox]
+        supported_clouds = CloudService.get_cloud_classes()
 
         for cloud_class in supported_clouds:
             if cloud_class.get_name().lower() == cloud_name.lower():
                 cloud = cloud_class(email)
                 if not cloud.authenticate():
-                    raise Exception(f"Authentication failed for {cloud_name}")
+                    raise Exception(f"Authentication failed for {cloud.get_name()}")
                 return cloud
 
-        raise ValueError(f"Unsupported cloud service: {cloud_name}")
+        raise ValueError(f"Unsupported cloud service: {cloud.get_name()}")
     
+    @promise
+    def clouds_authenticate_by_token(self, email: str):
+        """
+        Authenticates all supported cloud services using a token.
+        Returns a list of cloud classes that were successfully authenticated.
+        """
+        supported_clouds = CloudService.get_cloud_classes()
+        autenticated_clouds = []
+        for cloud_class in supported_clouds:
+            cloud = cloud_class(email)
+            if cloud.authenticate_by_token():
+                autenticated_clouds.append(cloud_class)
+        return autenticated_clouds 
+
+
     
     @promise
     def app_authenticate(self, password: str, clouds: list):
@@ -138,68 +153,71 @@ class Gateway:
         return status
 
 
-def create_account(self, password: str, clouds: list) -> bool:
-    """
-    Creates a new account by initializing cloud metadata if it doesn't already exist.
-    Returns True if account created successfully.
-    Raises descriptive exceptions if something fails.
-    """
-    if not password or len(password) < 6:
-        raise ValueError("Password is too short")
+    def create_account(self, password: str, clouds: list) -> bool:
+        """
+        Creates a new account by initializing cloud metadata if it doesn't already exist.
+        Returns True if account created successfully.
+        Raises descriptive exceptions if something fails.
+        """
+        if not password or len(password) < 6:
+            raise ValueError("Password is too short")
 
-    if not clouds:
-        raise ValueError("No cloud services provided")
+        if not clouds:
+            raise ValueError("No cloud services provided")
 
-    # check if metadata already exists
-    try:
-        temp_encryptor = AESEncrypt()
-        manager = CloudManager(
-            clouds,
-            "main_session",
-            ShamirSplit(),
-            temp_encryptor
-        )
-    except Exception as e:
-        raise RuntimeError(f"Failed to initialize CloudManager: {e}")
+        # check if metadata already exists
+        try:
+            temp_encryptor = AESEncrypt()
+            manager = CloudManager(
+                clouds,
+                "main_session",
+                ShamirSplit(),
+                temp_encryptor
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize CloudManager: {e}")
 
-    try:
-        existing = manager._download_replicated("$META")
-    except Exception:
-        raise RuntimeError("Could not access cloud to check for existing account")
+        try:
+            existing = manager._download_replicated("$META")
+        except Exception:
+            raise RuntimeError("Could not access cloud to check for existing account")
 
-    if existing is not None:
-        raise Exception("Account already exists – metadata found in cloud")
+        if existing is not None:
+            raise Exception("Account already exists – metadata found in cloud")
 
-    # Generate salt and encryption key
-    try:
-        salt = os.urandom(16)
-        key = temp_encryptor.create_key_from_password(password, salt)
-    except Exception as e:
-        raise RuntimeError(f"Key generation failed: {e}")
+        # Generate salt and encryption key
+        try:
+            salt = os.urandom(16)
+            key = temp_encryptor.create_key_from_password(password, salt)
+        except Exception as e:
+            raise RuntimeError(f"Key generation failed: {e}")
 
-    # Build metadata
-    metadata = {
-        "encrypt": temp_encryptor.get_name(),
-        "split": "shamir",
-        "order": [cloud.get_name() for cloud in clouds]
-    }
+        # Build metadata
+        metadata = {
+            "encrypt": temp_encryptor.get_name(),
+            "split": "shamir",
+            "order": [cloud.get_name() for cloud in clouds]
+        }
 
-    try:
-        metadata = self.login_manager.add_auth_to_metadata(
-            key, metadata, temp_encryptor.get_name(), salt
-        )
-    except Exception as e:
-        raise RuntimeError(f"Failed to generate authentication metadata: {e}")
+        try:
+            metadata = self.login_manager.add_auth_to_metadata(
+                key, metadata, temp_encryptor.get_name(), salt
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to generate authentication metadata: {e}")
 
-    # Upload metadata
-    try:
-        manager._upload_replicated("$META", json.dumps(metadata).encode("utf-8"))
-    except Exception as e:
-        raise RuntimeError(f"Failed to upload metadata to cloud: {e}")
+        # Upload metadata
+        try:
+            manager._upload_replicated("$META", json.dumps(metadata).encode("utf-8"))
+        except Exception as e:
+            raise RuntimeError(f"Failed to upload metadata to cloud: {e}")
 
-    return True
+        return True
 
-    
+    def get_clouds(self):
+        cloud_list = CloudService.get_cloud_classes()
+
+
     def change_session(self, uid=None):
         """
         Change the current session to the one specified by path
