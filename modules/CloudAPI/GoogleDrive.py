@@ -25,15 +25,30 @@ GOOGLE_ENCRYPTOSPHERE_ROOT = "EncryptoSphere"
 
 class GoogleDrive(CloudService):
     
-    def authenticate_cloud(self):
-        """
-        Authenticate with Google Drive using CloudDataManager.
-        Loads the token from JSON by email, or initiates new login if needed.
-        Also creates the root folder if it does not exist.
-        """
+    def build_drive_service(self, creds):
+        # Set up Drive service
+        def build_request(http, *args, **kwargs):
+            new_http = AuthorizedHttp(creds, http=httplib2.Http())
+            return HttpRequest(new_http, *args, **kwargs)
+
+        authorized_http = AuthorizedHttp(creds, http=httplib2.Http())
+        self.drive_service = build('drive', 'v3', requestBuilder=build_request, http=authorized_http)
+
+        self.authenticated = True
+        return True
+    
+    def create_session_folder(self):
+        try:
+            self.root_folder = self.create_folder(GOOGLE_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
+            self.root_folder.name = ""
+            print("Google Drive     : Root folder ready")
+        except Exception as e:
+            print(f"Google Drive     : Failed to create root folder: {e}")
+            return False
+        
+    def authenticate_by_token(self):
         if self.authenticated:
             return True
-
         self.token_manager = CloudDataManager("EncryptoSphereApp", "google")
         creds = None
 
@@ -57,38 +72,41 @@ class GoogleDrive(CloudService):
                 creds.refresh(Request())
                 self._save_google_token_to_json(creds)
             else:
-                # Start new authentication flow
-                flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
-                creds = flow.run_local_server(port=0)
-
-                # Verify email
-                if not self._verify_google_token_for_user(creds):
-                    return False
-
-                self._save_google_token_to_json(creds)
-
-            # Set up Drive service
-            def build_request(http, *args, **kwargs):
-                new_http = AuthorizedHttp(creds, http=httplib2.Http())
-                return HttpRequest(new_http, *args, **kwargs)
-
-            authorized_http = AuthorizedHttp(creds, http=httplib2.Http())
-            self.drive_service = build('drive', 'v3', requestBuilder=build_request, http=authorized_http)
-
-            self.authenticated = True
-            print("Google Drive     : Authentication successful")
-
+                return False
+            self.build_drive_service(creds)
+            self.create_session_folder()
+            return True
         except Exception as e:
             print(f"Google Drive     : Authentication error: {e}")
             return False
+        
 
-        try:
-            self.root_folder = self.create_folder(GOOGLE_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
-            self.root_folder.name = ""
-            print("Google Drive     : Root folder ready")
-        except Exception as e:
-            print(f"Google Drive     : Failed to create root folder: {e}")
+    def authenticate_cloud(self):
+        """
+        Authenticate with Google Drive using CloudDataManager.
+        Loads the token from JSON by email, or initiates new login if needed.
+        Also creates the root folder if it does not exist.
+        """
+        if self.authenticated:
+            return True
+
+        if self.authenticate_by_token():
+            return True
+            
+        # Start new authentication flow
+        flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
+        creds = flow.run_local_server(port=0)
+
+        # Verify email
+        if not self._verify_google_token_for_user(creds):
             return False
+
+        self._save_google_token_to_json(creds)
+
+        self.build_drive_service(creds)
+        print("Google Drive     : Authentication successful")
+
+        self.create_session_folder()
 
         return True
 

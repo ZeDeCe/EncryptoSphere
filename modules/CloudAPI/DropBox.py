@@ -16,6 +16,17 @@ DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 DROPBOX_TOKEN_PATH = "cloud_tokens.json"
 
 class DropBox(CloudService):
+
+    def create_session_folder(self):
+        # Create root folder if not already exist
+        try:
+            self.root_folder = self.create_folder(DROPBOX_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
+            self.root_folder.name = ""
+            print(f"DropBox: Root folder ready")
+        except Exception as e:
+            print(f"Error: Failed to create root folder: {e}")
+            return False
+
     # Function to authenticate the Dropbox account and get access token
     # The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
     # The function creates and save the root folder (if not already exsist)
@@ -36,6 +47,7 @@ class DropBox(CloudService):
                 if current_email == self.email:
                     self.authenticated = True
                     self.user_id = self.dbx.users_get_current_account().account_id
+                    self.create_session_folder()
                     return True
                 else:
                     print("DropBox : Email mismatch with stored Dropbox token.")
@@ -82,14 +94,7 @@ class DropBox(CloudService):
         self.user_id = auth_result.user_id
         self.authenticated = True
 
-        # Create root folder if not already exist
-        try:
-            self.root_folder = self.create_folder(DROPBOX_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
-            self.root_folder.name = ""
-            print(f"DropBox: Root folder ready")
-        except Exception as e:
-            print(f"Error: Failed to create root folder: {e}")
-            return False
+        self.create_session_folder()
         
         return True
     
