@@ -35,7 +35,7 @@ class SharedCloudManager(CloudManager):
         self.root = f"{self.root}{SharedCloudManager.shared_suffix}"
         self.users = []
         self.loaded = False
-        self.uuid = None
+        self.uid = None
         self.is_owner = False
         self.root_folder = root_folder
         if root_folder:
@@ -59,20 +59,13 @@ class SharedCloudManager(CloudManager):
             return False
         key = None
         
-        # Set UID
-        files = self.clouds[0].list_files(self.root_folder.get(self.clouds[0].get_name()), "$UID")
-        self.uid = None
-        for file in files:
-            self.uid = f"{self.root.replace(SharedCloudManager.shared_suffix, '')}${file.get_name()[5:]}"
-            break
-        if self.uid is None:
-            print("Cannot get UID for cloud manager")
-            return False
         
         if self.users:
             # This is a new session to be created
             try:
                 key = self.create_new_session()
+                if not key:
+                    return False
                 self.load_metadata()
                 self.encrypt.set_key(key)
             except:
@@ -80,6 +73,16 @@ class SharedCloudManager(CloudManager):
         else:
             # This session already exists (and might not be ours)
             key = self.load_session()
+            
+            # Set UID
+            files = self.clouds[0].list_files(self.root_folder.get(self.clouds[0].get_name()), "$UID")
+            for file in files:
+                self.uid = f"{self.root.replace(SharedCloudManager.shared_suffix, '')}${file.get_name()[5:]}"
+                break
+            if self.uid is None:
+                print("Cannot get UID for cloud manager")
+                return False
+            
             if not key: # Waiting for TFEK signing
                 return False
             # load_metadata changes encryption and splitting classes
@@ -107,7 +110,7 @@ class SharedCloudManager(CloudManager):
         """
         Create a first time share, generate a shared key and upload FEK
         """
-        self.uuid = uuid4().hex
+        uuid = uuid4().hex
         futures = {}
         for cloud in self.clouds:
             try:
@@ -134,8 +137,8 @@ class SharedCloudManager(CloudManager):
         except Exception as e:
             print(f"Error during authentication, loading of file descriptor: {e}")
             return False
-        
-        self._upload_replicated(f"$UID_{self.uuid}",self.uuid.encode())
+        self.uid = f"{self.root.replace(SharedCloudManager.shared_suffix, '')}${uuid}"
+        self._upload_replicated(f"$UID_{uuid}",uuid.encode())
         key = self.encrypt.generate_key()
         self.executor.submit(self._upload_replicated, "$FEK", self._encrypt(key), True)
         return key
@@ -173,8 +176,11 @@ class SharedCloudManager(CloudManager):
         return False
 
     def sync_fek(self, key : bytes) -> None:
+        """
+        @param key the encrypted key
+        """
         futures = [
-            self.executor.submit(self._upload_replicated, "$FEK", self._encrypt(key), True),
+            self.executor.submit(self._upload_replicated, "$FEK", key, True),
             self.executor.submit(self._delete_replicated, "$TFEK", True),
             self.executor.submit(self._delete_replicated, "$PUBLIC", True),
             self.executor.submit(self._delete_replicated, "$SHARED", True),
@@ -287,11 +293,22 @@ class SharedCloudManager(CloudManager):
         cloud.upload_file(response, f"$SHARED_{username}", self.root_folder.get(cloud.get_name()))
 
     def __share_keys_cloud(self, cloud : CloudService):
-        # TODO: Check if there is already a $SHARED_ file
-        files = cloud.list_files(self.root_folder.get(cloud.get_name()), "$PUBLIC_")
+        files = list(cloud.list_files(self.root_folder.get(cloud.get_name()), "$"))
+        shared = list(map(lambda f: f.get_name()[8:], filter(lambda f: f.get_name().startswith("$SHARED_"), files)))
+        public = filter(lambda f: f.get_name().startswith("$PUBLIC_"), files)
 
-        for file in files:
-            self.executor.submit(self.__share_keys_from_public, file, cloud)
+        for file in public:
+            if file.get_name()[8:] not in shared:
+                self.executor.submit(self.__share_keys_from_public, file, cloud)
+
+        if self.is_owner:
+            feks = list(map(lambda f: f.get_name()[5:], filter(lambda f: f.get_name().startswith("$FEK_"), files)))
+            files = filter(lambda f: f.get_name().startswith("$SHARED_"), files)
+            for file in files:
+                if file.get_name()[8:] in feks:
+                    print(f"Deleting shared file {file.get_name()}")
+                    self._delete_replicated(file.get_name(), False)
+
 
     def share_keys(self):
         """
