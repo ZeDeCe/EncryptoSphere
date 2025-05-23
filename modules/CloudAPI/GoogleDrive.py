@@ -734,3 +734,17 @@ class GoogleDrive(CloudService):
         Return the name of the cloud service
         """
         return "G"  #G for Google Drive
+    
+    @staticmethod
+    def get_name_static():
+        return "G"
+    
+    def get_icon(self) -> str:
+        if self.authenticated:
+            return "resources/GoogleDrive_icon_checked.png"
+        else:
+            return "resources/GoogleDrive_icon.png"
+        
+    @staticmethod
+    def get_icon_static():
+        return "resources/GoogleDrive_icon.png"

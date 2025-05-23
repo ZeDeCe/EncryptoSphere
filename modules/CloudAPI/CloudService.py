@@ -276,6 +276,15 @@ class CloudService(ABC):
         """
         pass
     
+
+    @abstractmethod
+    def get_icon(self) -> str:
+        """
+        Returns the icon of the cloud service
+        @return the icon of the cloud service
+        """
+        pass 
+    
     @staticmethod
     def get_cloud_classes() -> list:
         """

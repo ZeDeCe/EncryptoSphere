@@ -695,7 +695,22 @@ class CloudManager:
             self.fs.pop(item_path)
     
         
-                
+    @staticmethod
+    def is_metadata_exists(cloud : CloudService, root : str) -> bool:
+        """
+        Checks if the metadata file exists in the cloud.
+        @param cloud: The cloud service to check.
+        @param root: The root directory name.
+        @return: True if the metadata file exists, False otherwise.
+        """
+        try:
+            files = cloud.list_files(cloud.get_session_folder(root), "$META")
+            return len(files) > 0
+        except Exception as e:
+            print(f"Error checking metadata existence: {e}")
+            return False
+
+
     def load_metadata(self):
         """
         Downloads the filedescriptor from the clouds and sets it as this object's file descriptor.
