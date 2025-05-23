@@ -153,6 +153,7 @@ class Gateway:
         return status
 
 
+    @promise
     def create_account(self, password: str, clouds: list) -> bool:
         """
         Creates a new account by initializing cloud metadata if it doesn't already exist.
