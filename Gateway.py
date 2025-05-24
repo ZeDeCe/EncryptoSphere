@@ -60,7 +60,6 @@ class Gateway:
     @promise
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
-        email = "hadas.shalev10@cs.colman.ac.il"
         dropbox1 = DropBox(email)
         drive1 = GoogleDrive(email)
         encrypt = AESEncrypt()
