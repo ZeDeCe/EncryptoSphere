@@ -395,7 +395,7 @@ class DropBox(CloudService):
         if not folder.is_shared():
             raise Exception("Error: Folder ID should be a shared ID")
         try:
-            self.dbx.sharing_unshare_folder(id, False) # TODO: delete folder from dropbox
+            self.dbx.sharing_unshare_folder(id, leave_a_copy=False) 
             print(f"Folder '{folder.name}' has been unshared.")
             return True
         except dropbox.exceptions.ApiError as e:
@@ -563,7 +563,7 @@ class DropBox(CloudService):
             # Leave the shared folder
             self.dbx.sharing_remove_folder_member(
                 folder.shared,
-                dropbox.sharing.MemberSelector.dropbox_id(self.user_id),  # Specify the current user
+                dropbox.sharing.MemberSelector.email(self.email),  # Use email instead of Dropbox ID
                 leave_a_copy=False
             )
             print(f"Left shared folder '{folder.name}'.")
