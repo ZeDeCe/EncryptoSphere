@@ -349,7 +349,7 @@ class LocalPasswordPage(FormPage):
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
-        return self.controller.get_api().app_authenticate(lambda f: self.controller.show_frame(MainPage), password)
+        return self.controller.get_api().app_authenticate(lambda f: self.controller.show_frame(MainPage) if f.result() else self.error_login(), password)
 
 
     def error_login(self):
@@ -456,11 +456,14 @@ class LoginCloudsPage(ctk.CTkFrame):
     
     
     def cloud_button_clicked(self, cloud, cloud_button):
-        self.controller.get_api().cloud_authenticate(lambda f, cloud_button=cloud_button, cloud=cloud: 
-                                                     cloud_button.configure(image=ctk.CTkImage(Image.open(f.result().get_icon()), size=(100, 100))) if f.result() else self.__error_login(), cloud.get_name_static())
+        self.controller.get_api().cloud_authenticate(lambda f, cloud=cloud, cloud_button=cloud_button : self.cloud_button_run(f, cloud_button), cloud.get_name_static())
+                                                     
+    
+    def cloud_button_run(self, f, cloud_button):
+        cloud_button.configure(image=ctk.CTkImage(Image.open(f.result().get_icon()), size=(100, 100))) if f.result() else self.__error_login()
         if self.controller.get_api().get_metadata_exists():
             self.submit_button.configure(text="Continue to Login")
-    
+
     def __handle_login(self):
         """
         This function is called when a user hits the submit button after typing the email address.
@@ -529,8 +532,8 @@ class RegistrationPage(ctk.CTkFrame):
         self.message_pass.grid(row=1, column=0, padx=20, sticky="w")
 
         # Email Entry Field
-        self.entry = ctk.CTkEntry(self, placeholder_text="Your Password", width=300)
-        self.entry.grid(row=2, column=0, padx=20, sticky="ew")
+        self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300)
+        self.entry_pass.grid(row=2, column=0, padx=20, sticky="ew")
 
 
         self.message_encription = ctk.CTkLabel(self, text="Select Encryption Algorithem:", font=("Aharoni", 16) , text_color="white")
@@ -588,11 +591,11 @@ class RegistrationPage(ctk.CTkFrame):
         if hasattr(self, 'retry_button'):
             self.retry_button.configure(state="disabled")
 
-        user_input = self.entry.get()
+        password = self.entry_pass.get()
+        encrypt_alg = self.encryption_algorithm.get()
+        split_alg = self.split_algorithm.get()
         self.show_loading()
-        if not self.func(user_input):
-            if self.error_func is not None:
-                self.error_func()
+        self.controller.get_api().create_account(lambda f: self.controller.show_frame(MainPage) if f.result() else print("Failed to log in..."), password, encrypt_alg, split_alg)
 
 
     
@@ -1237,7 +1240,7 @@ class SessionsFolder(Folder):
 
         self.loadingpage.pack(anchor=ctk.N, fill=ctk.BOTH, expand=True, padx=5, pady=3)
         self.loadingpage.start()
-        #self.controller.get_api().add_callback_to_sync_task(lambda: self.remove_loading())
+        self.controller.get_api().add_callback_to_sync_task(lambda: self.remove_loading())
 
     def remove_loading(self):
         """

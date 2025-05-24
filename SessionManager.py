@@ -9,8 +9,7 @@ class SessionManager():
     """
     This class manages shared sessions using the main session and also holds the master key
     """
-    def __init__(self, master_key, main_session):
-        self.key = master_key
+    def __init__(self, main_session):
         self.main_session : CloudManager = main_session
         self.sessions : dict[str, SharedCloudManager] = {}
         self.sessions_lock = Lock()
@@ -24,12 +23,6 @@ class SessionManager():
         Returns True if the sessions are ready to be used, False otherwise
         """
         return self.sessions_ready
-
-    def get_key(self):
-        """
-        Returns the master key from the login that was generated
-        """
-        return self.key
     
     def add_session(self, session: SharedCloudManager, session_name=None):
         """
