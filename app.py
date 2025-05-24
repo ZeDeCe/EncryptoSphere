@@ -1012,8 +1012,12 @@ class SearchResultsSession(Folder):
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
-        for index,_ in enumerate(self.item_lists):
-            self.item_lists[index] = []
+        for itemlist in self.item_lists:
+            for item in itemlist:
+                item.grid_forget()
+        for itemlist in self.item_lists:
+            itemlist.clear()
+
         self.controller.get_api().get_search_results_async(lambda f: self.update_button_lists(f.result()), self.query)
 
     def change_folder(self, path, calling_folder = None):
