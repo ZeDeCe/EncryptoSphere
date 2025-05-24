@@ -171,12 +171,12 @@ class App(ctk.CTk):
         
         self.current_popup.hide_popup()
 
-    def change_folder(self, path):
+    def change_folder(self, path, uid=None):
         """
         Change the folder in the main page to the given path
         @param path: The path to the folder to be changed to
         """
-        self.frames[MainPage].change_folder(path)
+        self.frames[MainPage].change_folder(path, uid)
     
     def change_session(self, uid):
         """
@@ -715,11 +715,11 @@ class MainPage(ctk.CTkFrame):
         )
         self.notification_window.lift()
 
-    def change_folder(self, path):
+    def change_folder(self, path, uid=None):
         """
         Call this function to let the mainpage know that a folder change in the current session has occurred
         """
-        self.current_session.change_folder(path)
+        self.current_session.change_folder(path, uid)
         self.messages_pannel.lift()
         if hasattr(self, 'uploading_labels'):
             for label in self.uploading_labels:
@@ -858,7 +858,7 @@ class Session(ctk.CTkFrame):
         self.curr_path = "/"
 
         
-    def change_folder(self, path, calling_folder=None):
+    def change_folder(self, path, uid=None):
         """
         Change the folder in the main page to the given path
         This should be called from MainPage
@@ -899,9 +899,9 @@ class Folder(ctk.CTkScrollableFrame):
     It contains all the files and folders that are in the current folder, the current folder, and the frame to display
     """
 
-    def __init__(self, parent, controller : App, path):
+    def __init__(self, parent, controller : App, path, session=None):
         ctk.CTkScrollableFrame.__init__(self, parent, corner_radius=0)
-
+        self.session = self.master.master.master if session is None else session
         self.controller = controller
         self.path = path
         self.pack(fill = ctk.BOTH, expand = True)
@@ -927,7 +927,7 @@ class Folder(ctk.CTkScrollableFrame):
             if item.get("type") == "file" and item not in self.file_list:
                 new_item = FileButton(self, width=120, height=120, file_data=item, controller=self.controller)
             if item.get("type") == "folder" and item not in self.folder_list:
-                new_item = FolderButton(self, width=120, height=120, folder_path=item.get("path"), controller=self.controller, session=self.master.master.master)
+                new_item = FolderButton(self, width=120, height=120, folder_path=item.get("path"), controller=self.controller, session_uid=item.get("uid"))
             if item.get("type") == "session" and item not in self.folder_list:
                 new_item = SharedFolderButton(self, width=120, height=120, uid=item.get("uid"), is_owner=item.get("isowner"), controller=self.controller)
             if item.get("type") == "pending" and item not in self.folder_list:
@@ -999,6 +999,7 @@ class SearchResultsSession(Folder):
         path is unused in this class, but we need to pass it to the parent class constructor
         """
         Folder.__init__(self, parent, controller, None)
+        self.session = self
         self.controller = controller
         self.path = None
         self.query = None
@@ -1020,14 +1021,17 @@ class SearchResultsSession(Folder):
 
         self.controller.get_api().get_search_results_async(lambda f: self.update_button_lists(f.result()), self.query)
 
-    def change_folder(self, path, calling_folder = None):
+    def change_folder(self, path, session_uid=None):
         """
         Change the folder in the main page to the given path
         This should be called from MainPage
         @param path: The path to the folder to be changed to
         """
+        assert session_uid is not None
         print(f"Current folder: {path}")
-        self.controller.change_session(calling_folder.session.uid)
+        self.controller.change_session(session_uid)
+        self.controller.change_folder(path)
+        # TODO: clear search bar
 
 @clickable
 class IconButton(ctk.CTkFrame):
@@ -1321,9 +1325,9 @@ class FolderButton(IconButton):
     A folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder
     """
     classid = "folder"
-    def __init__(self, master, width, height, folder_path, controller, session):
+    def __init__(self, master, width, height, folder_path, controller, session_uid):
         self.folder_path = folder_path
-        self.session = session
+        self.session_uid = session_uid
         name_index = folder_path.rfind("/")+1
         if len(folder_path) > name_index:
             self.folder_name = folder_path[name_index:]
@@ -1392,7 +1396,7 @@ class FolderButton(IconButton):
         @param event: The event that triggered this function
         """
         super().on_double_click(event)
-        self.session.change_folder(self.folder_path)
+        self.controller.change_folder(self.folder_path, self.session_uid)
     
     def on_button3_click(self, event=None):
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
