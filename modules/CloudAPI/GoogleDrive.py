@@ -7,7 +7,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload, HttpRequest
-from google.auth.transport.requests import Request
+from google.auth.transport.requests import Request,  AuthorizedSession
 from google.oauth2.credentials import Credentials
 from modules.CloudAPI.CloudService import CloudService
 from google_auth_httplib2 import AuthorizedHttp
@@ -27,9 +27,9 @@ class GoogleDrive(CloudService):
     
     def authenticate_cloud(self):
         """
-        Authenticate with Google Drive using CloudDataManager.
-        Loads the token from JSON by email, or initiates new login if needed.
-        Automatically refreshes token using Google's built-in Credentials logic.
+        Authenticates the user with Google Drive and sets up the drive_service.
+        Automatically refreshes the access token if expired.
+        Thread-safe setup using AuthorizedHttp.
         """
         if self.authenticated:
             return True
@@ -50,7 +50,7 @@ class GoogleDrive(CloudService):
                     scopes=token_data.get('scopes')
                 )
 
-            # Start new authentication flow if creds are invalid
+            # Refresh token if needed
             if not creds or not creds.valid:
                 if creds and creds.expired and creds.refresh_token:
                     creds.refresh(Request())
@@ -59,14 +59,27 @@ class GoogleDrive(CloudService):
                     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
                     creds = flow.run_local_server(port=0)
 
-                # Verify email
                 if not self._verify_google_token_for_user(creds):
                     return False
 
                 self._save_google_token_to_json(creds)
 
-            # Build the Drive service using Google's automatic request/refresh handling
-            self.drive_service = build('drive', 'v3', credentials=creds)
+            self.creds = creds
+
+            # Thread-safe AuthorizedHttp setup
+            def build_request(http, *args, **kwargs):
+                thread_http = httplib2.Http()
+                authed = AuthorizedHttp(creds, http=thread_http)
+                return HttpRequest(authed, *args, **kwargs)
+
+            authed_http = AuthorizedHttp(creds, http=httplib2.Http())
+
+            self.drive_service = build(
+                'drive',
+                'v3',
+                requestBuilder=build_request,
+                http=authed_http
+            )
 
             self.authenticated = True
             print("Google Drive     : Authentication successful")
@@ -75,6 +88,7 @@ class GoogleDrive(CloudService):
             print(f"Google Drive     : Authentication error: {e}")
             return False
 
+        # Attempt to create root folder
         try:
             self.root_folder = self.create_folder(GOOGLE_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
             self.root_folder.name = ""
