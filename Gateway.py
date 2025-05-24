@@ -112,7 +112,7 @@ class Gateway:
         results = self.current_session.search_items_by_name(search_string)
         data = [item.get_data() for item in results]
         for d in data:
-            d["uid"] = "0" if self.current_session == self.manager else self.current_session.get_uid() # Right now manually adding uid 0 (main session UID) to all files since they all come from the 
+            d["uid"] = "0" if self.current_session == self.manager else self.current_session.get_uid()
         return data
     
     @promise
