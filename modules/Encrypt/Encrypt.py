@@ -48,3 +48,10 @@ class Encrypt(ABC):
     @abstractmethod
     def get_name() -> str:
         pass
+
+    @staticmethod
+    def get_classes() -> str:
+        """
+        Returns a list of all the encryption classes
+        """
+        return Encrypt.__subclasses__()

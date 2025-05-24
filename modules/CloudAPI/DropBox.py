@@ -508,6 +508,10 @@ class DropBox(CloudService):
     def get_name(self):
         return "D"
     
+    @staticmethod
+    def get_name_static():
+        return "D"
+    
     def delete_folder(self, folder: CloudService.Folder):
         """
         Delete a folder from Dropbox.
@@ -562,6 +566,17 @@ class DropBox(CloudService):
         except Exception as e:
             print(f"Error in get_items_by_name: {e}")
             raise
+    
+    def get_icon(self) -> str:
+        if self.authenticated:
+            return "resources/DropBox_icon_checked.png"
+        else:
+            return "resources/DropBox_icon.png"
+        
+    @staticmethod
+    def get_icon_static():
+        return "resources/DropBox_icon.png"
+    
 
 
 # Unit Test, make sure to enter email!

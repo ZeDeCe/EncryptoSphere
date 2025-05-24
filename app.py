@@ -10,6 +10,7 @@ import tkinter.messagebox as messagebox
 import queue
 
 
+
 def clickable(cls):
     original_init = cls.__init__ if hasattr(cls, '__init__') else lambda f: None
     #original_del = cls.__del__ if hasattr(cls, '__del__') else lambda f: None
@@ -109,13 +110,13 @@ class App(ctk.CTk):
         self.current_popup : Popup = None
         
         # Creating the frames
-        for F in (LoginPage, MainPage):
+        for F in (EmailPage, LoginCloudsPage, LocalPasswordPage, RegistrationPage, MainPage):
             frame = F(container, self)
             self.frames[F] = frame  
             frame.grid(row=0, column=0, sticky="nsew")
         
         # Show the start page (as of this POC, login to the clouds)
-        self.show_frame(LoginPage)
+        self.show_frame(EmailPage)
         
 
     def show_frame(self, cont):
@@ -244,38 +245,36 @@ class LoadingPage(ctk.CTkFrame):
         """
         self.p.start()
         
-
-
 @clickable
-class LoginPage(ctk.CTkFrame):
+class FormPage(ctk.CTkFrame):
     """
-    This class creates the Login page frame -  Where user enters email and authenticates to the different clouds.
+    This class creates the Form page frame -  Where user enters email and authenticates to the different clouds.
     This class inherits ctk.CTkFrame class.
     """
-    def __init__(self, parent, controller):
+    def __init__(self, parent, controller, title, message, input_placeholder_text, button_text, func, error_func ,error_message):
         ctk.CTkFrame.__init__(self, parent)
-        
         self.controller = controller
-        
+        self.func = func
+        self.error_message = error_message
+        self.error_func = error_func
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
-        
-        
+
         # Title Label
-        label = ctk.CTkLabel(self, text="Welcome to EncryptoSphere ☁︎⋅", 
-                             font=("Verdana", 28, "bold"), text_color="white")
-        label.grid(row=0, column=0, pady=(60, 20), padx=20, sticky="n")
+        label = ctk.CTkLabel(self, text=title, 
+                             font=("Aharoni", 28, "bold"), text_color="white")
+        label.grid(row=0, column=0, pady=(40, 8), padx=20, columnspan=5, sticky="n")
 
         # Email Label
-        self.message = ctk.CTkLabel(self, text="Enter your Email Address:", font=("Arial", 14), text_color="white")
+        self.message = ctk.CTkLabel(self, text=message, font=("Aharoni", 20) , text_color="white")
         self.message.grid(row=1, column=0, padx=20, sticky="w")
 
         # Email Entry Field
-        self.entry = ctk.CTkEntry(self, placeholder_text="example@gmail.com", width=300)
+        self.entry = ctk.CTkEntry(self, placeholder_text=input_placeholder_text, width=300)
         self.entry.grid(row=2, column=0, padx=20, sticky="ew")
 
         # Submit Button
-        self.submit_button = ctk.CTkButton(self, text="Submit", command=self.__handle_login, width=200, fg_color="#3A7EBF")
+        self.submit_button = ctk.CTkButton(self, text=button_text, command=self.submit, width=200, fg_color="#3A7EBF")
         self.submit_button.grid(row=3, column=0, padx=20, pady=(20, 60), sticky="n")
 
         self.loadingpage = LoadingPage(self, controller)
@@ -298,7 +297,7 @@ class LoginPage(ctk.CTkFrame):
         """
         pass
     
-    def __handle_login(self):
+    def submit(self):
         """
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
@@ -311,13 +310,51 @@ class LoginPage(ctk.CTkFrame):
         if hasattr(self, 'retry_button'):
             self.retry_button.configure(state="disabled")
 
-        email = self.entry.get()
+        user_input = self.entry.get()
         self.show_loading()
-        self.controller.get_api().authenticate(lambda f: self.controller.show_frame(MainPage) if f.result() else self.__error_login(), email)
+        if not self.func(user_input):
+            if self.error_func is not None:
+                self.error_func()
 
-    def __error_login(self):
+
+
+@clickable
+class EmailPage(FormPage):
+    """
+    This class creates the Login page frame -  Where user enters email and authenticates to the different clouds.
+    This class inherits ctk.CTkFrame class.
+    """
+    def __init__(self, parent, controller):
+        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere ☁︎", "Please enter your email address ", "Email Address", "Login", self.handle_login, None,"Error While connecting to the Clouds")
+
+    def handle_login(self, email):
+        """
+        This function is called when a user hits the submit button after typing the email address.
+        The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
+        """
+        self.controller.get_api().set_email(email)
+        return self.controller.get_api().clouds_authenticate_by_token(lambda f: self.controller.show_frame(LoginCloudsPage))
+
+@clickable
+class LocalPasswordPage(FormPage):
+    """
+    This class creates the Login page frame -  Where user enters email and authenticates to the different clouds.
+    This class inherits ctk.CTkFrame class.
+    """
+    def __init__(self, parent, controller):
+        FormPage.__init__(self, parent, controller, "", "Please enter your Encryptosphere Password ", "Your Password", "Login", self.validate_password, self.error_login,"Wrong password, Please try again")
+
+    def validate_password(self, password):
+        """
+        This function is called when a user hits the submit button after typing the email address.
+        The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
+        """
+        return self.controller.get_api().app_authenticate(lambda f: self.controller.show_frame(MainPage) if f.result() else self.error_login(), password)
+
+
+    def error_login(self):
         self.remove_loading()
-        self.__show_error("Error While connecting to the Cloud", self.controller.show_frame(LoginPage))
+        self.__show_error(self.error_message, self.controller.show_frame(LocalPasswordPage))
     
     def __show_error(self, error_message, func):
         """
@@ -332,9 +369,236 @@ class LoginPage(ctk.CTkFrame):
         self.error_label = ctk.CTkLabel(self, text=error_message, font=("Arial", 12), text_color="red")
         self.error_label.grid(row=4, column=0, pady=20, sticky="n")
 
-        self.retry_button = ctk.CTkButton(self, text="Retry", command=self.__handle_login, width=200, fg_color="#3A7EBF")
+        self.retry_button = ctk.CTkButton(self, text="Retry", command=self.submit, width=200, fg_color="#3A7EBF")
+        self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
+@clickable
+class LoginCloudsPage(ctk.CTkFrame):
+    """
+    This class creates the Login page frame -  Where user enters email and authenticates to the different clouds.
+    This class inherits ctk.CTkFrame class.
+    """
+    def __init__(self, parent, controller):
+        ctk.CTkFrame.__init__(self, parent)
+        
+        self.controller = controller
+        self.cloud_list = self.controller.get_api().get_clouds()
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
+
+        # Title Label
+        self.message = ctk.CTkLabel(self, text="Choose Your Clouds", font=("Aharoni", 20), text_color="white")
+        self.message.grid(row=0, column=0, pady=(40, 8), padx=20, columnspan=5, sticky="n")
+
+        # Clouds container
+        self.clouds_container = ctk.CTkFrame(self, corner_radius=0)
+        self.clouds_container.grid(row=2, column=0, columnspan=5, padx=20, pady=(0, 20), sticky="nsew")
+                
+        # Submit Button
+        self.submit_button = ctk.CTkButton(self, text="Create New Account", command=self.__handle_login, width=200, fg_color="#3A7EBF")
+        self.submit_button.grid(row=4, column=0, padx=20, pady=(20, 60), sticky="n")
+
+        self.loadingpage = LoadingPage(self, controller)
+
+        self.notice_message()
+    
+    def show_loading(self):
+        self.loadingpage.grid(row=4, column=0, sticky="n")
+        
+        self.loadingpage.start()
+        self.loadingpage.lift()
+        self.update_idletasks()
+
+    def remove_loading(self):
+        self.loadingpage.stop()
+        self.loadingpage.grid_forget()
+
+    def notice_message(self):
+        # Remove existing notice label if present
+        if hasattr(self, 'notice_label'):
+            self.notice_label.grid_forget()
+            self.notice_label.destroy()
+            del self.notice_label
+
+        # Add notice label if the button text is "Create New Account"
+        if self.submit_button.cget("text").lower() == "create new account":
+            authenticated_clouds = self.controller.get_api().get_authenticated_clouds()
+            cloud_names = ", ".join([cloud.get_name_static() if hasattr(cloud, "get_name_static") else str(cloud) for cloud in authenticated_clouds])
+            notice_text = (
+                "Notice: Your account will be created using the clouds you select here. "
+                "Please select all the clouds you want the app will use now. This cannot be changed later. "
+                f"The clouds selected are: {cloud_names if cloud_names else 'None'}.\n"
+                "If you already have an account, please login to at least one cloud and you'll be moved to the authentication page."
+            )
+            self.notice_label = ctk.CTkLabel(self, text=notice_text, font=("Arial", 12), text_color="white", wraplength=400, justify="center")
+            self.notice_label.grid(row=5, column=0, padx=20, pady=(0, 10), sticky="n")
+
+    def refresh(self):
+        """
+        Login page refresh - as of now we dont need this functionality
+        """
+        self.authenticated_clouds = self.controller.get_api().get_authenticated_clouds()
+        for i, cloud in enumerate(self.cloud_list):
+            icon_path = cloud.get_icon_static()
+            is_auth = False
+            for cloud_object in self.authenticated_clouds:
+                if isinstance(cloud_object, cloud):
+                    icon_path = cloud_object.get_icon()
+                    is_auth = True
+                    break
+            cloud_button = ctk.CTkLabel(self.clouds_container, image=ctk.CTkImage(Image.open(icon_path), size=(100, 100)), text="")
+            cloud_button.grid(row=2, column=i, padx=20, sticky="w")
+            if not is_auth:
+                cloud_button.bind("<Button-1>", lambda f, cloud_button=cloud_button, cloud=cloud: self.cloud_button_clicked(cloud, cloud_button))
+        if self.controller.get_api().get_metadata_exists():
+            self.submit_button.configure(text="Continue to Login")
+        self.notice_message()
+    
+    
+    def cloud_button_clicked(self, cloud, cloud_button):
+        self.controller.get_api().cloud_authenticate(lambda f, cloud=cloud, cloud_button=cloud_button : self.cloud_button_run(f, cloud_button), cloud.get_name_static())
+                                                     
+    
+    def cloud_button_run(self, f, cloud_button):
+        cloud_button.configure(image=ctk.CTkImage(Image.open(f.result().get_icon()), size=(100, 100))) if f.result() else self.__error_login()
+        if self.controller.get_api().get_metadata_exists():
+            self.submit_button.configure(text="Continue to Login")
+
+    def __handle_login(self):
+        """
+        This function is called when a user hits the submit button after typing the email address.
+        The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
+        """
+        self.submit_button.configure(state="disabled")
+        
+        # Remove error lable and block the button
+        if hasattr(self, 'error_label'):
+            self.error_label.grid_forget()
+        if hasattr(self, 'retry_button'):
+            self.retry_button.configure(state="disabled")
+        if self.controller.get_api().get_authenticated_clouds():
+            if self.controller.get_api().get_metadata_exists():
+                self.controller.show_frame(LocalPasswordPage)
+            else:
+                self.controller.show_frame(RegistrationPage)
+        else:
+            self.__error_login()
+
+
+    def __error_login(self):
+        self.remove_loading()
+        self.__show_error("You must login to at least one cloud to continue", self.controller.show_frame(LoginCloudsPage))
+    
+    def __show_error(self, error_message, func):
+        """
+        If authentication to the clouds fails, display the error and add retry button.
+        Remove the submit button and the GIF.
+        """
+        # Remove the submit button and GIF
+        if hasattr(self, 'submit_button'):
+            self.submit_button.grid_forget()
+
+        # Display the error message
+        self.error_label = ctk.CTkLabel(self, text=error_message, font=("Arial", 12), text_color="red")
+        self.error_label.grid(row=4, column=0, pady=20, sticky="n")
+
+        self.retry_button = ctk.CTkButton(self, text="Continue", command=self.__handle_login, width=200, fg_color="#3A7EBF")
         self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
 
+
+@clickable
+class RegistrationPage(ctk.CTkFrame):
+    """
+    This class creates the Registration page frame.
+    """
+    """
+    This class creates the Form page frame -  Where user enters email and authenticates to the different clouds.
+    This class inherits ctk.CTkFrame class.
+    """
+    def __init__(self, parent, controller):
+        ctk.CTkFrame.__init__(self, parent)
+        self.controller = controller
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
+
+        # Title Label
+        label = ctk.CTkLabel(self, text="Create Your Account", 
+                             font=("Aharoni", 28, "bold"), text_color="white")
+        label.grid(row=0, column=0, pady=(40, 8), padx=20, columnspan=5, sticky="n")
+
+        # Email Label
+        self.message_pass = ctk.CTkLabel(self, text="Enter Your Password:", font=("Aharoni", 16) , text_color="white")
+        self.message_pass.grid(row=1, column=0, padx=20, sticky="w")
+
+        # Email Entry Field
+        self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300)
+        self.entry_pass.grid(row=2, column=0, padx=20, sticky="ew")
+
+
+        self.message_encription = ctk.CTkLabel(self, text="Select Encryption Algorithem:", font=("Aharoni", 16) , text_color="white")
+        self.message_encription.grid(row=3, column=0, padx=20, sticky="w")
+
+        # Encryption Algorithem option menu
+        encryption, split =self.controller.get_api().get_algorithms()
+        
+        self.encryption_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in encryption], command=lambda x: None)
+        self.encryption_algorithm.grid(row=4, column=0, padx=20, sticky="ew")
+
+        
+        self.message_split = ctk.CTkLabel(self, text="Select Split Algorithem:", font=("Aharoni", 16) , text_color="white")
+        self.message_split.grid(row=5, column=0, padx=20, sticky="w")
+
+        # Split Algorithem option menu
+        self.split_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in split], command=lambda x: None)
+        self.split_algorithm.grid(row=6, column=0, padx=20, sticky="ew")
+
+      
+        # Submit Button
+        self.submit_button = ctk.CTkButton(self, text="Create New Account", command=self.submit, width=200, fg_color="#3A7EBF")
+        self.submit_button.grid(row=7, column=0, padx=20, pady=(20, 60), sticky="n")
+
+        self.loadingpage = LoadingPage(self, controller)
+    
+    def show_loading(self):
+        self.loadingpage.grid(row=4, column=0, sticky="n")
+        
+        self.loadingpage.start()
+        self.loadingpage.lift()
+        self.update_idletasks()
+
+    def remove_loading(self):
+        self.loadingpage.stop()
+        self.loadingpage.grid_forget()
+        
+
+    def refresh(self):
+        """
+        Login page refresh - as of now we dont need this functionality
+        """
+        pass
+    
+    def submit(self):
+        """
+        This function is called when a user hits the submit button after typing the email address.
+        The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
+        """
+        self.submit_button.configure(state="disabled")
+        
+        # Remove error lable and block the button
+        if hasattr(self, 'error_label'):
+            self.error_label.grid_forget()
+        if hasattr(self, 'retry_button'):
+            self.retry_button.configure(state="disabled")
+
+        password = self.entry_pass.get()
+        encrypt_alg = self.encryption_algorithm.get()
+        split_alg = self.split_algorithm.get()
+        self.show_loading()
+        self.controller.get_api().create_account(lambda f: self.controller.show_frame(MainPage) if f.result() else print("Failed to log in..."), password, encrypt_alg, split_alg)
+
+
+    
 @clickable
 class MainPage(ctk.CTkFrame):
     """
@@ -352,7 +616,7 @@ class MainPage(ctk.CTkFrame):
         self.side_bar.pack(side=ctk.LEFT, fill="y", expand=False)
 
         # Add the EncryptoSphere label to the side bar
-        self.encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
+        self.encryptosphere_label = ctk.CTkLabel(self.side_bar, text="", font=("Verdana", 15))
         self.encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         # Create the upload button and shared files button

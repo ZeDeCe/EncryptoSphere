@@ -695,7 +695,35 @@ class CloudManager:
             self.fs.pop(item_path)
     
         
-                
+    @staticmethod
+    def is_metadata_exists(cloud : CloudService, root : str) -> bool:
+        """
+        Checks if the metadata file exists in the cloud.
+        @param cloud: The cloud service to check.
+        @param root: The root directory name.
+        @return: True if the metadata file exists, False otherwise.
+        """
+        try:
+            files = cloud.list_files(cloud.get_session_folder(root), "$META")
+            return len(list(files)) > 0
+        except Exception as e:
+            print(f"Error checking metadata existence: {e}")
+            return False
+
+    @staticmethod
+    def download_metadata(cloud : CloudService, root : str):
+        if not cloud.is_authenticated():
+            raise Exception("Cloud is not authenticated")
+        files = cloud.list_files(cloud.get_session_folder(root), "$META")
+        metadata = None
+        for file in files:
+            metadata = file
+            break
+        if metadata is None:
+            raise Exception("Failed to find metadata- run is_metadata_exists to check if metadata exists")
+        return cloud.download_file(metadata)
+    
+
     def load_metadata(self):
         """
         Downloads the filedescriptor from the clouds and sets it as this object's file descriptor.
@@ -727,9 +755,6 @@ class CloudManager:
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
-            salt_hex = self.metadata.get("salt")
-            if salt_hex:
-                self.salt = bytes.fromhex(salt_hex)
 
 
 
