@@ -715,4 +715,32 @@ class CloudManager:
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
-
+    def search_items_by_name(self, filter: str):
+        """
+        Search for files and folders by name across all clouds.
+        @param filter: The filter string to search for.
+        @return: An iterator of CloudFile and Directory objects.
+        """
+        results = []
+        for cloud in self.clouds:
+            try:
+                # Get items matching the filter from the cloud
+                items = cloud.get_items_by_name(filter, [self.fs["/"].get(cloud.get_name())])
+                for item in items:
+                    if isinstance(item, CloudService.File):
+                        # Check if the file is already in self.fs
+                        file_path = f"{item.name}"
+                        if file_path not in self.fs:
+                            # Create a new CloudFile object
+                            self.fs[file_path] = CloudFile({cloud: [item]}, file_path)
+                        results.append(self.fs[file_path])
+                    elif isinstance(item, CloudService.Folder):
+                        # Check if the folder is already in self.fs
+                        folder_path = f"{item.name}"
+                        if folder_path not in self.fs:
+                            # Create a new Directory object
+                            self.fs[folder_path] = Directory({cloud: item}, folder_path)
+                        results.append(self.fs[folder_path])
+            except Exception as e:
+                print(f"Error searching items in cloud '{cloud.get_name()}': {e}")
+        return iter(results)

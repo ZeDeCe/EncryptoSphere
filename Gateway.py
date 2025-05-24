@@ -60,6 +60,7 @@ class Gateway:
     @promise
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
+        email = "hadas.shalev10@cs.colman.ac.il"
         dropbox1 = DropBox(email)
         drive1 = GoogleDrive(email)
         encrypt = AESEncrypt()
@@ -104,12 +105,13 @@ class Gateway:
     @promise
     def get_search_results_async(self, search_string):
         """
-        @param path: the path to the folder
-        @return: Yielded iterable (generator) for every file in the current session in the folder given
+        Search for items matching the given string asynchronously.
+        @param search_string: The filter string to search for.
+        @return: A generator yielding the data for each matching item.
         """
-        #return self.current_session.get_search_results(search_string)
-        print(f"Searching for {search_string}")
-        return iter([])
+        print(f"Searching for items matching: {search_string}")
+        results = self.current_session.search_items_by_name(search_string)
+        return (item.get_data() for item in results)
     
     @promise
     def sync_session(self):
@@ -410,7 +412,7 @@ class Gateway:
         if hasattr(self, 'stop_event'):
             self.stop_event.set()  # Signal the task to stop
             print("sync_new_sessions task stopped.")
-            
+
 def main():
     """
     Encryptosphere main program
