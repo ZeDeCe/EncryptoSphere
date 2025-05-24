@@ -705,7 +705,7 @@ class CloudManager:
         """
         try:
             files = cloud.list_files(cloud.get_session_folder(root), "$META")
-            return len(files) > 0
+            return len(list(files)) > 0
         except Exception as e:
             print(f"Error checking metadata existence: {e}")
             return False

@@ -89,6 +89,7 @@ class Gateway:
                 cloud = cloud_class(self.email)
                 if not cloud.authenticate_cloud():
                     raise Exception(f"Authentication failed for {cloud.get_name()}")
+                self.autenticated_clouds.append(cloud)
                 if not self.metadata_exists:
                     self.metadata_exists = self.is_metadata_exists(cloud)    
                 return cloud
