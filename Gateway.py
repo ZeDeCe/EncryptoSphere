@@ -102,14 +102,14 @@ class Gateway:
         return self.current_session.get_items_in_folder(path)
     
     @promise
-    def get_search_results_async(self, search_string):
+    def get_search_results_async(self, search_string, path):
         """
         Search for items matching the given string asynchronously.
         @param search_string: The filter string to search for.
         @return: A generator yielding the data for each matching item.
         """
         print(f"Searching for items matching: {search_string}")
-        results = self.current_session.search_items_by_name(search_string)
+        results = self.current_session.search_items_by_name(search_string, path)
         data = [item.get_data() for item in results]
         for d in data:
             d["uid"] = "0" if self.current_session == self.manager else self.current_session.get_uid()

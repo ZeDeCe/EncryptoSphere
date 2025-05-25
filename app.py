@@ -1004,12 +1004,14 @@ class SearchResultsSession(Folder):
         self.path = None
         self.query = None
 
-    def set_query(self, query):
+    def set_query(self, query, path):
         """
         Set the query for the search results folder
         @param query: The query to be set
+        @param path the folder path to search in recursively
         """
         self.query = query
+        self.path = path
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
@@ -1019,7 +1021,7 @@ class SearchResultsSession(Folder):
         for itemlist in self.item_lists:
             itemlist.clear()
 
-        self.controller.get_api().get_search_results_async(lambda f: self.update_button_lists(f.result()), self.query)
+        self.controller.get_api().get_search_results_async(lambda f: self.update_button_lists(f.result()), self.query, self.path)
 
     def change_folder(self, path, session_uid=None):
         """
