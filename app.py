@@ -471,7 +471,7 @@ class MainPage(ctk.CTkFrame):
             """
             query = self.search_entry.get()
             print(f"Searching for: {query}")
-            self.search_results_session.set_query(query)
+            self.search_results_session.set_query(query, self.current_session.curr_path)
             self.display_page(self.search_results_session)
 
     def reset_search_placeholder(self):
