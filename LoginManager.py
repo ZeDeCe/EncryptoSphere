@@ -3,6 +3,7 @@ from argon2 import PasswordHasher
 from argon2.low_level import hash_secret_raw, Type
 from modules import Encrypt
 import hashlib
+import json
 
 class LoginManager:
     """
@@ -80,34 +81,58 @@ class LoginManager:
             raise ValueError(f"Authentication failed: {e}")
 
 
+    def load_login_metadata(self, password: str, encryption_type: str):
+            """
+            Loads the $LOGIN_META metadata file from the cloud.
+            If it doesn't exist, creates it using the given password and encryption_type.
+            """
+            if self.cloud is None or self.root is None:
+                raise Exception("cloud and root must be set before calling load_login_metadata")
 
-    def add_auth_to_metadata(self, key: bytes, metadata: dict, encryptor_name: str, salt: bytes) -> dict:
-        """
-        Adds authentication data and salt to metadata for password-based authentication.
+            LOGIN_META_FILENAME = "$LOGIN_META"
 
-        :param key: The encryption key derived from the user's password
-        :param metadata: The metadata dictionary to update
-        :param encryptor_name: The name of the encryption algorithm (e.g. 'AES')
-        :param salt: The salt used in key derivation (should be saved!)
-        :return: Updated metadata dictionary
-        """
-        encryptor_class = Encrypt.get_class(encryptor_name)
-        if encryptor_class is None:
-            raise ValueError(f"Unsupported encryption type: {encryptor_name}")
+            try:
+                files = self.cloud.list_files(self.cloud.get_session_folder(self.root), LOGIN_META_FILENAME)
+                metadata_file = next(iter(files), None)
 
-        encryptor = encryptor_class()
-        encryptor.set_key(encryptor.generate_key_from_key(key))
+                if metadata_file is None:
+                    salt = os.urandom(16)
+                    encryptor_class = Encrypt.get_class(encryption_type)
+                    if encryptor_class is None:
+                        raise ValueError(f"Unsupported encryption type: {encryption_type}")
+                    encryptor = encryptor_class()
 
-        # Create authentication marker
-        auth_plaintext = os.urandom(16)  # random 16-byte marker
-        encrypted = encryptor.encrypt(auth_plaintext)
+                    key = self.create_key_from_password(password, salt)
+                    encryptor.set_key(encryptor.generate_key_from_key(key))
 
-        metadata["auth_encrypted"] = encrypted.hex()
-        metadata["auth_hash"] = hashlib.sha256(auth_plaintext).hexdigest()
-        metadata["encrypt"] = encryptor_name
-        metadata["salt"] = salt.hex()
-        return metadata
+                    auth_plaintext = os.urandom(16)
+                    encrypted_auth = encryptor.encrypt(auth_plaintext)
+                    auth_hash = hashlib.sha256(auth_plaintext).hexdigest()
 
+                    self.encryption_type = encryption_type
+                    self.salt = salt
+                    self.encrypted_auth = encrypted_auth
+                    self.auth_hash = auth_hash
+                    self.login_metadata = {
+                        "encrypt": encryption_type,
+                        "salt": salt.hex(),
+                        "auth_encrypted": encrypted_auth.hex(),
+                        "auth_hash": auth_hash
+                    }
+
+                else:
+                    metadata_content = self.cloud.download_file(metadata_file)
+                    metadata = json.loads(metadata_content)
+
+                    self.login_metadata = metadata
+                    self.encryption_type = metadata.get("encrypt")
+                    self.salt = bytes.fromhex(metadata.get("salt"))
+                    self.encrypted_auth = bytes.fromhex(metadata.get("auth_encrypted"))
+                    self.auth_hash = metadata.get("auth_hash")
+
+            except Exception as e:
+                raise Exception(f"Failed to load login metadata: {e}")
+    
 
 
 """""
