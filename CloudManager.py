@@ -712,7 +712,7 @@ class CloudManager:
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
-    def search_items_by_name(self, filter: str):
+    def search_items_by_name(self, filter: str, path : str):
         """
         Search for files and folders by name across all clouds.
         @param filter: The filter string to search for.
