@@ -216,7 +216,7 @@ class GoogleDrive(CloudService):
 
                     items = results.get('files', [])
                     for item in items:
-                        if filter in item['name']:
+                        if filter.lower() in item['name'].lower():
                             is_folder = item['mimeType'] == 'application/vnd.google-apps.folder'
                             if is_folder:
                                 # Yield the folder and recursively search its children
@@ -233,7 +233,6 @@ class GoogleDrive(CloudService):
         except Exception as e:
             print(f"Google Drive - Error in get_items_by_name: {e}")
             raise
-
 
     def upload_file(self, data: bytes, file_name: str, parent: CloudService.Folder):
         """
