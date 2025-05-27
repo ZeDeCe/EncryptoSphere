@@ -788,9 +788,7 @@ class CloudManager:
         if isinstance(item, CloudFile) or isinstance(item, Directory):
             # Check if the item's uid exists in the filesystem (fs)
             if item.data.get("id") in self.fs:
-                # Retrieve the corresponding object from fs using the uid
                 enriched_item = self.fs[item.data["id"]]
-                # Update the item's metadata
                 item.path = enriched_item.path
                 item.data.update(enriched_item.data)
                 return item

@@ -113,8 +113,9 @@ class Gateway:
         print(f"Searching for items matching: {search_string}")
         results = self.current_session.search_items_by_name(search_string, path)
         data = [item.get_data() for item in results]
-        for d in data:
+        for index, d in enumerate(data):  # Add search_index to each item
             d["uid"] = "0" if self.current_session == self.manager else self.current_session.get_uid()
+            d["search_index"] = index  # Add search_index to uniquely identify the item
         self.search_results = data  # Store the search results for later retrieval
         return data
     
