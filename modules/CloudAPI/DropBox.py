@@ -163,9 +163,6 @@ class DropBox(CloudService):
             print(f"Dropbox: API error: {e}")
             raise Exception(f"Error {e}")
 
-    def get_items_by_name(self, filter, folders):
-        pass
-
     def upload_file(self, data, file_name: str, parent : CloudService.Folder):
         """
         Upload file by path to Dropbox

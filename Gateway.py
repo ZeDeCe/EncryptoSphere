@@ -289,17 +289,17 @@ class Gateway:
     """
     
     @promise
-    def leave_shared_folder(self, shared_session_name):
+    def leave_shared_folder(self, shared_session_uid):
         """
         Leave a shared folder for the given session name.
         Delegates the logic to SessionManager.
         """
         try:
-            self.session_manager.end_session(shared_session_name)
-            print(f"Successfully left shared folder for session '{shared_session_name}'.")
+            self.session_manager.end_session(shared_session_uid)
+            print(f"Successfully left shared folder for session '{shared_session_uid}'.")
             return True
         except Exception as e:
-            print(f"Error leaving shared folder for session '{shared_session_name}': {e}")
+            print(f"Error leaving shared folder for session '{shared_session_uid}': {e}")
             return False
 
     @promise

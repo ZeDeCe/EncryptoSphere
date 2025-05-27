@@ -691,9 +691,6 @@ class CloudManager:
         for item_path in to_remove:
             self.fs.pop(item_path)
 
-        
-        
-                
     def load_metadata(self):
         """
         Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor
@@ -721,26 +718,53 @@ class CloudManager:
         @param filter: The filter string to search for.
         @return: An iterator of CloudFile and Directory objects.
         """
-        results = []
+        files = {}
+        folders = {}
+
         for cloud in self.clouds:
             try:
                 # Get items matching the filter from the cloud
                 items = cloud.get_items_by_name(filter, [self.fs["/"].get(cloud.get_name())])
-                for item in items:
+                for item, parent_folder in items:
+                    print(f"Found item '{item.name}' in cloud '{cloud.get_name()}' under parent folder '{parent_folder.name}'")
+                    # Skip files that start with "$"
+                    if item.name.startswith("$"):
+                        continue
+
                     if isinstance(item, CloudService.File):
-                        # Check if the file is already in self.fs
-                        file_path = f"{item.name}"
-                        if file_path not in self.fs:
-                            # Create a new CloudFile object
-                            self.fs[file_path] = CloudFile({cloud: [item]}, file_path)
-                        results.append(self.fs[file_path])
+                        # Process files
+                        split = item.name.split(FILE_INDEX_SEPERATOR)
+                        # Include the parent folder's path in the actual_path
+                        actual_path = f"{getattr(parent_folder, 'id', '/')}/{split[-1]}"
+                        if not files.get(actual_path):
+                            files[actual_path] = {}
+                        if not files[actual_path].get(cloud):
+                            files[actual_path][cloud] = [None] * self.split.copies_per_cloud
+                        index = split[0] if len(split) == 2 else 1
+                        try:
+                            index = int(index) - 1
+                        except ValueError:
+                            raise Exception("File has a special character in the name")
+                        files[actual_path][cloud][index] = item
+
                     elif isinstance(item, CloudService.Folder):
-                        # Check if the folder is already in self.fs
-                        folder_path = f"{item.name}"
-                        if folder_path not in self.fs:
-                            # Create a new Directory object
-                            self.fs[folder_path] = Directory({cloud: item}, folder_path)
-                        results.append(self.fs[folder_path])
+                        # Process folders
+                        actual_path = f"{getattr(parent_folder, 'path', '/')}/{item.name}"
+                        cloud_name = cloud.get_name()
+                        if not folders.get(actual_path):
+                            folders[actual_path] = {}
+                        folders[actual_path][cloud_name] = item
+
             except Exception as e:
                 print(f"Error searching items in cloud '{cloud.get_name()}': {e}")
-        return iter(results)
+                continue
+
+        # Yield directories
+        for folder_path, folder_data in folders.items():
+            dir_obj = Directory(folder_data, folder_path)
+            yield dir_obj
+
+        # Yield files
+        for file_path, file_parts in files.items():
+            file_obj = CloudFile(file_parts, file_path)
+            yield file_obj
