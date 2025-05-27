@@ -712,21 +712,32 @@ class CloudManager:
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
-    def search_items_by_name(self, filter: str, path : str):
+    def search_items_by_name(self, filter: str, path: str):
         """
         Search for files and folders by name across all clouds.
         @param filter: The filter string to search for.
+        @param path: The folder path to start the search from.
         @return: An iterator of CloudFile and Directory objects.
         """
         files = {}
         folders = {}
 
+        # Get the starting folder object
+        start_folder = self.fs.get(path)
+        if not start_folder:
+            raise FileNotFoundError(f"Start folder '{path}' does not exist!")
+
         for cloud in self.clouds:
             try:
                 # Get items matching the filter from the cloud
-                items = cloud.get_items_by_name(filter, [self.fs["/"].get(cloud.get_name())])
-                for item, parent_folder in items:
-                    print(f"Found item '{item.name}' in cloud '{cloud.get_name()}' under parent folder '{parent_folder.name}'")
+                items = cloud.get_items_by_name(filter, [start_folder.get(cloud.get_name())])
+                for item in items:
+                    # Skip the current folder itself
+                    if isinstance(item, CloudService.Folder) and item.name == start_folder.name:
+                        continue
+
+                    print(f"Found item '{item.name}' in cloud '{cloud.get_name()}'")
+
                     # Skip files that start with "$"
                     if item.name.startswith("$"):
                         continue
@@ -734,8 +745,7 @@ class CloudManager:
                     if isinstance(item, CloudService.File):
                         # Process files
                         split = item.name.split(FILE_INDEX_SEPERATOR)
-                        # Include the parent folder's path in the actual_path
-                        actual_path = f"{getattr(parent_folder, 'id', '/')}/{split[-1]}"
+                        actual_path = f"{path}/{split[-1]}"
                         if not files.get(actual_path):
                             files[actual_path] = {}
                         if not files[actual_path].get(cloud):
@@ -749,7 +759,7 @@ class CloudManager:
 
                     elif isinstance(item, CloudService.Folder):
                         # Process folders
-                        actual_path = f"{getattr(parent_folder, 'path', '/')}/{item.name}"
+                        actual_path = f"{path}/{item.name}"
                         cloud_name = cloud.get_name()
                         if not folders.get(actual_path):
                             folders[actual_path] = {}
@@ -768,3 +778,4 @@ class CloudManager:
         for file_path, file_parts in files.items():
             file_obj = CloudFile(file_parts, file_path)
             yield file_obj
+            

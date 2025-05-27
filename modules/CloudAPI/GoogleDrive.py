@@ -198,6 +198,7 @@ class GoogleDrive(CloudService):
     def get_items_by_name(self, filter: str, folders: list[CloudService.Folder]) -> Iterable[CloudService.CloudObject]:
         """
         Get all files and folders in the given folders where the name contains the filter string.
+        Performs a recursive search.
         """
         try:
             for folder in folders:
@@ -218,7 +219,10 @@ class GoogleDrive(CloudService):
                         if filter in item['name']:
                             is_folder = item['mimeType'] == 'application/vnd.google-apps.folder'
                             if is_folder:
-                                yield CloudService.Folder(id=item['id'], name=item['name'])
+                                # Yield the folder and recursively search its children
+                                subfolder = CloudService.Folder(id=item['id'], name=item['name'])
+                                yield subfolder
+                                yield from self.get_items_by_name(filter, [subfolder])
                             else:
                                 yield CloudService.File(id=item['id'], name=item['name'])
 
