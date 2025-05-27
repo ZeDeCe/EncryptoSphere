@@ -42,6 +42,7 @@ class Gateway:
         self.active_sessions_sync = False
         self.active_shared_folder_sync = False
         self.sync_future_callbacks = []
+        self.search_results = []  # Store the most recent search results
 
     def promise(func):
         """
@@ -101,6 +102,7 @@ class Gateway:
     def get_items_in_folder_async(self, path="/"):
         return self.current_session.get_items_in_folder(path)
     
+    
     @promise
     def get_search_results_async(self, search_string, path):
         """
@@ -113,8 +115,31 @@ class Gateway:
         data = [item.get_data() for item in results]
         for d in data:
             d["uid"] = "0" if self.current_session == self.manager else self.current_session.get_uid()
+        self.search_results = data  # Store the search results for later retrieval
         return data
     
+    def get_search_result_by_index(self, index):
+        """
+        Retrieve a specific search result by its index.
+        @param index: The index of the item in the search results array.
+        @return: The CloudFile or Directory object.
+        """
+        if index < 0 or index >= len(self.search_results):
+            raise IndexError(f"Index {index} out of range for search results.")
+        return self.search_results[index]
+
+    @promise
+    def enrich_search_result(self, index):
+        """
+        Enrich a specific search result by retrieving its full path.
+        @param index: The index of the item in the search results array.
+        @return: The enriched CloudFile or Directory object.
+        """
+        item = self.get_search_result_by_index(index)
+        enriched_item = self.current_session.enrich_item_metadata(item)
+        return enriched_item
+
+
     @promise
     def sync_session(self):
         print("Refresh button clicked")

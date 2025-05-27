@@ -778,4 +778,23 @@ class CloudManager:
         for file_path, file_parts in files.items():
             file_obj = CloudFile(file_parts, file_path)
             yield file_obj
-            
+
+    def enrich_item_metadata(self, item):
+        """
+        Enrich a CloudFile or Directory object by retrieving its full metadata, including the path, from the local filesystem (fs).
+        @param item: The CloudFile or Directory object to enrich.
+        @return: The enriched object with the full metadata.
+        """
+        if isinstance(item, CloudFile) or isinstance(item, Directory):
+            # Check if the item's uid exists in the filesystem (fs)
+            if item.data.get("id") in self.fs:
+                # Retrieve the corresponding object from fs using the uid
+                enriched_item = self.fs[item.data["id"]]
+                # Update the item's metadata
+                item.path = enriched_item.path
+                item.data.update(enriched_item.data)
+                return item
+            else:
+                raise FileNotFoundError(f"Item with ID '{item.data.get('id')}' not found in the filesystem.")
+        else:
+            raise TypeError("Item must be a CloudFile or Directory object.")
