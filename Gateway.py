@@ -119,12 +119,12 @@ class Gateway:
         self.email = email
 
 
-    
     def get_authenticated_clouds(self):
         """
         Returns the list of authenticated clouds
         """
         return self.authenticated_clouds
+    
     
     @promise
     def app_authenticate(self, password: str):
