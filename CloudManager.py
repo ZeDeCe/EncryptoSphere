@@ -723,6 +723,19 @@ class CloudManager:
             raise Exception("Failed to find metadata- run is_metadata_exists to check if metadata exists")
         return cloud.download_file(metadata)
     
+    @staticmethod
+    def upload_metadata(cloud : CloudService, root : str, metadata : dict, file_name : str):
+        """
+        Uploads the metadata to the cloud.
+        @param cloud: The cloud service to upload to.
+        @param root: The root directory name.
+        @param metadata: The metadata dictionary to upload.
+        @return: True if the upload is successful, False otherwise.
+        """
+        if not cloud.is_authenticated():
+            raise Exception("Cloud is not authenticated")
+        metadata_json = json.dumps(metadata).encode('utf-8')
+        return cloud.upload_file(metadata_json, file_name, cloud.get_session_folder(root))
 
     def load_metadata(self):
         """
