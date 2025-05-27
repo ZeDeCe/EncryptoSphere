@@ -129,45 +129,52 @@ class Gateway:
     @promise
     def app_authenticate(self, password: str):
         """
-        Authenticates the application using the provided password and cloud list.
-        Fails if the password is incorrect or if metadata is invalid.
+        Authenticates the app using login metadata ($LOGIN_META), 
+        then loads main metadata ($META) to initialize session.
         """
+        if not self.authenticated_clouds:
+            raise ValueError("No authenticated clouds")
 
-        # Step 2: Extract metadata and relevant configuration
-        metadata = CloudManager.download_metadata(self.authenticated_clouds[0], MAIN_SESSION)
+        self.login_manager.cloud = self.authenticated_clouds[0]
+        self.login_manager.root = MAIN_SESSION
+
+        try:
+            self.login_manager.load_login_metadata(password)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load login metadata: {e}")
+
+        try:
+            self.login_manager.login(
+                input_password=password,
+                salt=self.login_manager.salt,
+                auth_encrypted_hex=self.login_manager.encrypted_auth.hex(),
+                auth_hash=self.login_manager.auth_hash,
+                encryption_type=self.login_manager.encryption_type
+            )
+        except Exception as e:
+            raise ValueError(f"Login failed: {e}")
+
+        # if we reach here, login was successful
+        try:
+            metadata_raw = CloudManager.download_metadata(self.authenticated_clouds[0], MAIN_SESSION)
+            metadata = json.loads(metadata_raw)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load main metadata: {e}")
+
         encryption_type = metadata.get("encrypt")
         split_type = metadata.get("split")
-        auth_encrypted = bytes.fromhex(metadata.get("auth_encrypted"))
-        auth_hash = metadata.get("auth_hash")
 
-        salt_hex = metadata.get("salt")
-        if not salt_hex:
-            raise ValueError("Missing salt in metadata")
-        salt = bytes.fromhex(salt_hex)
+        key = self.login_manager.create_key_from_password(password, self.login_manager.salt)
+        encryptor_class = Encrypt.get_class(encryption_type)
+        encryptor = encryptor_class()
+        encryptor.set_key(encryptor.generate_key_from_key(key))
 
-        # Step 3: Generate encryption key from password and salt
-        password_key = self.login_manager.create_key_from_password(password, salt)
-        key = encryptor.generate_key_from_key(password_key)
-        encryptor = Encrypt.get_class(encryption_type)(key)
-
-        # Step 4: Try to decrypt and validate password
-        try:
-            plaintext = encryptor.decrypt(auth_encrypted)
-        except Exception:
-            raise ValueError("Invalid password")
-
-        if hashlib.sha256(plaintext).hexdigest() != auth_hash:
-            raise ValueError("Invalid password")
-
-        # Step 5: Create the real manager with the correct encryptor
         self.manager = CloudManager(
             self.authenticated_clouds,
             MAIN_SESSION,
             Split.get_class(split_type)(),
             encryptor
         )
-
-        # Step 6: Regular session setup (same as your original logic)
         self.session_manager = SessionManager(self.manager)
         status = self.manager.authenticate()
         self.current_session = self.manager
@@ -175,12 +182,11 @@ class Gateway:
         print(f"Status: {status}")
         return status
 
+
     @promise
-    def create_account(self, password: str, encrypt_alg : str, split_alg : str) -> bool:
+    def create_account(self, password: str, encrypt_alg: str, split_alg: str) -> bool:
         """
-        Creates a new account by initializing cloud metadata if it doesn't already exist.
-        Returns True if account created successfully.
-        Raises descriptive exceptions if something fails.
+        Creates a new account: both login metadata ($LOGIN_META) and main metadata ($META).
         """
         if not password or len(password) < 6:
             raise ValueError("Password is too short")
@@ -188,56 +194,63 @@ class Gateway:
         if not self.authenticated_clouds:
             raise ValueError("No cloud services provided")
 
-        split = Split.get_class(split_alg)()
+        self.login_manager.cloud = self.authenticated_clouds[0]
+        self.login_manager.root = MAIN_SESSION
 
+        # check if metadata alredy exists
         try:
-            existing = CloudManager.is_metadata_exists()
+            if CloudManager.is_metadata_exists(self.authenticated_clouds[0], MAIN_SESSION):
+                raise Exception("Account already exists – metadata found in cloud")
         except Exception:
             raise RuntimeError("Could not access cloud to check for existing account")
 
-        if existing is not None:
-            raise Exception("Account already exists – metadata found in cloud")
-
-        # Generate salt and encryption key
+        # create $LOGIN_META
         try:
-            salt = os.urandom(16)
-            key = self.login_manager.create_key_from_password(password, salt)
-        except Exception as e:
-            raise RuntimeError(f"Key generation failed: {e}")
-
-        encryptor = Encrypt.get_class(encrypt_alg)(key)
-        
-        # Build metadata
-        metadata = {
-            "encrypt": encryptor.get_name(),
-            "split": split_alg,
-            "order": [cloud.get_name() for cloud in self.authenticated_clouds]
-        }
-
-        try:
-            metadata = self.login_manager.add_auth_to_metadata(
-                key, metadata, encryptor.get_name(), salt
+            self.login_manager.create_login_metadata(password, encrypt_alg)
+            CloudManager.upload_metadata(
+                self.authenticated_clouds[0],
+                MAIN_SESSION,
+                "$LOGIN_META",
+                json.dumps(self.login_manager.login_metadata).encode("utf-8")
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to generate authentication metadata: {e}")
+            raise RuntimeError(f"Failed to create or upload login metadata: {e}")
 
-        # Upload metadata
-        manager = CloudManager(
-            self.authenticated_clouds,
-            MAIN_SESSION,
-            split,
-            encryptor
-        )
-        self.manager = manager
-        self.current_session = manager
-        self.manager.authenticate()
+        # create $META
         try:
-            manager._upload_replicated("$META", json.dumps(metadata).encode("utf-8"))
+            split = Split.get_class(split_alg)()
+            key = self.login_manager.create_key_from_password(password, self.login_manager.salt)
+            encryptor_class = Encrypt.get_class(encrypt_alg)
+            encryptor = encryptor_class()
+            encryptor.set_key(encryptor.generate_key_from_key(key))
+
+            metadata = {
+                "encrypt": encryptor.get_name(),
+                "split": split_alg,
+                "order": [cloud.get_name() for cloud in self.authenticated_clouds],
+                "auth_encrypted": self.login_manager.encrypted_auth.hex(),
+                "auth_hash": self.login_manager.auth_hash,
+                "salt": self.login_manager.salt.hex()
+            }
+
+            self.manager = CloudManager(
+                self.authenticated_clouds,
+                MAIN_SESSION,
+                split,
+                encryptor
+            )
+            self.manager.authenticate()
+            self.current_session = self.manager
+            self.session_manager = SessionManager(self.manager)
+            self.start_sync_new_sessions_task()
+
+            self.manager._upload_replicated("$META", json.dumps(metadata).encode("utf-8"))
+
         except Exception as e:
-            raise RuntimeError(f"Failed to upload metadata to cloud: {e}")
-        self.session_manager = SessionManager(self.manager)
-        self.start_sync_new_sessions_task()
+            raise RuntimeError(f"Failed to create or upload main metadata: {e}")
+
         return True
+
 
     def get_clouds(self):
         return CloudService.get_cloud_classes()
