@@ -143,10 +143,6 @@ class LoginManager:
             "auth_hash": auth_hash
         }
 
-        # Upload metadata to cloud
-        session_folder = self.cloud.get_session_folder(self.root)
-        self.cloud.upload_data(session_folder, "$LOGIN_META", json.dumps(metadata).encode())
-
         # Save to memory
         self.login_metadata = metadata
         self.encryption_type = encryption_type

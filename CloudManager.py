@@ -711,10 +711,10 @@ class CloudManager:
             return False
 
     @staticmethod
-    def download_metadata(cloud : CloudService, root : str):
+    def download_metadata(cloud : CloudService, root : str, file_name : str):
         if not cloud.is_authenticated():
             raise Exception("Cloud is not authenticated")
-        files = cloud.list_files(cloud.get_session_folder(root), "$META")
+        files = cloud.list_files(cloud.get_session_folder(root), file_name)
         metadata = None
         for file in files:
             metadata = file
