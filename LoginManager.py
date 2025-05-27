@@ -5,6 +5,7 @@ from modules import Encrypt
 import hashlib
 import json
 from modules.CloudAPI import CloudService
+from CloudManager import CloudManager
 
 class LoginManager:
     """
@@ -91,7 +92,7 @@ class LoginManager:
 
     def load_login_metadata(self, password: str):
         """
-        Loads login metadata ($LOGIN_META) from cloud.
+        Loads login metadata ($LOGIN_META) from cloud using CloudManager static helpers.
         If the metadata file does not exist — raises an error.
         """
         if self.cloud is None or self.root is None:
@@ -99,13 +100,10 @@ class LoginManager:
 
         LOGIN_META_FILENAME = "$LOGIN_META"
 
-        files = self.cloud.list_files(self.cloud.get_session_folder(self.root), LOGIN_META_FILENAME)
-        metadata_file = next(iter(files), None)
-
-        if metadata_file is None:
+        if not CloudManager.is_metadata_exists(self.cloud, self.root):
             raise FileNotFoundError("Login metadata not found. You may need to create an account first.")
 
-        metadata_content = self.cloud.download_file(metadata_file)
+        metadata_content = CloudManager.download_metadata(self.cloud, self.root, LOGIN_META_FILENAME)
         metadata = json.loads(metadata_content)
 
         self.login_metadata = metadata
@@ -113,6 +111,7 @@ class LoginManager:
         self.salt = bytes.fromhex(metadata.get("salt"))
         self.encrypted_auth = bytes.fromhex(metadata.get("auth_encrypted"))
         self.auth_hash = metadata.get("auth_hash")
+
 
     
     def create_login_metadata(self, password: str, encryption_type: str):
