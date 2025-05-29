@@ -224,15 +224,6 @@ class Gateway:
             encryptor = encryptor_class()
             encryptor.set_key(encryptor.generate_key_from_key(key))
 
-            metadata = {
-                "encrypt": encryptor.get_name(),
-                "split": split_alg,
-                "order": [cloud.get_name() for cloud in self.authenticated_clouds],
-                "auth_encrypted": self.login_manager.encrypted_auth.hex(),
-                "auth_hash": self.login_manager.auth_hash,
-                "salt": self.login_manager.salt.hex()
-            }
-
             self.manager = CloudManager(
                 self.authenticated_clouds,
                 MAIN_SESSION,
@@ -243,8 +234,6 @@ class Gateway:
             self.current_session = self.manager
             self.session_manager = SessionManager(self.manager)
             self.start_sync_new_sessions_task()
-
-            self.manager._upload_replicated("$META", json.dumps(metadata).encode("utf-8"))
 
         except Exception as e:
             raise RuntimeError(f"Failed to create or upload main metadata: {e}")

@@ -13,10 +13,8 @@ class LoginManager:
     using Argon2 for password hashing and a pluggable encryption module (like AES).
     """
 
-    def __init__(self, cloud : CloudService, root : str):
+    def __init__(self):
         self.ph = PasswordHasher()
-        self.cloud = cloud
-        self.root = root
         self.login_metadata = None
         self.encryption_type = None
         self.salt = None
@@ -90,12 +88,12 @@ class LoginManager:
             raise ValueError(f"Authentication failed: {e}")
 
 
-    def load_login_metadata(self, password: str):
+    def load_login_metadata(self, password: str, cloud : CloudService, root : str):
         """
         Loads login metadata ($LOGIN_META) from cloud using CloudManager static helpers.
         If the metadata file does not exist — raises an error.
         """
-        if self.cloud is None or self.root is None:
+        if cloud is None or root is None:
             raise Exception("cloud and root must be set before calling load_login_metadata")
 
         LOGIN_META_FILENAME = "$LOGIN_META"
@@ -119,8 +117,6 @@ class LoginManager:
         Creates and uploads $LOGIN_META metadata file to the cloud.
         Should be called when creating a new login session (e.g., during registration).
         """
-        if self.cloud is None or self.root is None:
-            raise Exception("cloud and root must be set before calling create_login_metadata")
 
         salt = os.urandom(16)
         encryptor_class = Encrypt.get_class(encryption_type)
