@@ -414,10 +414,8 @@ class Gateway:
         Returns the list of shared folders
         @return: list of shared folders names
         """
-        ##self.executor.submit(self.session_manager.sync_new_sessions) # this will probably slow everything down but needed
-        #res = self.session_manager.sync_new_sessions()
         # Get the list of pending folders from the session manager
-        pending_uids = self.session_manager.get_pending_folders()
+        pending_uids = self.session_manager.pending_folders.keys()
 
         # Get the list of ready folders (authenticated sessions)
         ready_uids = self.session_manager.sessions.keys()

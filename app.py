@@ -25,7 +25,6 @@ def clickable(cls):
             self.bound = self._parent_canvas.bind("<Button>", self.clicked, "+")
 
     def clicked(self, event):
-        print(f"Clicked! {self}")
         self.controller.button_clicked(self)
         event.widget.focus_set()
 
@@ -1187,22 +1186,22 @@ class Folder(ctk.CTkScrollableFrame):
         existing_items = []
         for item in item_generator:
             item_list = self.file_list if item.get("type") == "file" else self.folder_list
-            existing_items.append(item.get("name"))
+            existing_items.append(item)
             new_item = None
-            if item.get("type") == "file" and item.get("name") not in self.file_list:
+            if item.get("type") == "file" and item not in self.file_list:
                 new_item = FileButton(self, width=120, height=120, file_data=item, controller=self.controller)
-            if item.get("type") == "folder" and item.get("name") not in self.folder_list:
+            if item.get("type") == "folder" and item not in self.folder_list:
                 new_item = FolderButton(self, width=120, height=120, folder_path=item.get("path"), controller=self.controller, session=self.master.master.master)
-            if item.get("type") == "session" and item.get("name") not in self.folder_list:
+            if item.get("type") == "session" and item not in self.folder_list:
                 new_item = SharedFolderButton(self, width=120, height=120, uid=item.get("uid"), is_owner=item.get("isowner"), controller=self.controller)
-            if item.get("type") == "pending" and item.get("name") not in self.folder_list:
+            if item.get("type") == "pending" and item not in self.folder_list:
                 new_item = PendingSharedFolderButton(self, width=120, height=120, uid=item.get("uid"), controller=self.controller)
             if new_item is not None:
                 item_list.append(new_item)
         
         for item_list in self.item_lists:
             for item in item_list:
-                if item.name not in existing_items:
+                if item not in existing_items:
                     item_list.remove(item)
                     item.grid_forget()
                     # item.destroy()
@@ -1248,7 +1247,7 @@ class SessionsFolder(Folder):
         """
         self.loadingpage.stop()
         self.loadingpage.pack_forget()
-        self.refresh()
+        self.update_button_lists(self.controller.get_api().get_shared_folders())
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
@@ -1295,6 +1294,7 @@ class IconButton(ctk.CTkFrame):
     """
     This class is an abstract button class for all icons that go in MainFrame
     """
+    classid = "icon"
     def __init__(self, master, width, height, icon_path, text, name, controller):
         ctk.CTkFrame.__init__(self, master, width=width, height=height)
         self.controller = controller
@@ -1321,18 +1321,13 @@ class IconButton(ctk.CTkFrame):
 
     def __eq__(self, other):
         if isinstance(other, IconButton):
-            return self.name == other.name
-        if isinstance(other, str):
-            return self.name == other
+            return self.name == other.name and other.__class__ == self.__class__
+        if isinstance(other, dict):
+            return self.name == other.get("name") and self.__class__.classid == other.get("type")
         return False
     
     def __ne__(self, other):
-        if isinstance(other, IconButton):
-            return self.name != other.name
-        if isinstance(other, str):
-            return self.name != other
-        return True
-    
+        return not self.__eq__(other)
 
     def on_button1_click(self, event=None):
         self.controller.button_clicked(self)
@@ -1349,6 +1344,7 @@ class FileButton(IconButton):
     This class represents a "file button"
     A file button is the frame surronding the file icon and name, so every mouse click in that area is considered as an action related to that specific file 
     """
+    classid = "file"
     def __init__(self, master, width, height, file_data, controller):
         IconButton.__init__(self, master, width, height, "resources/file_icon.png", file_data["name"], file_data["name"], controller)
         self.file_data = file_data
@@ -1483,13 +1479,16 @@ class OptionMenu(ctk.CTkFrame, Popup):
             self.place_forget()
         Popup.hide_popup(self)
             
-        
+    
     def show_popup(self, x, y):
         """
         Display the current context menu on the selected location
         """ 
         if self.context_hidden:
-            self.place(x=x, y=y)
+            x_anchor = "w" if x < self.master.winfo_width()/2 else "e"
+            # this doesn't work because of the scrollable frame
+            #y_anchor = "s" if y < self.master.winfo_height()/2 else "n"
+            self.place(x=x, y=y, anchor=f"n{x_anchor}")
         Popup.show_popup(self)
 
 class MessageNotification(ctk.CTkFrame, Popup):
@@ -1581,6 +1580,7 @@ class FolderButton(IconButton):
     This class represents a "folder button"
     A folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder
     """
+    classid = "folder"
     def __init__(self, master, width, height, folder_path, controller, session):
         self.folder_path = folder_path
         self.session = session
@@ -1670,7 +1670,7 @@ class SharedFolderButton(IconButton):
     This class represents a "shared folder button"
     A shared folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder 
     """
-    
+    classid = "session"
     def __init__(self, master, width, height, uid, is_owner, controller):
 
         # Get the folder name from the path
@@ -1876,7 +1876,7 @@ class PendingSharedFolderButton(IconButton):
     This class represents a "pending shared folder button"
     A pending shared folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder 
     """
-    
+    classid = "pending"
     def __init__(self, master, width, height, uid, controller):
         self.uid = uid
         self.name = uid.split("$")[0]
