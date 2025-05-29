@@ -210,8 +210,8 @@ class Gateway:
             CloudManager.upload_metadata(
                 self.authenticated_clouds[0],
                 MAIN_SESSION,
-                "$LOGIN_META",
-                json.dumps(self.login_manager.login_metadata).encode("utf-8")
+                json.dumps(self.login_manager.login_metadata),
+                "$LOGIN_META"
             )
         except Exception as e:
             raise RuntimeError(f"Failed to create or upload login metadata: {e}")
