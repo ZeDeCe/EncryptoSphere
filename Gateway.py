@@ -135,16 +135,13 @@ class Gateway:
         if not self.authenticated_clouds:
             raise ValueError("No authenticated clouds")
 
-        self.login_manager.cloud = self.authenticated_clouds[0]
-        self.login_manager.root = MAIN_SESSION
-
         try:
             self.login_manager.load_login_metadata(password, self.authenticated_clouds[0], MAIN_SESSION)
         except Exception as e:
             raise RuntimeError(f"Failed to load login metadata: {e}")
 
         try:
-            self.login_manager.login(
+            key = self.login_manager.login(
                 input_password=password,
                 salt=self.login_manager.salt,
                 auth_encrypted_hex=self.login_manager.encrypted_auth.hex(),
@@ -161,7 +158,6 @@ class Gateway:
         encryption_type = metadata.get("encrypt")
         split_type = metadata.get("split")
 
-        key = self.login_manager.create_key_from_password(password, self.login_manager.salt)
         encryptor_class = Encrypt.get_class(encryption_type)
         encryptor = encryptor_class()
         encryptor.set_key(encryptor.generate_key_from_key(key))

@@ -6,7 +6,7 @@ import hashlib
 import json
 from modules.CloudAPI import CloudService
 from CloudManager import CloudManager
-
+LOGIN_META_FILENAME = "$LOGIN_META"
 class LoginManager:
     """
     This class handles secure account creation and login,
@@ -80,10 +80,10 @@ class LoginManager:
             auth_encrypted = bytes.fromhex(auth_encrypted_hex)
             decrypted_blob = encryptor.decrypt(auth_encrypted)
             decrypted_hash = hashlib.sha256(decrypted_blob).hexdigest()
-
+            
             if decrypted_hash != auth_hash:
                 raise ValueError("Invalid password: hash mismatch.")
-
+            return key
         except Exception as e:
             raise ValueError(f"Authentication failed: {e}")
 
@@ -93,15 +93,7 @@ class LoginManager:
         Loads login metadata ($LOGIN_META) from cloud using CloudManager static helpers.
         If the metadata file does not exist — raises an error.
         """
-        if cloud is None or root is None:
-            raise Exception("cloud and root must be set before calling load_login_metadata")
-
-        LOGIN_META_FILENAME = "$LOGIN_META"
-
-        if not CloudManager.is_metadata_exists(self.cloud, self.root, LOGIN_META_FILENAME):
-            raise FileNotFoundError("Login metadata not found. You may need to create an account first.")
-
-        metadata_content = CloudManager.download_metadata(self.cloud, self.root, LOGIN_META_FILENAME)
+        metadata_content = CloudManager.download_metadata(cloud, root, LOGIN_META_FILENAME)
         metadata = json.loads(metadata_content)
 
         self.login_metadata = metadata
