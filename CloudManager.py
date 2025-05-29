@@ -1,7 +1,5 @@
 import os
 import tempfile
-import hashlib
-import zipfile
 import shutil
 
 
@@ -10,12 +8,9 @@ from modules import Encrypt
 from modules.CloudAPI import CloudService
 import json
 from CloudObjects import Directory, CloudFile
-from typing import Optional
-from LoginManager import LoginManager
 
 
 import concurrent.futures
-import time
 import threading
 import tempfile
 
@@ -49,7 +44,6 @@ class CloudManager:
         self.root = root # Temporary until login module
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.clouds) * 5)
         self.initialize_temp_folder()
-        self.login_manager = LoginManager()
 
 
     def __del__(self):
