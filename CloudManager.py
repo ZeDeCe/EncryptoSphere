@@ -755,7 +755,7 @@ class CloudManager:
                 "split": self.split.get_name(),
                 "order": self.cloud_name_list
             }
-
+            self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
         else:
             self.metadata = json.loads(metadata)
 
