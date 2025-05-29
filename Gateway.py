@@ -65,7 +65,7 @@ class Gateway:
         return wrapper
 
     def is_metadata_exists(self, cloud : CloudService):
-        return CloudManager.is_metadata_exists(cloud, MAIN_SESSION)
+        return CloudManager.is_metadata_exists(cloud, MAIN_SESSION, "$LOGIN_META")
 
     def get_metadata_exists(self):
         return self.metadata_exists
@@ -139,7 +139,7 @@ class Gateway:
         self.login_manager.root = MAIN_SESSION
 
         try:
-            self.login_manager.load_login_metadata(password)
+            self.login_manager.load_login_metadata(password, self.authenticated_clouds[0], MAIN_SESSION)
         except Exception as e:
             raise RuntimeError(f"Failed to load login metadata: {e}")
 
@@ -156,7 +156,7 @@ class Gateway:
 
         # if we reach here, login was successful
         try:
-            metadata_raw = CloudManager.download_metadata(self.authenticated_clouds[0], MAIN_SESSION)
+            metadata_raw = CloudManager.download_metadata(self.authenticated_clouds[0], MAIN_SESSION, "$LOGIN_META")
             metadata = json.loads(metadata_raw)
         except Exception as e:
             raise RuntimeError(f"Failed to load main metadata: {e}")
@@ -199,7 +199,7 @@ class Gateway:
 
         # check if metadata alredy exists
         try:
-            if CloudManager.is_metadata_exists(self.authenticated_clouds[0], MAIN_SESSION):
+            if CloudManager.is_metadata_exists(self.authenticated_clouds[0], MAIN_SESSION, "$LOGIN_META"):
                 raise Exception("Account already exists – metadata found in cloud")
         except Exception:
             raise RuntimeError("Could not access cloud to check for existing account")
@@ -210,7 +210,7 @@ class Gateway:
             CloudManager.upload_metadata(
                 self.authenticated_clouds[0],
                 MAIN_SESSION,
-                json.dumps(self.login_manager.login_metadata),
+                self.login_manager.login_metadata,
                 "$LOGIN_META"
             )
         except Exception as e:

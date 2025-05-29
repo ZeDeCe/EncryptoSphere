@@ -690,7 +690,7 @@ class CloudManager:
     
         
     @staticmethod
-    def is_metadata_exists(cloud : CloudService, root : str) -> bool:
+    def is_metadata_exists(cloud : CloudService, root : str, file_name : str) -> bool:
         """
         Checks if the metadata file exists in the cloud.
         @param cloud: The cloud service to check.
@@ -698,7 +698,7 @@ class CloudManager:
         @return: True if the metadata file exists, False otherwise.
         """
         try:
-            files = cloud.list_files(cloud.get_session_folder(root), "$META")
+            files = cloud.list_files(cloud.get_session_folder(root), file_name)
             return len(list(files)) > 0
         except Exception as e:
             print(f"Error checking metadata existence: {e}")

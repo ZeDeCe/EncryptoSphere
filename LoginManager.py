@@ -98,7 +98,7 @@ class LoginManager:
 
         LOGIN_META_FILENAME = "$LOGIN_META"
 
-        if not CloudManager.is_metadata_exists(self.cloud, self.root):
+        if not CloudManager.is_metadata_exists(self.cloud, self.root, LOGIN_META_FILENAME):
             raise FileNotFoundError("Login metadata not found. You may need to create an account first.")
 
         metadata_content = CloudManager.download_metadata(self.cloud, self.root, LOGIN_META_FILENAME)
