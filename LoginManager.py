@@ -112,7 +112,7 @@ class LoginManager:
 
 
     
-    def create_login_metadata(self, password: str, encryption_type: str):
+    def create_login_metadata(self, password: str, encryption_type: str, split_type : str):
         """
         Creates and uploads $LOGIN_META metadata file to the cloud.
         Should be called when creating a new login session (e.g., during registration).
@@ -135,7 +135,8 @@ class LoginManager:
             "encrypt": encryption_type,
             "salt": salt.hex(),
             "auth_encrypted": encrypted_auth.hex(),
-            "auth_hash": auth_hash
+            "auth_hash": auth_hash,
+            "split": split_type
         }
 
         # Save to memory

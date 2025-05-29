@@ -206,7 +206,7 @@ class Gateway:
 
         # create $LOGIN_META
         try:
-            self.login_manager.create_login_metadata(password, encrypt_alg)
+            self.login_manager.create_login_metadata(password, encrypt_alg, split_alg)
             CloudManager.upload_metadata(
                 self.authenticated_clouds[0],
                 MAIN_SESSION,
