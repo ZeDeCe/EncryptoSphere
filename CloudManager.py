@@ -718,7 +718,7 @@ class CloudManager:
         return cloud.download_file(metadata)
     
     @staticmethod
-    def upload_metadata(cloud : CloudService, root : str, metadata : dict, file_name : str):
+    def upload_metadata(clouds : list[CloudService], root : str, metadata : dict, file_name : str):
         """
         Uploads the metadata to the cloud.
         @param cloud: The cloud service to upload to.
@@ -726,10 +726,21 @@ class CloudManager:
         @param metadata: The metadata dictionary to upload.
         @return: True if the upload is successful, False otherwise.
         """
-        if not cloud.is_authenticated():
-            raise Exception("Cloud is not authenticated")
-        metadata_json = json.dumps(metadata).encode('utf-8')
-        return cloud.upload_file(metadata_json, file_name, cloud.get_session_folder(root))
+        def upload(cloud : CloudService):
+            if not cloud.is_authenticated():
+                raise Exception("Cloud is not authenticated")
+            metadata_json = json.dumps(metadata).encode('utf-8')
+            return cloud.upload_file(metadata_json, file_name, cloud.get_session_folder(root))
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(clouds)) as executor:
+            futures = [executor.submit(upload, cloud) for cloud in clouds]
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()  # Wait for the upload to complete
+                except Exception as e:
+                    print(f"Error uploading metadata to cloud: {e}")
+                    return False
+            
 
     def load_metadata(self):
         """
