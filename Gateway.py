@@ -153,13 +153,10 @@ class Gateway:
             )
         except Exception as e:
             raise ValueError(f"Login failed: {e}")
-
-        # if we reach here, login was successful
-        try:
-            metadata_raw = CloudManager.download_metadata(self.authenticated_clouds[0], MAIN_SESSION, "$LOGIN_META")
-            metadata = json.loads(metadata_raw)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load main metadata: {e}")
+        
+        metadata = self.login_manager.login_metadata
+        if not metadata:
+            raise ValueError("Login metadata is empty or not found")
 
         encryption_type = metadata.get("encrypt")
         split_type = metadata.get("split")
