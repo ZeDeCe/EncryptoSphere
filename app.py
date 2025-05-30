@@ -925,13 +925,13 @@ class Folder(ctk.CTkScrollableFrame):
             existing_items.append(item)
             new_item = None
             if item.get("type") == "file" and item not in self.file_list:
-                new_item = FileButton(self, width=120, height=120, file_data=item, controller=self.controller)
+                new_item = FileButton(self, width=120, height=120, data=item, controller=self.controller)
             if item.get("type") == "folder" and item not in self.folder_list:
-                new_item = FolderButton(self, width=120, height=120, folder_path=item.get("path"), controller=self.controller, session_uid=item.get("uid"))
+                new_item = FolderButton(self, width=120, height=120, data=item, controller=self.controller)
             if item.get("type") == "session" and item not in self.folder_list:
-                new_item = SharedFolderButton(self, width=120, height=120, uid=item.get("uid"), is_owner=item.get("isowner"), controller=self.controller)
+                new_item = SharedFolderButton(self, width=120, height=120, data=item, controller=self.controller)
             if item.get("type") == "pending" and item not in self.folder_list:
-                new_item = PendingSharedFolderButton(self, width=120, height=120, uid=item.get("uid"), controller=self.controller)
+                new_item = PendingSharedFolderButton(self, width=120, height=120, data=item, controller=self.controller)
             if new_item is not None:
                 item_list.append(new_item)
         
@@ -1092,21 +1092,21 @@ class FileButton(IconButton):
     A file button is the frame surronding the file icon and name, so every mouse click in that area is considered as an action related to that specific file 
     """
     classid = "file"
-    def __init__(self, master, width, height, file_data, controller):
-        IconButton.__init__(self, master, width, height, "resources/file_icon.png", file_data["name"], file_data["name"], controller)
-        self.file_data = file_data
+    def __init__(self, master, width, height, data, controller):
+        IconButton.__init__(self, master, width, height, "resources/file_icon.png", data["name"], data["name"], controller)
+        self.data = data
 
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
         self.context_menu = OptionMenu(controller.container, self.controller, [
             {
                 "label": "Download File",
                 "color": "gray25",
-                "event": lambda: self.download_file_from_cloud(self.file_data)
+                "event": lambda: self.download_file_from_cloud(self.data)
              },
              {
                  "label": "Delete File",
                  "color": "gray25",
-                 "event": lambda: self.delete_file_from_cloud(self.file_data)
+                 "event": lambda: self.delete_file_from_cloud(self.data)
              }
         ])
 
@@ -1174,8 +1174,8 @@ class FileButton(IconButton):
         """
         super().on_double_click(event)
         try:
-            print(f"Opening file: {self.file_data['name']}")
-            self.open_file_from_cloud(self.file_data)
+            print(f"Opening file: {self.data['name']}")
+            self.open_file_from_cloud(self.data)
         except Exception as e:
             print(f"Error opening file: {e}")
 
@@ -1328,13 +1328,13 @@ class FolderButton(IconButton):
     A folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder
     """
     classid = "folder"
-    def __init__(self, master, width, height, folder_path, controller, session_uid):
-        self.folder_path = folder_path
-        self.session_uid = session_uid
-        name_index = folder_path.rfind("/")+1
-        if len(folder_path) > name_index:
-            self.folder_name = folder_path[name_index:]
-        elif folder_path == "/":
+    def __init__(self, master, width, height, data, controller):
+        self.folder_path = data.get("path")
+        self.session_uid = data.get("uid")
+        name_index = self.folder_path.rfind("/")+1
+        if len(self.folder_path) > name_index:
+            self.folder_name = self.folder_path[name_index:]
+        elif self.folder_path == "/":
             self.folder_name = "/"
         else:
             raise Exception("Invalid folder path")  
@@ -1418,20 +1418,20 @@ class SharedFolderButton(IconButton):
     A shared folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder 
     """
     classid = "session"
-    def __init__(self, master, width, height, uid, is_owner, controller):
+    def __init__(self, master, width, height, data, controller):
 
         # Get the folder name from the path
-        self.uid = uid
-        self.name = uid.split("$")[0]
+        self.uid = data.get("uid")
+        self.name = self.uid.split("$")[0]
         super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, self.uid, controller)
         self.controller = controller
         self.master = master
 
-        self.is_owner = is_owner
+        self.is_owner = data.get("is_owner", False)
         
 
         # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
-        if is_owner:
+        if self.is_owner:
             menu_options = [
                 {
                     "label": "Manage Permissions",
@@ -1624,9 +1624,9 @@ class PendingSharedFolderButton(IconButton):
     A pending shared folder button is the frame surronding the folder icon and name, so every mouse click in that area is considered as an action related to that specific folder 
     """
     classid = "pending"
-    def __init__(self, master, width, height, uid, controller):
-        self.uid = uid
-        self.name = uid.split("$")[0]
+    def __init__(self, master, width, height, data, controller):
+        self.uid = data.get("uid")
+        self.name = self.uid.split("$")[0]
         super().__init__(master, width, height, "resources/folder_icon_pending.png", self.name, self.uid, controller)
         self.controller = controller
         self.master = master
