@@ -1012,6 +1012,7 @@ class SearchResultsSession(Folder):
         """
         self.query = query
         self.path = path
+        self.curr_path = path
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
