@@ -18,7 +18,7 @@ class SessionManager():
         self.sessions_ready = False
         self.pending_folders: dict[str, SharedCloudManager] = {}
 
-
+ 
     def shared_sessions_ready(self):
         """
         Returns True if the sessions are ready to be used, False otherwise
