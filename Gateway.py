@@ -133,12 +133,12 @@ class Gateway:
         then loads main metadata ($META) to initialize session.
         """
         if not self.authenticated_clouds:
-            raise ValueError("No authenticated clouds")
+            return "No authenticated clouds"
 
         try:
             self.login_manager.load_login_metadata(password, self.authenticated_clouds[0], MAIN_SESSION)
         except Exception as e:
-            raise RuntimeError(f"Failed to load login metadata: {e}")
+            return "Failed to load login metadata"
 
         try:
             key = self.login_manager.login(
@@ -149,31 +149,34 @@ class Gateway:
                 encryption_type=self.login_manager.encryption_type
             )
         except Exception as e:
-            raise ValueError(f"Login failed: {e}")
+            return "Failed to authenticate: Password is incorrect or metadata is corrupted"
         
         metadata = self.login_manager.login_metadata
         if not metadata:
-            raise ValueError("Login metadata is empty or not found")
+            return "Login metadata is empty or not found"
+        try:
+            encryption_type = metadata.get("encrypt")
+            split_type = metadata.get("split")
 
-        encryption_type = metadata.get("encrypt")
-        split_type = metadata.get("split")
+            encryptor_class = Encrypt.get_class(encryption_type)
+            encryptor = encryptor_class()
+            encryptor.set_key(encryptor.generate_key_from_key(key))
 
-        encryptor_class = Encrypt.get_class(encryption_type)
-        encryptor = encryptor_class()
-        encryptor.set_key(encryptor.generate_key_from_key(key))
-
-        self.manager = CloudManager(
-            self.authenticated_clouds,
-            MAIN_SESSION,
-            Split.get_class(split_type)(),
-            encryptor
-        )
-        self.session_manager = SessionManager(self.manager)
-        status = self.manager.authenticate()
-        self.current_session = self.manager
-        self.start_sync_new_sessions_task()
-        print(f"Status: {status}")
-        return status
+            self.manager = CloudManager(
+                self.authenticated_clouds,
+                MAIN_SESSION,
+                Split.get_class(split_type)(),
+                encryptor
+            )
+            self.session_manager = SessionManager(self.manager)
+            status = self.manager.authenticate()
+            if not status:
+                return "Failed to authenticate with cloud services"
+            self.current_session = self.manager
+            self.start_sync_new_sessions_task()
+            return True
+        except Exception as e:
+            return "Unknown error during authentication"
 
 
     @promise

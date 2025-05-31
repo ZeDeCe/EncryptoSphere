@@ -302,12 +302,6 @@ class FormPage(ctk.CTkFrame):
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
         self.submit_button.configure(state="disabled")
-        
-        # Remove error lable and block the button
-        if hasattr(self, 'error_label'):
-            self.error_label.grid_forget()
-        if hasattr(self, 'retry_button'):
-            self.retry_button.configure(state="disabled")
 
         user_input = self.entry.get()
         self.show_loading()
@@ -342,16 +336,20 @@ class LocalPasswordPage(FormPage):
     """
     def __init__(self, parent, controller):
         FormPage.__init__(self, parent, controller, "", "Please enter your Encryptosphere Password ", "Your Password", "Login", self.validate_password, self.error_login,"Wrong password, Please try again")
-
+        self.error_label = ctk.CTkLabel(self, text="", font=("Arial", 12), text_color="red")
+        self.error_label.grid(row=4, column=0, pady=20, sticky="n")
+        
     def validate_password(self, password):
         """
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
-        return self.controller.get_api().app_authenticate(lambda f: self.controller.show_frame(MainPage) if f.result() else self.error_login(), password)
+        return self.controller.get_api().app_authenticate(lambda f: self.controller.show_frame(MainPage) if f.result() == True else self.error_login(f.result()), password)
 
 
-    def error_login(self):
+    def error_login(self, message=None):
+        if message is None:
+            message = self.error_message
         self.remove_loading()
         self.__show_error(self.error_message, self.controller.show_frame(LocalPasswordPage))
     
@@ -360,16 +358,10 @@ class LocalPasswordPage(FormPage):
         If authentication to the clouds fails, display the error and add retry button.
         Remove the submit button and the GIF.
         """
-        # Remove the submit button and GIF
-        if hasattr(self, 'submit_button'):
-            self.submit_button.grid_forget()
-
         # Display the error message
-        self.error_label = ctk.CTkLabel(self, text=error_message, font=("Arial", 12), text_color="red")
-        self.error_label.grid(row=4, column=0, pady=20, sticky="n")
+        self.error_label.configure(text=error_message)
+        self.submit_button.configure(state="normal", width=200)
 
-        self.retry_button = ctk.CTkButton(self, text="Retry", command=self.submit, width=200, fg_color="#3A7EBF")
-        self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
 @clickable
 class LoginCloudsPage(ctk.CTkFrame):
     """
@@ -574,11 +566,14 @@ class RegistrationPage(ctk.CTkFrame):
         self.submit_button = ctk.CTkButton(self, text="Create New Account", command=self.submit, width=200, fg_color="#3A7EBF")
         self.submit_button.grid(row=7, column=0, padx=20, pady=(10,0), sticky="n")
 
+        self.error_label = ctk.CTkLabel(self, text="", font=("Arial", 12), text_color="red")
+        self.error_label.grid(row=8, column=0, pady=20, sticky="n")
+
         self.loadingpage = LoadingPage(self, controller)
     
     def show_loading(self):
         self.loadingpage.grid(row=8, column=0)
-        
+        self.error_label.configure(text="")
         self.loadingpage.start()
         self.loadingpage.lift()
         self.update_idletasks()
@@ -593,7 +588,16 @@ class RegistrationPage(ctk.CTkFrame):
         Login page refresh - as of now we dont need this functionality
         """
         pass
-    
+    def show_error(self, error_message):
+        """
+        Show an error message to the user
+        @param error_message: The error message to be displayed
+        """
+        self.remove_loading()
+        self.error_label.configure(text=error_message)
+
+        
+
     def submit(self):
         """
         This function is called when a user hits the submit button after typing the email address.
@@ -601,17 +605,18 @@ class RegistrationPage(ctk.CTkFrame):
         """
         self.submit_button.configure(state="disabled")
         
-        # Remove error lable and block the button
-        if hasattr(self, 'error_label'):
-            self.error_label.grid_forget()
         if hasattr(self, 'retry_button'):
             self.retry_button.configure(state="disabled")
 
         password = self.entry_pass.get()
+        if len(password) < 6:
+            self.show_error("Password must be at least 6 characters long.")
+            self.submit_button.configure(state="normal")
+            return
         encrypt_alg = self.encryption_algorithm.get()
         split_alg = self.split_algorithm.get()
         self.show_loading()
-        self.controller.get_api().create_account(lambda f: self.controller.show_frame(MainPage) if f.result() else print("Failed to log in..."), password, encrypt_alg, split_alg)
+        self.controller.get_api().create_account(lambda f: self.controller.show_frame(MainPage) if f.result() else self.show_error("Failed to create account, try again later"), password, encrypt_alg, split_alg)
 
 
     
