@@ -396,7 +396,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         # Submit Button
         self.submit_button = ctk.CTkButton(self, text="Create New Account", command=self.__handle_login, width=200, fg_color="#3A7EBF")
         self.submit_button.grid(row=4, column=0, padx=20, pady=(20, 60), sticky="n")
-
+        self.submit_button.configure(state="disabled")
         self.loadingpage = LoadingPage(self, controller)
 
         self.notice_message()
@@ -449,6 +449,8 @@ class LoginCloudsPage(ctk.CTkFrame):
             cloud_button.grid(row=2, column=i, padx=20, sticky="w")
             if not is_auth:
                 cloud_button.bind("<Button-1>", lambda f, cloud_button=cloud_button, cloud=cloud: self.cloud_button_clicked(cloud, cloud_button))
+            else:
+                self.submit_button.configure(state="normal", width=200)
         if self.controller.get_api().get_metadata_exists():
             self.submit_button.configure(text="Continue to Login")
         self.notice_message()
@@ -459,7 +461,13 @@ class LoginCloudsPage(ctk.CTkFrame):
                                                      
     
     def cloud_button_run(self, f, cloud_button):
-        cloud_button.configure(image=ctk.CTkImage(Image.open(f.result().get_icon()), size=(100, 100))) if f.result() else self.__error_login()
+        
+        if f.result():
+            cloud_button.configure(image=ctk.CTkImage(Image.open(f.result().get_icon()), size=(100, 100)))
+            self.submit_button.configure(state="normal")
+            self.notice_message()
+        else:
+            self.__error_login()
         if self.controller.get_api().get_metadata_exists():
             self.submit_button.configure(text="Continue to Login")
 
@@ -493,16 +501,11 @@ class LoginCloudsPage(ctk.CTkFrame):
         If authentication to the clouds fails, display the error and add retry button.
         Remove the submit button and the GIF.
         """
-        # Remove the submit button and GIF
-        if hasattr(self, 'submit_button'):
-            self.submit_button.grid_forget()
+        pass
+        # # Display the error message
+        # self.error_label = ctk.CTkLabel(self, text=error_message, font=("Arial", 12), text_color="red")
+        # self.error_label.grid(row=4, column=0, pady=3, sticky="n")
 
-        # Display the error message
-        self.error_label = ctk.CTkLabel(self, text=error_message, font=("Arial", 12), text_color="red")
-        self.error_label.grid(row=4, column=0, pady=20, sticky="n")
-
-        self.retry_button = ctk.CTkButton(self, text="Continue", command=self.__handle_login, width=200, fg_color="#3A7EBF")
-        self.retry_button.grid(row=5, column=0, pady=10, sticky="n")
 
 
 @clickable
@@ -519,7 +522,7 @@ class RegistrationPage(ctk.CTkFrame):
         self.controller = controller
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
+        self.grid_rowconfigure((0, 1, 2, 3, 4, 5,6,7,8), weight=1)
 
         # Title Label
         label = ctk.CTkLabel(self, text="Create Your Account", 
@@ -535,17 +538,31 @@ class RegistrationPage(ctk.CTkFrame):
         self.entry_pass.grid(row=2, column=0, padx=20, sticky="ew")
 
 
-        self.message_encription = ctk.CTkLabel(self, text="Select Encryption Algorithem:", font=("Aharoni", 16) , text_color="white")
+        self.message_encription = ctk.CTkLabel(self, text="Select Encryption Algorithm:", font=("Aharoni", 16) , text_color="white")
         self.message_encription.grid(row=3, column=0, padx=20, sticky="w")
 
         # Encryption Algorithem option menu
         encryption, split =self.controller.get_api().get_algorithms()
-        
+        index = -1
+        for ind,cls in enumerate(encryption):
+            if cls.get_name() == "AES":
+                index = ind
+                break
+        if index != -1:
+            encryption.insert(0, encryption.pop(index))
+        index = -1
+        for ind,cls in enumerate(split):
+            if cls.get_name() == "Shamir":
+                index = ind
+                break
+        if index != -1:
+            split.insert(0, split.pop(index))
+
         self.encryption_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in encryption], command=lambda x: None)
         self.encryption_algorithm.grid(row=4, column=0, padx=20, sticky="ew")
 
         
-        self.message_split = ctk.CTkLabel(self, text="Select Split Algorithem:", font=("Aharoni", 16) , text_color="white")
+        self.message_split = ctk.CTkLabel(self, text="Select Split Algorithm:", font=("Aharoni", 16) , text_color="white")
         self.message_split.grid(row=5, column=0, padx=20, sticky="w")
 
         # Split Algorithem option menu
@@ -555,12 +572,12 @@ class RegistrationPage(ctk.CTkFrame):
       
         # Submit Button
         self.submit_button = ctk.CTkButton(self, text="Create New Account", command=self.submit, width=200, fg_color="#3A7EBF")
-        self.submit_button.grid(row=7, column=0, padx=20, pady=(20, 60), sticky="n")
+        self.submit_button.grid(row=7, column=0, padx=20, pady=(10,0), sticky="n")
 
         self.loadingpage = LoadingPage(self, controller)
     
     def show_loading(self):
-        self.loadingpage.grid(row=4, column=0, sticky="n")
+        self.loadingpage.grid(row=8, column=0)
         
         self.loadingpage.start()
         self.loadingpage.lift()
@@ -615,7 +632,7 @@ class MainPage(ctk.CTkFrame):
         self.side_bar.pack(side=ctk.LEFT, fill="y", expand=False)
 
         # Add the EncryptoSphere label to the side bar
-        self.encryptosphere_label = ctk.CTkLabel(self.side_bar, text="", font=("Verdana", 15))
+        self.encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
         self.encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         # Create the upload button and shared files button
