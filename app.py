@@ -367,7 +367,7 @@ class MainPage(ctk.CTkFrame):
         self.homepage_button.pack(anchor="nw", padx=10, pady=5, expand=False)
 
         self.shared_files_button = ctk.CTkButton(self.side_bar, text="Shared Files",
-                                                 command=lambda: self.display_page(self.sessions_folder),
+                                                 command=lambda: self.display_page(self.sessions_folder, options=["New Share"]),
                                                  width=120, height=30, fg_color="gray25", hover=False)
         self.shared_files_button.pack(anchor="nw", padx=10, pady=0, expand=False)
 
@@ -725,7 +725,11 @@ class MainPage(ctk.CTkFrame):
             for label in self.uploading_labels:
                 label.lift()  # Ensure the label is on top of all frames
 
-    def display_page(self, page):
+    def display_page(self, page, options=None):
+        if options is not None:
+            self.context_menu.change_options(options)
+        else:
+            self.context_menu.show_all_options()
         if self.current_session is not None:
             self.current_session.pack_forget()
         self.current_session = page
@@ -746,6 +750,7 @@ class MainPage(ctk.CTkFrame):
             raise Exception("Is not a valid session")
         if self.current_session is not None:
             self.current_session.pack_forget()
+        self.context_menu.show_all_options()
         self.current_session = session
         self.current_session.pack(fill=ctk.BOTH, expand=True)
         self.current_session.change_folder("/")
@@ -972,7 +977,7 @@ class SessionsFolder(Folder):
     def __init__(self, parent, controller : App, path=None):
         Folder.__init__(self, parent, controller, path)
         self.loadingpage = LoadingPage(self, controller)
-
+        self.loaded = False
         self.loadingpage.pack(anchor=ctk.N, fill=ctk.BOTH, expand=True, padx=5, pady=3)
         self.loadingpage.start()
         self.controller.get_api().add_callback_to_sync_task(lambda: self.remove_loading())
@@ -983,11 +988,13 @@ class SessionsFolder(Folder):
         """
         self.loadingpage.stop()
         self.loadingpage.pack_forget()
+        self.loaded = True
         self.update_button_lists(self.controller.get_api().get_shared_folders())
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
-        self.update_button_lists(self.controller.get_api().get_shared_folders())
+        if self.loaded:
+            self.update_button_lists(self.controller.get_api().get_shared_folders())
 
 @clickable
 class SearchResultsSession(Folder):
@@ -1209,7 +1216,7 @@ class OptionMenu(ctk.CTkFrame, Popup):
         """
         ctk.CTkFrame.__init__(self, master, corner_radius=0, fg_color="gray25")
         self.controller = controller
-        self.buttons = []
+        self.buttons : list[ctk.CTkButton] = []
         self.context_hidden = True
         for button in buttons:
             butt = ctk.CTkButton(self, text=button["label"],
@@ -1238,6 +1245,20 @@ class OptionMenu(ctk.CTkFrame, Popup):
             #y_anchor = "s" if y < self.master.winfo_height()/2 else "n"
             self.place(x=x, y=y, anchor=f"n{x_anchor}")
         Popup.show_popup(self)
+
+    def change_options(self, options : list[str]):
+        for butt in self.buttons:
+            butt.pack_forget()
+        for butt in self.buttons:
+            if butt.cget("text") in options:
+                butt.pack(pady=5, padx=10, fill="x")
+    
+    def show_all_options(self):
+        for butt in self.buttons:
+            butt.pack_forget()
+        for butt in self.buttons:
+            butt.pack(pady=5, padx=10, fill="x")
+            
 
 class MessageNotification(ctk.CTkFrame, Popup):
     """
