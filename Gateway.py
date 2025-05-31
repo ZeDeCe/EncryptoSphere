@@ -120,7 +120,6 @@ class Gateway:
                 "name": getattr(item, "name", "Unknown"),  # Safely get the name attribute
                 "id": getattr(item, "id", None),  # Safely get the id attribute
                 "type": "file" if isinstance(item, CloudService.File) else "folder",
-                "cloud": getattr(item, "cloud_name", "Unknown"),  # Safely get the cloud name
                 "path": None,  # Safely get the path attribute
                 "uid": "0" if self.current_session == self.manager else self.current_session.get_uid(),
                 "search_index": index,  # Add a unique search index
