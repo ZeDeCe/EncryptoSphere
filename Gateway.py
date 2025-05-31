@@ -108,15 +108,29 @@ class Gateway:
         """
         Search for items matching the given string asynchronously.
         @param search_string: The filter string to search for.
-        @return: A generator yielding the data for each matching item.
+        @param path: The folder path to start the search from.
+        @return: A list of dictionaries representing files and folders.
         """
         print(f"Searching for items matching: {search_string}")
-        results = self.current_session.search_items_by_name(search_string, path)
-        data = [item.get_data() for item in results]
-        for index, d in enumerate(data):  # Add search_index to each item
-            d["uid"] = "0" if self.current_session == self.manager else self.current_session.get_uid()
-            d["search_index"] = index  # Add search_index to uniquely identify the item
-        self.search_results = data  # Store the search results for later retrieval
+        files, folders = self.current_session.search_items_by_name(search_string, path)
+        data = files + folders  # Combine files and folders into a single list
+        for index, item in enumerate(data):  # Iterate over the list of objects
+        # Convert each item to a dictionary with additional metadata
+            item_dict = {
+                "name": getattr(item, "name", "Unknown"),  # Safely get the name attribute
+                "id": getattr(item, "id", None),  # Safely get the id attribute
+                "type": "file" if isinstance(item, CloudService.File) else "folder",
+                "path": None,  # Safely get the path attribute
+                "uid": "0" if self.current_session == self.manager else self.current_session.get_uid(),
+                "search_index": index,  # Add a unique search index
+            }
+            data[index] = item_dict  # Replace the original object with the dictionary
+
+        self.search_results = data  # Store the updated list of dictionaries for later retrieval
+
+        print("in gateway search results:")
+        for item in data:
+            print(f"Found item: {item['name']}")
         return data
     
     def get_search_result_by_index(self, index):
