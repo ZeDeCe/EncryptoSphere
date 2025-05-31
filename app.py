@@ -1095,43 +1095,44 @@ class FileButton(IconButton):
     def __init__(self, master, width, height, data, controller):
         IconButton.__init__(self, master, width, height, "resources/file_icon.png", data["name"], data["name"], controller)
         self.data = data
+        self.data["id"] = data.get("id", self.data.get("search_index", None)) 
 
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
         self.context_menu = OptionMenu(controller.container, self.controller, [
             {
                 "label": "Download File",
                 "color": "gray25",
-                "event": lambda: self.download_file_from_cloud(self.data)
+                "event": lambda: self.download_file_from_cloud()
              },
              {
                  "label": "Delete File",
                  "color": "gray25",
-                 "event": lambda: self.delete_file_from_cloud(self.data)
+                 "event": lambda: self.delete_file_from_cloud()
              }
         ])
 
 
-    def download_file_from_cloud(self, file_data):
+    def download_file_from_cloud(self):
         """
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
-        label = self.controller.add_message_label(f"Downloading file {file_data['name']}")
+        label = self.controller.add_message_label(f"Downloading file {self.data['name']}")
 
         self.controller.get_api().download_file(
             lambda f: (
                 self.controller.remove_message(label),
                 messagebox.showerror("Application Error", str(f.exception())) if f.exception() else None
             ),
-            file_data["id"]
+            self.data.get("id", None),
         )
 
-    def delete_file_from_cloud(self, file_data):
+    def delete_file_from_cloud(self):
         """
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        label = self.controller.add_message_label(f"Deleting file {file_data['name']}")
+        label = self.controller.add_message_label(f"Deleting file {self.data['name']}")
 
         self.controller.get_api().delete_file(
             lambda f: (
@@ -1139,18 +1140,18 @@ class FileButton(IconButton):
                 self.master.refresh(),
                 messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
-            file_data["id"]
+            self.data.get("id", None)
         )
 
-    def open_file_from_cloud(self, file_data):
-        label = self.controller.add_message_label(f"Opening file {file_data['name']}")
+    def open_file_from_cloud(self):
+        label = self.controller.add_message_label(f"Opening file {self.data['name']}")
 
         self.controller.get_api().open_file(
             lambda f: (
                 self.controller.remove_message(label),
                 messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
-            file_data["id"]
+            self.data.get("id", None)
         )
 
     def on_button3_click(self, event=None):
@@ -1329,16 +1330,9 @@ class FolderButton(IconButton):
     """
     classid = "folder"
     def __init__(self, master, width, height, data, controller):
-        self.folder_path = data.get("path")
+        self.folder_path = data.get("path", data.get("search_index", None))
         self.session_uid = data.get("uid")
-        name_index = self.folder_path.rfind("/")+1
-        if len(self.folder_path) > name_index:
-            self.folder_name = self.folder_path[name_index:]
-        elif self.folder_path == "/":
-            self.folder_name = "/"
-        else:
-            raise Exception("Invalid folder path")  
-        
+        self.folder_name = data.get("name")
         IconButton.__init__(self, master, width, height, "resources/folder_icon.png", self.folder_name, self.folder_name, controller)
         self.controller = controller
         self.master = master
@@ -1363,10 +1357,10 @@ class FolderButton(IconButton):
         Delete folder from the cloud and refresh the page
         @param folder_path: The path of the folder to be deleted
         """
-        desc_text = f'"{self.folder_path}" will be permanently deleted.'
+        desc_text = f'"{self.folder_name}" will be permanently deleted.'
         title = "Delete This Folder?"
         def on_confirm():
-            label = self.controller.add_message_label(f"Deleting folder {self.folder_path}")
+            label = self.controller.add_message_label(f"Deleting folder {self.folder_name}")
             self.controller.get_api().delete_folder(
             lambda f: (
                 self.controller.remove_message(label),
