@@ -712,72 +712,49 @@ class CloudManager:
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
-    def search_items_by_name(self, filter: str, path: str):
+    def search_items_by_name(self, filter: str, path: str) -> tuple[list[dict], list[dict]]:
         """
         Search for files and folders by name across all clouds.
         @param filter: The filter string to search for.
         @param path: The folder path to start the search from.
-        @return: An iterator of CloudFile and Directory objects.
+        @return: A tuple containing two lists: one for files and one for folders.
         """
-        files = {}
-        folders = {}
+        files = []
+        folders = []
 
         # Get the starting folder object
         start_folder = self.fs.get(path)
         if not start_folder:
             raise FileNotFoundError(f"Start folder '{path}' does not exist!")
 
-        for cloud in self.clouds:
-            try:
-                # Get items matching the filter from the cloud
-                items = cloud.get_items_by_name(filter, [start_folder.get(cloud.get_name())])
-                for item in items:
-                    # Skip the current folder itself
-                    if isinstance(item, CloudService.Folder) and item.name == start_folder.name:
+        cloud = self.clouds[1]  # Only Dropbox, faster
+        try:
+            # Get items matching the filter from the cloud
+            items = cloud.get_items_by_name(filter, [start_folder.get(cloud.get_name())])
+            for item in items:
+                # Skip files that start with "$"
+                if item.name.startswith("$"):
+                    continue
+                print(f"Found item: {item.name} in cloud {cloud.get_name()}")
+
+                if isinstance(item, CloudService.File):
+                    # Process files
+                    split = item.name.split(FILE_INDEX_SEPERATOR)
+                    if len(split) == 2 and split[0] != "1":
+                        # Ignore parts with #2 or higher
                         continue
 
-                    print(f"Found item '{item.name}' in cloud '{cloud.get_name()}'")
+                    # Add file data to the files list
+                    files.append(item)
 
-                    # Skip files that start with "$"
-                    if item.name.startswith("$"):
-                        continue
+                elif isinstance(item, CloudService.Folder):
+                    # Add folder data to the folders list
+                    folders.append(item)
 
-                    if isinstance(item, CloudService.File):
-                        # Process files
-                        split = item.name.split(FILE_INDEX_SEPERATOR)
-                        actual_path = f"{path}/{split[-1]}"
-                        if not files.get(actual_path):
-                            files[actual_path] = {}
-                        if not files[actual_path].get(cloud):
-                            files[actual_path][cloud] = [None] * self.split.copies_per_cloud
-                        index = split[0] if len(split) == 2 else 1
-                        try:
-                            index = int(index) - 1
-                        except ValueError:
-                            raise Exception("File has a special character in the name")
-                        files[actual_path][cloud][index] = item
-
-                    elif isinstance(item, CloudService.Folder):
-                        # Process folders
-                        actual_path = f"{path}/{item.name}"
-                        cloud_name = cloud.get_name()
-                        if not folders.get(actual_path):
-                            folders[actual_path] = {}
-                        folders[actual_path][cloud_name] = item
-
-            except Exception as e:
-                print(f"Error searching items in cloud '{cloud.get_name()}': {e}")
-                continue
-
-        # Yield directories
-        for folder_path, folder_data in folders.items():
-            dir_obj = Directory(folder_data, folder_path)
-            yield dir_obj
-
-        # Yield files
-        for file_path, file_parts in files.items():
-            file_obj = CloudFile(file_parts, file_path)
-            yield file_obj
+        except Exception as e:
+            print(f"Error searching items in cloud '{cloud.get_name()}': {e}")
+        
+        return files, folders
 
     def enrich_item_metadata(self, item):
         """
