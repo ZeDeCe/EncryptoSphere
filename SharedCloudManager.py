@@ -183,7 +183,7 @@ class SharedCloudManager(CloudManager):
             self.executor.submit(self._upload_replicated, "$FEK", key, True),
             self.executor.submit(self._delete_replicated, "$TFEK", True),
             self.executor.submit(self._delete_replicated, "$PUBLIC", True),
-            self.executor.submit(self._delete_replicated, "$SHARED", True),
+            # self.executor.submit(self._delete_replicated, "$SHARED", True), Since we don't upload it, we won't delete it
         ]
         for future in futures:
             future.add_done_callback(lambda f: print(f"Error: {f.exception()}") if f.exception() else None)
@@ -295,19 +295,19 @@ class SharedCloudManager(CloudManager):
     def __share_keys_cloud(self, cloud : CloudService):
         files = list(cloud.list_files(self.root_folder.get(cloud.get_name()), "$"))
         shared = list(map(lambda f: f.get_name()[8:], filter(lambda f: f.get_name().startswith("$SHARED_"), files)))
+        feks = list(map(lambda f: f.get_name()[5:], filter(lambda f: f.get_name().startswith("$FEK_"), files)))
         public = filter(lambda f: f.get_name().startswith("$PUBLIC_"), files)
+        
 
         for file in public:
-            if file.get_name()[8:] not in shared:
+            if file.get_name()[8:] not in shared and file.get_name()[5:] not in feks:
                 self.executor.submit(self.__share_keys_from_public, file, cloud)
 
-        if self.is_owner:
-            feks = list(map(lambda f: f.get_name()[5:], filter(lambda f: f.get_name().startswith("$FEK_"), files)))
-            files = filter(lambda f: f.get_name().startswith("$SHARED_"), files)
-            for file in files:
-                if file.get_name()[8:] in feks:
-                    print(f"Deleting shared file {file.get_name()}")
-                    self._delete_replicated(file.get_name(), False)
+        files = filter(lambda f: f.get_name().startswith("$SHARED_"), files)
+        for file in files:
+            if file.get_name()[8:] in feks:
+                print(f"Deleting shared file {file.get_name()}")
+                self._delete_replicated(file.get_name(), False)
 
 
     def share_keys(self):
