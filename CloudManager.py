@@ -437,6 +437,11 @@ class CloudManager:
                 # Set the destination path to the Downloads folder
                 downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
                 dest_path = os.path.join(downloads_folder, file.data.get("name"))
+                file_name, ext = os.path.splitext(dest_path)
+                counter = 1
+                while os.path.exists(dest_path):
+                    dest_path = f"{file_name} ({counter}){ext}"
+                    counter += 1
             else:
                 # Set the destination path to the temporary folder
                 dest_path = self.get_temp_file_path(file.data.get("name"))
@@ -502,6 +507,10 @@ class CloudManager:
             else:
                 folder_name = os.path.basename(folder_path.rstrip("/"))
                 local_folder_path = os.path.join(parent_local_path, folder_name)
+            counter = 1
+            while os.path.exists(local_folder_path):
+                local_folder_path = f"{local_folder_path} ({counter})"
+                counter += 1
 
             # Create the local folder
             os.makedirs(local_folder_path, exist_ok=True)

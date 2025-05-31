@@ -4,7 +4,7 @@ import json
 from dotenv import load_dotenv
 import webbrowser
 from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+from googleapiclient.discovery import build, Resource
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload, HttpRequest
 from google.auth.transport.requests import Request
@@ -45,6 +45,11 @@ class GoogleDrive(CloudService):
         except Exception as e:
             print(f"Google Drive     : Failed to create root folder: {e}")
             return False
+        try:
+            self.deleted_items_folder = self.create_folder("$DELETED", self.root_folder)
+        except Exception as e:
+            print(f"Google Drive     : Failed to create deleted folder: {e}")
+        
         
     def authenticate_by_token(self):
         if self.authenticated:
@@ -107,7 +112,7 @@ class GoogleDrive(CloudService):
         print("Google Drive     : Authentication successful")
 
         self.create_session_folder()
-
+        self.__delete_leftover_files()
         return True
 
     
@@ -144,6 +149,33 @@ class GoogleDrive(CloudService):
             print(f"Google Drive     : Error verifying email: {e}")
             return False
 
+
+    def __delete_leftover_files(self):
+        """
+        Delete leftover files from previous sessions in the root folder.
+        This is useful for cleaning up after a session ends.
+        """
+        try:
+            query = f"'{self.deleted_items_folder._id}' in parents and trashed=false"
+            page_token = None
+            while True:
+                response = self.drive_service.files().list(
+                    q=query,
+                    spaces='drive',
+                    fields='nextPageToken, files(id, name)',
+                    pageToken=page_token
+                ).execute()
+                
+                for file in response.get('files', []):
+                    self._delete_item(file['id'])
+                    print(f"Deleted leftover file: {file['name']}")
+                
+                page_token = response.get('nextPageToken', None)
+                if page_token is None:
+                    break
+
+        except Exception as e:
+            print(f"Error deleting leftover files: {e}")
 
 
     def get_children(self, folder: CloudService.Folder, filter=None):
@@ -335,16 +367,66 @@ class GoogleDrive(CloudService):
         except Exception as e:
             raise Exception(f"Google Drive-Error: {e}")
 
-    
-    def delete_file(self, file: CloudService.File):
+
+    def _get_parent_folder(self, file_id: str) -> CloudService.Folder:
         """
-        Delete file from Google Drive by file object
+        Get the parent folder of a file in Google Drive.
+        Returns a CloudService.Folder object.
         """
         try:
-            file_id = file._id
+            file = self.drive_service.files().get(
+                fileId=file_id,
+                fields='parents',
+                supportsAllDrives=True
+            ).execute()
+            parent_id = file.get('parents', [None])[0]  # Get the first parent ID, if any
 
-            self.drive_service.files().delete(fileId=file_id).execute()
-            print(f"Google Drive: {file.name} deleted successfully.")
+            if not parent_id:
+                return CloudService.Folder(id="root", name="/", shared=False)
+            # TODO: check if parent_id is shared
+
+            parent_folder = self.drive_service.files().get(fileId=parent_id, fields='id, name').execute()
+            return CloudService.Folder(id=parent_folder['id'], name=parent_folder['name'], shared=False)
+
+        except HttpError as error:
+            raise Exception(f"Google Drive- Error getting parent folder: {error}")
+    
+
+    def get_parent_folder_file(self, object : CloudService.CloudObject) -> CloudService.Folder:
+        """
+        Get the parent folder of a file in Google Drive.
+        Returns a CloudService.Folder object.
+        """
+        try:
+            return self._get_parent_folder(object._id)
+        except Exception as e:
+            print(f"Google Drive- Error getting parent folder: {e}")
+            return None
+        
+    def _delete_item(self, item_id : str):
+        try:
+            try:
+                self.drive_service.files().delete(fileId=item_id).execute()
+            except:
+                self.drive_service.files().update(
+                    fileId=item_id,
+                    removeParents=self._get_parent_folder(item_id)._id,
+                    addParents=self.deleted_items_folder._id,
+                    supportsAllDrives=True
+                ).execute()
+                permissions = self.drive_service.permissions().list(
+                    fileId=item_id,
+                    fields="permissions(id,emailAddress,role,type)"
+                ).execute()
+                for permission in permissions.get('permissions', []):
+                    if permission.get('emailAddress') == self.get_email():
+                        permission_id = permission['id']
+
+                        # Delete the permission
+                        self.drive_service.permissions().delete(
+                            fileId=item_id,
+                            permissionId=permission_id
+                        ).execute()
             return True
         except HttpError as error:
             raise Exception(f"Google Drive- Error deleting file: {error}")
@@ -352,23 +434,18 @@ class GoogleDrive(CloudService):
             print(f"Google Drive- Unexpected error: {e}")
             return False
         
+    def delete_file(self, file: CloudService.File):
+        """
+        Delete file from Google Drive by file object
+        """
+        return self._delete_item(file._id)
+        
     
     def delete_folder(self, folder: CloudService.Folder):
         """
         Delete folder from Google Drive by folder object.
         """
-        try:
-            folder_id = folder._id
-
-            # delete folder just like file
-            self.drive_service.files().delete(fileId=folder_id).execute()
-            print(f"Google Drive: Folder '{folder.name}' deleted successfully.")
-            return True
-        except HttpError as error:
-            raise Exception(f"Google Drive - Error deleting folder: {error}")
-        except Exception as e:
-            print(f"Google Drive - Unexpected error deleting folder: {e}")
-            return False
+        return self._delete_item(folder._id)
 
 
     def get_session_folder(self, name: str) -> CloudService.Folder:
