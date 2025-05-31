@@ -250,7 +250,30 @@ class DropBox(CloudService):
         return new
     
     def get_owner(self, folder):
-        raise NotImplementedError("Still missing implementation")
+        """
+        Get the owner of the shared folder in Dropbox.
+        If the folder is not shared, raise an error.
+        """
+        if not folder.shared:
+            raise Exception("Error: Folder is not shared")
+
+        if hasattr(folder, "_owner"):  # Cache the owner since it doesn't change
+            return folder._owner
+
+        try:
+            # Get the shared folder metadata
+            members = self.dbx.sharing_list_folder_members(folder.shared)
+
+            # Find the owner from the permissions
+            for member in members.users:
+                        if member.access_type.is_owner():
+                            folder._owner = member.user.email
+                            return member.user.email
+
+            return None  # No owner found (shouldn't happen)
+
+        except dropbox.exceptions.ApiError as error:
+            raise Exception(f"Error getting owner: {error}")
     
     def leave_shared_folder(self, folder):
         raise NotImplementedError("Still missing implementation")

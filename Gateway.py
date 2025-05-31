@@ -67,6 +67,17 @@ class Gateway:
     def is_metadata_exists(self, cloud : CloudService):
         return CloudManager.is_metadata_exists(cloud, MAIN_SESSION, "$LOGIN_META")
 
+    def get_default_encryption_algorithm(self):
+        """
+        Returns the default encryption algorithm
+        """
+        return self.manager.encrypt.get_name()
+    def get_default_split_algorithm(self):
+        """
+        Returns the default split algorithm
+        """
+        return self.manager.split.get_name()
+
     def get_metadata_exists(self):
         return self.metadata_exists
     
@@ -370,7 +381,7 @@ class Gateway:
         return self.current_session.create_folder(folder_path)
     
     @promise
-    def create_shared_session(self, folder_name, emails):
+    def create_shared_session(self, folder_name : str, emails : list[str], encryption_algo : str, split_algo : str):
         """
         Create new shared session
         @param folder name
@@ -390,14 +401,15 @@ class Gateway:
             for cloud in self.manager.clouds:
                 user_dict[cloud.get_name()] = email
             shared_with.append(user_dict)
-            
+        
         new_session = SharedCloudManager(
             shared_with,
             None,
             list(self.manager.clouds),
-            folder_name, 
-            self.manager.split.copy(), # shaqed - add parameter to the function. this will be recieved from the user
-            self.manager.encrypt.copy(), # shaqed - add parameter to the function. this will be recieved from the user
+            folder_name,
+            Split.get_class(split_algo)(),
+            self.manager.encrypt.copy(),
+            Encrypt.get_class(encryption_algo)()
         )
 
         self.session_manager.add_session(new_session)

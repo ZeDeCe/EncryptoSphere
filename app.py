@@ -529,10 +529,6 @@ class RegistrationPage(ctk.CTkFrame):
         self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300)
         self.entry_pass.grid(row=2, column=0, padx=20, sticky="ew")
 
-
-        self.message_encription = ctk.CTkLabel(self, text="Select Encryption Algorithm:", font=("Aharoni", 16) , text_color="white")
-        self.message_encription.grid(row=3, column=0, padx=20, sticky="w")
-
         # Encryption Algorithem option menu
         encryption, split =self.controller.get_api().get_algorithms()
         index = -1
@@ -549,6 +545,9 @@ class RegistrationPage(ctk.CTkFrame):
                 break
         if index != -1:
             split.insert(0, split.pop(index))
+
+        self.message_encription = ctk.CTkLabel(self, text="Select Encryption Algorithm:", font=("Aharoni", 16) , text_color="white")
+        self.message_encription.grid(row=3, column=0, padx=20, sticky="w")
 
         self.encryption_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in encryption], command=lambda x: None)
         self.encryption_algorithm.grid(row=4, column=0, padx=20, sticky="ew")
@@ -858,18 +857,49 @@ class MainPage(ctk.CTkFrame):
         scrollable_frame.pack(fill=ctk.BOTH, expand=True)
 
         # Folder name input (label above the entry field)
-        folder_label = ctk.CTkLabel(scrollable_frame, text="Enter Folder Name:", anchor="w")
-        folder_label.grid(row=0, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
+        folder_label = ctk.CTkLabel(scrollable_frame, text="Enter Folder Name:", anchor="w", font=("Aharoni", 16))
+        folder_label.grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
         folder_name_entry = ctk.CTkEntry(scrollable_frame, width=200)
-        folder_name_entry.grid(row=1, column=0, pady=5, sticky="w")
+        folder_name_entry.grid(row=1, column=0, padx=20, pady=5, sticky="w")
+
+        # Encryption Algorithem option menu
+        encryption, split =self.controller.get_api().get_algorithms()
+        index = -1
+        for ind,cls in enumerate(encryption):
+            if cls.get_name() == self.controller.get_api().get_default_encryption_algorithm():
+                index = ind
+                break
+        if index != -1:
+            encryption.insert(0, encryption.pop(index))
+        index = -1
+        for ind,cls in enumerate(split):
+            if cls.get_name() == self.controller.get_api().get_default_encryption_algorithm():
+                index = ind
+                break
+        if index != -1:
+            split.insert(0, split.pop(index))
+
+        message_encription = ctk.CTkLabel(scrollable_frame, text="Select Encryption Algorithm:", font=("Aharoni", 16) , text_color="white")
+        message_encription.grid(row=2, column=0, padx=20, sticky="w")
+
+        encryption_algorithm = ctk.CTkOptionMenu(scrollable_frame, values=[cls.get_name() for cls in encryption], command=lambda x: None)
+        encryption_algorithm.grid(row=3, column=0, padx=20, pady=(0,20), sticky="ew")
+
+        
+        message_split = ctk.CTkLabel(scrollable_frame, text="Select Split Algorithm:", font=("Aharoni", 16) , text_color="white")
+        message_split.grid(row=4, column=0, padx=20, sticky="w")
+
+        # Split Algorithem option menu
+        split_algorithm = ctk.CTkOptionMenu(scrollable_frame, values=[cls.get_name() for cls in split], command=lambda x: None)
+        split_algorithm.grid(row=5, column=0, padx=20, pady=(0,20), sticky="ew")
 
         # Share with header
-        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w")
-        share_with_label.grid(row=2, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
+        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w", font=("Aharoni", 16))
+        share_with_label.grid(row=6, column=0, padx=20, pady=(0, 5), sticky="w")
         
         # Email list input
         email_frame = ctk.CTkFrame(scrollable_frame, fg_color=scrollable_frame.cget('fg_color'))  # Match background
-        email_frame.grid(row=3, column=0, columnspan=2, pady=0, sticky="w")
+        email_frame.grid(row=7, column=0, padx=20, columnspan=2, pady=0, sticky="w")
 
         # List to hold email input fields
         email_inputs = []  
@@ -887,7 +917,7 @@ class MainPage(ctk.CTkFrame):
                 email_inputs.append(new_email_entry)
 
         # "+" button to add email inputs (styled as a small circular button)
-        plus_button = ctk.CTkButton(email_frame, text="+", command=add_email_input, width=30, height=30, corner_radius=15)
+        plus_button = ctk.CTkButton(email_frame, text="+", command=add_email_input, width=30, height=30, corner_radius=15, font=("Aharoni", 16))
         plus_button.grid(row=1, column=1, padx=10, pady=5)
 
         # Function to handle the creation of new share
@@ -897,7 +927,7 @@ class MainPage(ctk.CTkFrame):
             print(f"Creating share with folder: {folder_name} and emails: {emails}")
             label = self.add_message_label(f"The folder {folder_name} is being shared")
             # Call a new function with the folder and emails (replace this with your logic)
-            self.controller.get_api().create_shared_session(lambda f: (self.refresh(), self.remove_message(label)), folder_name, emails)
+            self.controller.get_api().create_shared_session(lambda f: (self.refresh(), self.remove_message(label)), folder_name, emails, encryption_algorithm.get(), split_algorithm.get())
             # Close the new window
             new_window.destroy()
 
