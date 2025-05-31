@@ -265,8 +265,8 @@ class Gateway:
             None,
             list(self.manager.clouds),
             folder_name, 
-            self.manager.split.copy(),
-            self.manager.encrypt.copy(),
+            self.manager.split.copy(), # shaqed - add parameter to the function. this will be recieved from the user
+            self.manager.encrypt.copy(), # shaqed - add parameter to the function. this will be recieved from the user
         )
 
         self.session_manager.add_session(new_session)
