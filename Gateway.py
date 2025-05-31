@@ -26,6 +26,7 @@ import app as app
 # This is temporary:
 from cryptography.fernet import Fernet
 
+FILE_INDEX_SEPERATOR = "#"
 SYNC_TIME = 90 # 1 min 30 sec
 
 class Gateway:
@@ -61,6 +62,7 @@ class Gateway:
     @promise
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
+        #email = 'hadas.shalev10@cs.colman.ac.il'
         dropbox1 = DropBox(email)
         drive1 = GoogleDrive(email)
         encrypt = AESEncrypt()
@@ -114,10 +116,14 @@ class Gateway:
         print(f"Searching for items matching: {search_string}")
         files, folders = self.current_session.search_items_by_name(search_string, path)
         data = files + folders  # Combine files and folders into a single list
+        self.search_results = data
         for index, item in enumerate(data):  # Iterate over the list of objects
         # Convert each item to a dictionary with additional metadata
+        # Use the FILE_INDEX_SEPERATOR to split the name and get the index
+            if isinstance(item, CloudService.File):
+                split = item.name.split(FILE_INDEX_SEPERATOR)
             item_dict = {
-                "name": getattr(item, "name", "Unknown"),  # Safely get the name attribute
+                "name": split[1] if isinstance(item, CloudService.File) else item.name,
                 "id": getattr(item, "id", None),  # Safely get the id attribute
                 "type": "file" if isinstance(item, CloudService.File) else "folder",
                 "path": None,  # Safely get the path attribute
@@ -125,8 +131,6 @@ class Gateway:
                 "search_index": index,  # Add a unique search index
             }
             data[index] = item_dict  # Replace the original object with the dictionary
-
-        self.search_results = data  # Store the updated list of dictionaries for later retrieval
 
         print("in gateway search results:")
         for item in data:
