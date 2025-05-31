@@ -1480,9 +1480,20 @@ class SharedFolderButton(IconButton):
 
     def leave_shared_folder(self):
         print("leave_share_clicked")
-        label = self.controller.add_message_label(f"Leaving share {self.name}")
-        # Call a new function with the folder and emails (replace this with your logic)
-        self.controller.get_api().leave_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
+        desc_text = f'You will no longer can see "{self.name}".'
+        title = "Are you sure you want to leave this share?"
+        def on_confirm():
+            label = self.controller.add_message_label(f"Leaving share {self.name}")
+            self.controller.get_api().leave_shared_folder(
+                lambda f: (
+                    self.controller.remove_message(label),
+                    self.controller.refresh(),
+                    messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.controller.refresh()
+                    
+                ), 
+                self.uid
+            )
+        self.controller.show_message_notification(desc_text, title, on_confirm)
 
 
     def delete_shared_folder(self):
@@ -1490,7 +1501,21 @@ class SharedFolderButton(IconButton):
         label = self.controller.add_message_label(f"Deleting share {self.name}")
         # Call a new function with the folder and emails (replace this with your logic)
         self.controller.get_api().delete_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
-
+        
+        desc_text = f'"{self.name}" Will be permanently deleted.'
+        title = "Are you sure you want to leave this share?"
+        def on_confirm():
+            label = self.controller.add_message_label(f"Leaving share {self.name}")
+            self.controller.get_api().leave_shared_folder(
+                lambda f: (
+                    self.controller.remove_message(label),
+                    self.controller.refresh(),
+                    messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.controller.refresh()
+                    
+                ), 
+                self.uid
+            )
+        self.controller.show_message_notification(desc_text, title, on_confirm)
     def manage_share_permissions(self):
         new_window = ctk.CTkToplevel(self)
         new_window.title("Manage Share Permissions")
