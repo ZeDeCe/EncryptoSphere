@@ -727,7 +727,7 @@ class CloudManager:
         if not start_folder:
             raise FileNotFoundError(f"Start folder '{path}' does not exist!")
 
-        cloud = self.clouds[1]  # Only Dropbox, faster
+        cloud = self.clouds[1]  # Only Dropbox, drive dosent find all files for some reason
         try:
             # Get items matching the filter from the cloud
             items = cloud.get_items_by_name(filter, [start_folder.get(cloud.get_name())])
@@ -754,22 +754,14 @@ class CloudManager:
         except Exception as e:
             print(f"Error searching items in cloud '{cloud.get_name()}': {e}")
         
-        return files, folders
-
-    def enrich_item_metadata(self, item):
+        return files, folders, cloud
+    
+    def enrich_item_metadata(self, item, cloud):
         """
-        Enrich a CloudFile or Directory object by retrieving its full metadata, including the path, from the local filesystem (fs).
-        @param item: The CloudFile or Directory object to enrich.
+        Enrich a CloudFile or Directory object by retrieving its full metadata, including the path.
+        @param item: The File or Folder object to enrich.
         @return: The enriched object with the full metadata.
         """
-        if isinstance(item, CloudFile) or isinstance(item, Directory):
-            # Check if the item's uid exists in the filesystem (fs)
-            if item.data.get("id") in self.fs:
-                enriched_item = self.fs[item.data["id"]]
-                item.path = enriched_item.path
-                item.data.update(enriched_item.data)
-                return item
-            else:
-                raise FileNotFoundError(f"Item with ID '{item.data.get('id')}' not found in the filesystem.")
-        else:
-            raise TypeError("Item must be a CloudFile or Directory object.")
+        enriched = cloud.enrich_item_metadata(item)
+        print(f"Enriched item: {enriched['name']}, path: {enriched['path']} in cloud {cloud.get_name()}")
+        return enriched

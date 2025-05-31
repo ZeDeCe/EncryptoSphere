@@ -44,6 +44,7 @@ class Gateway:
         self.active_shared_folder_sync = False
         self.sync_future_callbacks = []
         self.search_results = []  # Store the most recent search results
+        self.search_results_colud = None  # Store the cloud of the most recent search resultsN
 
     def promise(func):
         """
@@ -62,7 +63,6 @@ class Gateway:
     @promise
     def authenticate(self, email):
         master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
-        #email = 'hadas.shalev10@cs.colman.ac.il'
         dropbox1 = DropBox(email)
         drive1 = GoogleDrive(email)
         encrypt = AESEncrypt()
@@ -114,8 +114,9 @@ class Gateway:
         @return: A list of dictionaries representing files and folders.
         """
         print(f"Searching for items matching: {search_string}")
-        files, folders = self.current_session.search_items_by_name(search_string, path)
+        files, folders, cloud = self.current_session.search_items_by_name(search_string, path)
         data = files + folders  # Combine files and folders into a single list
+        self.search_results_colud = cloud
         self.search_results = data
         for index, item in enumerate(data):  # Iterate over the list of objects
         # Convert each item to a dictionary with additional metadata

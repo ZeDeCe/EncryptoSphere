@@ -594,6 +594,39 @@ class DropBox(CloudService):
 
         except dropbox.exceptions.ApiError as error:
             raise Exception(f"Error getting owner: {error}")
+        
+    def enrich_item_metadata(self, item: CloudService.File | CloudService.Folder) -> dict:
+        """
+        Enrich a CloudService.File or CloudService.Folder object by retrieving its full metadata, including the path.
+        @param item: The File or Folder object to enrich.
+        @return: A dictionary containing the enriched metadata, including the full path.
+        """
+        try:
+            # Use Dropbox API to get metadata
+            metadata = self.dbx.files_get_metadata(item._id)
+
+            if isinstance(item, CloudService.File) and isinstance(metadata, dropbox.files.FileMetadata):
+                return {
+                    "id": metadata.id,
+                    "name": metadata.name,
+                    "path": metadata.path_display,
+                    "type": "file",
+                    "size": metadata.size,
+                    "modified": metadata.server_modified,
+                }
+            elif isinstance(item, CloudService.Folder) and isinstance(metadata, dropbox.files.FolderMetadata):
+                return {
+                    "id": metadata.id,
+                    "name": metadata.name,
+                    "path": metadata.path_display,
+                    "type": "folder",
+                }
+            else:
+                raise ValueError(f"Unexpected metadata type for item: {item}")
+
+        except dropbox.exceptions.ApiError as e:
+            print(f"Error retrieving metadata for item '{item.name}': {e}")
+            raise
 
 '''
 # Unit Test, make sure to enter email!

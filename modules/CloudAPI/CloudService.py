@@ -265,3 +265,13 @@ class CloudService(ABC):
          @return the string name of the cloud service
         """
         pass
+
+    @abstractmethod
+    def enrich_item_metadata(self, item: File | Folder) -> dict:
+        """
+        Enrich the metadata of a file or folder object with additional information.
+        This can include size, creation date, modification date, etc.
+        @param item the file or folder object to enrich
+        @return a dictionary with enriched metadata
+        """
+        pass
