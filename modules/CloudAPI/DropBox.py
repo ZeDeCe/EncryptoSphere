@@ -397,7 +397,7 @@ class DropBox(CloudService):
             return True
         except dropbox.exceptions.ApiError as e:
              raise Exception(f"Error unsharing or deleting folder: {e}")
-
+ 
     '''
     # Function to share a file with an email address (without sending an email), as of now - uneccacery 
     def share_file_with_email(self, dropbox_file_path, recipient_email):
