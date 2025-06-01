@@ -791,7 +791,7 @@ class MainPage(ctk.CTkFrame):
         """
         print("Upload button clicked")
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup(self.upload_button.winfo_x() + 120, self.upload_button.winfo_y())
+            self.context_menu.show_popup(self.upload_button.winfo_x(), self.upload_button.winfo_y()+5)
         else:
             self.context_menu.hide_popup()
 
