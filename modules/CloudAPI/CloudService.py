@@ -79,6 +79,16 @@ class CloudService(ABC):
         """
         return self.authenticated
     
+    def authenticate_by_token(self) -> bool:
+        """
+        Authenticate with the cloud service using a token
+        Make sure to call this function before overriding
+        Make sure to set the self.authenticated flag to True after authentication has occured so that the platform
+        won't need to go through authentication twice
+        @return success, if fails throws an error
+        """
+        return self.authenticated
+    
     def authenticate_cloud(self) -> bool:
         """
         Authenticate with the cloud service
@@ -265,6 +275,45 @@ class CloudService(ABC):
          @return the string name of the cloud service
         """
         pass
+    
+
+    @abstractmethod
+    def get_icon(self) -> str:
+        """
+        Returns the icon of the cloud service
+        @return the icon of the cloud service
+        """
+        pass 
+    
+    @staticmethod
+    def get_cloud_classes() -> list:
+        """
+        Returns a list of all the cloud classes
+        """
+        return CloudService.__subclasses__()
+    
+    @staticmethod
+    @abstractmethod
+    def get_name_static(self) -> str:
+        """
+        Returns the name of the cloud service
+        This is a static method that should be overridden in each subclass
+        @return the name of the cloud service
+        """
+        pass
+
+    @staticmethod
+    def get_class(name : str):
+        """
+        Returns the cloud service class with the specified name
+        @param name the name of the cloud service
+        @return the cloud service class
+        """
+        for cls in CloudService.__subclasses__():
+            if cls.get_name_static() == name:
+                return cls
+        return None
+    
 
     @abstractmethod
     def enrich_item_metadata(self, item: File | Folder) -> dict:

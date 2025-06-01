@@ -16,15 +16,21 @@ DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
 DROPBOX_TOKEN_PATH = "cloud_tokens.json"
 
 class DropBox(CloudService):
+
+    def create_session_folder(self):
+        # Create root folder if not already exist
+        try:
+            self.root_folder = self.create_folder(DROPBOX_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
+            self.root_folder.name = ""
+            print(f"DropBox: Root folder ready")
+        except Exception as e:
+            print(f"Error: Failed to create root folder: {e}")
+            return False
+
     # Function to authenticate the Dropbox account and get access token
     # The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
     # The function creates and save the root folder (if not already exsist)
-    def authenticate_cloud(self):
-        """
-        Function to authenticate the Dropbox account and get access token
-        The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
-        The function creates and save the root folder (if not already exsist)
-        """
+    def authenticate_by_token(self):
         if self.authenticated:
             return True
         self.token_manager = CloudDataManager("EncryptoSphereApp", "dropbox")
@@ -41,47 +47,54 @@ class DropBox(CloudService):
                 if current_email == self.email:
                     self.authenticated = True
                     self.user_id = self.dbx.users_get_current_account().account_id
+                    self.create_session_folder()
+                    return True
                 else:
                     print("DropBox : Email mismatch with stored Dropbox token.")
+                    return False
             except dropbox.exceptions.AuthError as e:
                 print(f"DropBox : Error {e}")
                 self.authenticated = False
                 access_token = None
-        if not self.authenticated:
-            print("DropBox : No token found, starting authentication...")
-            # Start the OAuth flow
-            auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
-            # Generate the authorization URL
-            auth_url = auth_flow.start()
-            # Automatically open the URL in the default browser
-            webbrowser.open(auth_url)
-            # Get the authorization code from the user
-
-            auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code").result()
-            #auth_code = input("DropBox: Please enter the authorization code from Dropbox: ")
-
-            # Verify if the token is valid for the given email
-            auth_result = self._verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
-            if not auth_result:
                 return False
-            
-            # Save the token to a JSON file for future use
-            self._save_dropbox_token_to_json(auth_result.access_token)
-            
-            
-            # Extract access token and user_id from the result object
-            access_token = auth_result.access_token
-            self.user_id = auth_result.user_id
-            self.authenticated = True
 
-            # Create root folder if not already exist
-        try:
-            self.root_folder = self.create_folder(DROPBOX_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
-            self.root_folder.name = ""
-            print(f"DropBox: Root folder ready")
-        except Exception as e:
-            print(f"Error: Failed to create root folder: {e}")
+    def authenticate_cloud(self):
+        """
+        Function to authenticate the Dropbox account and get access token
+        The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
+        The function creates and save the root folder (if not already exsist)
+        """
+        if self.authenticated:
+            return True
+
+        if self.authenticate_by_token():
+            return True
+
+        print("DropBox : No token found, starting authentication...")
+        # Start the OAuth flow
+        auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
+        # Generate the authorization URL
+        auth_url = auth_flow.start()
+        # Automatically open the URL in the default browser
+        webbrowser.open(auth_url)
+        # Get the authorization code from the user
+        auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code").result()
+        
+        # Verify if the token is valid for the given email
+        auth_result = self._verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
+        if not auth_result:
             return False
+        
+        # Save the token to a JSON file for future use
+        self._save_dropbox_token_to_json(auth_result.access_token)
+        
+        
+        # Extract access token and user_id from the result object
+        access_token = auth_result.access_token
+        self.user_id = auth_result.user_id
+        self.authenticated = True
+
+        self.create_session_folder()
         
         return True
     
@@ -232,6 +245,32 @@ class DropBox(CloudService):
         new = self.create_folder(name, self.root_folder)
         new.name = "/"
         return new
+    
+    def get_owner(self, folder):
+        """
+        Get the owner of the shared folder in Dropbox.
+        If the folder is not shared, raise an error.
+        """
+        if not folder.shared:
+            raise Exception("Error: Folder is not shared")
+
+        if hasattr(folder, "_owner"):  # Cache the owner since it doesn't change
+            return folder._owner
+
+        try:
+            # Get the shared folder metadata
+            members = self.dbx.sharing_list_folder_members(folder.shared)
+
+            # Find the owner from the permissions
+            for member in members.users:
+                        if member.access_type.is_owner():
+                            folder._owner = member.user.email
+                            return member.user.email
+
+            return None  # No owner found (shouldn't happen)
+
+        except dropbox.exceptions.ApiError as error:
+            raise Exception(f"Error getting owner: {error}")
     
     def delete_folder(self, folder : CloudService.Folder):
         """
@@ -486,6 +525,10 @@ class DropBox(CloudService):
     def get_name(self):
         return "D"
     
+    @staticmethod
+    def get_name_static():
+        return "D"
+    
     def delete_folder(self, folder: CloudService.Folder):
         """
         Delete a folder from Dropbox.
@@ -540,6 +583,17 @@ class DropBox(CloudService):
         except Exception as e:
             print(f"Error in get_items_by_name: {e}")
             raise
+
+    def get_icon(self) -> str:
+        if self.authenticated:
+            return "resources/DropBox_icon_checked.png"
+        else:
+            return "resources/DropBox_icon.png"
+        
+    @staticmethod
+    def get_icon_static():
+        return "resources/DropBox_icon.png"
+    
 
     def leave_shared_folder(self, folder):
         """

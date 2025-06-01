@@ -42,6 +42,11 @@ class Split(ABC):
         """
         pass
 
-
+    @staticmethod
+    def get_classes() -> str:
+        """
+        Returns a list of all the split classes
+        """
+        return Split.__subclasses__()
 
 

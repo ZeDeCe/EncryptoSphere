@@ -10,7 +10,6 @@ from SharedCloudManager import SharedCloudManager
 from modules.Encrypt import *
 from modules.Split import *
 from modules.CloudAPI import *
-from FileDescriptor import FileDescriptor
 from SessionManager import SessionManager
 import customtkinter as ctk
 from threading import Thread
@@ -18,6 +17,9 @@ import concurrent.futures
 import time
 import threading
 from functools import wraps
+from LoginManager import LoginManager
+import hashlib
+import json
 
 import utils.DialogBox as DialogBox
 import app as app
@@ -28,6 +30,7 @@ from cryptography.fernet import Fernet
 
 FILE_INDEX_SEPERATOR = "#"
 SYNC_TIME = 90 # 1 min 30 sec
+MAIN_SESSION  = "main_session"
 
 class Gateway:
     """
@@ -43,6 +46,11 @@ class Gateway:
         self.active_sessions_sync = False
         self.active_shared_folder_sync = False
         self.sync_future_callbacks = []
+        self.authenticated_clouds = []
+        self.email = None
+        self.metadata_exists = False
+        self.login_manager = LoginManager()
+        
         self.search_results = []  # Store the most recent search results
         self.search_results_cloud = None  # Store the cloud of the most recent search resultsN
 
@@ -59,30 +67,194 @@ class Gateway:
             return future
         return wrapper
 
-    # NOTE: This needs to be refactored: function should get an cloud,email list and create the objects based on that
-    @promise
-    def authenticate(self, email):
-        master_key = b"11111111111111111111111111111111" # this is temporary supposed to come from login
-        dropbox1 = DropBox(email)
-        drive1 = GoogleDrive(email)
-        encrypt = AESEncrypt()
-        encrypt.set_key(encrypt.generate_key_from_key(master_key))
-        # Everything here is for testing
-        self.manager = CloudManager(
-            [drive1,dropbox1],
-            "main_session", 
-            ShamirSplit(), 
-            encrypt
-        )
+    def is_metadata_exists(self, cloud : CloudService):
+        return CloudManager.is_metadata_exists(cloud, MAIN_SESSION, "$LOGIN_META")
 
-        self.session_manager = SessionManager(Fernet.generate_key(), self.manager)
-        status = self.manager.authenticate()
-        self.current_session = self.manager
-        self.start_sync_new_sessions_task()
-        print(f"Status: {status}")
-        return status
+    def get_default_encryption_algorithm(self):
+        """
+        Returns the default encryption algorithm
+        """
+        return self.manager.encrypt.get_name()
+    def get_default_split_algorithm(self):
+        """
+        Returns the default split algorithm
+        """
+        return self.manager.split.get_name()
+
+    def get_metadata_exists(self):
+        return self.metadata_exists
+    
+    def get_algorithms(self):
+        """
+        Returns the list of algorithms
+        """
+        return Encrypt.get_classes(), Split.get_classes()
+    
+    @promise
+    def cloud_authenticate(self, cloud_name: str):
+        """
+        Authenticates a single cloud service using its short identifier (e.g., 'G' for GoogleDrive).
+        The cloud_name is matched using each class's get_name() method.
+        """
+        supported_clouds = CloudService.get_cloud_classes()
+
+        for cloud_class in supported_clouds:
+            if cloud_class.get_name_static().lower() == cloud_name.lower():
+                cloud = cloud_class(self.email)
+                if not cloud.authenticate_cloud():
+                    raise Exception(f"Authentication failed for {cloud.get_name()}")
+                self.authenticated_clouds.append(cloud)
+                if not self.metadata_exists:
+                    self.metadata_exists = self.is_metadata_exists(cloud)    
+                return cloud
+
+        raise ValueError(f"Unsupported cloud service: {cloud.get_name()}")
+    
+    @promise
+    def clouds_authenticate_by_token(self):
+        """
+        Authenticates all supported cloud services using a token.
+        Returns a list of cloud objects that were successfully authenticated.
+        """
+        supported_clouds = CloudService.get_cloud_classes()
+        autenticated_clouds = []
+        for cloud_class in supported_clouds:
+            cloud = cloud_class(self.email)
+            if cloud.authenticate_by_token():
+                autenticated_clouds.append(cloud)
+                if not self.metadata_exists:
+                    self.metadata_exists = self.is_metadata_exists(cloud)    
+        self.authenticated_clouds = autenticated_clouds
+        return autenticated_clouds
+
+
+    def set_email(self, email: str):
+        assert self.email is None
+        self.email = email
+
+
+    def get_authenticated_clouds(self):
+        """
+        Returns the list of authenticated clouds
+        """
+        return self.authenticated_clouds
     
     
+    @promise
+    def app_authenticate(self, password: str):
+        """
+        Authenticates the app using login metadata ($LOGIN_META), 
+        then loads main metadata ($META) to initialize session.
+        """
+        if not self.authenticated_clouds:
+            return "No authenticated clouds"
+
+        try:
+            self.login_manager.load_login_metadata(password, self.authenticated_clouds[0], MAIN_SESSION)
+        except Exception as e:
+            return "Failed to load login metadata"
+
+        try:
+            key = self.login_manager.login(
+                input_password=password,
+                salt=self.login_manager.salt,
+                auth_encrypted_hex=self.login_manager.encrypted_auth.hex(),
+                auth_hash=self.login_manager.auth_hash,
+                encryption_type=self.login_manager.encryption_type
+            )
+        except Exception as e:
+            return "Failed to authenticate: Password is incorrect or metadata is corrupted"
+        
+        metadata = self.login_manager.login_metadata
+        if not metadata:
+            return "Login metadata is empty or not found"
+        try:
+            encryption_type = metadata.get("encrypt")
+            split_type = metadata.get("split")
+
+            encryptor_class = Encrypt.get_class(encryption_type)
+            encryptor = encryptor_class()
+            encryptor.set_key(encryptor.generate_key_from_key(key))
+
+            self.manager = CloudManager(
+                self.authenticated_clouds,
+                MAIN_SESSION,
+                Split.get_class(split_type)(),
+                encryptor
+            )
+            self.session_manager = SessionManager(self.manager)
+            status = self.manager.authenticate()
+            if not status:
+                return "Failed to authenticate with cloud services"
+            self.current_session = self.manager
+            self.start_sync_new_sessions_task()
+            return True
+        except Exception as e:
+            return "Unknown error during authentication"
+
+
+    @promise
+    def create_account(self, password: str, encrypt_alg: str, split_alg: str) -> bool:
+        """
+        Creates a new account: both login metadata ($LOGIN_META) and main metadata ($META).
+        """
+        if not password or len(password) < 6:
+            raise ValueError("Password is too short")
+
+        if not self.authenticated_clouds:
+            raise ValueError("No cloud services provided")
+
+        self.login_manager.cloud = self.authenticated_clouds[0]
+        self.login_manager.root = MAIN_SESSION
+
+        # check if metadata alredy exists
+        try:
+            if CloudManager.is_metadata_exists(self.authenticated_clouds[0], MAIN_SESSION, "$LOGIN_META"):
+                raise Exception("Account already exists – metadata found in cloud")
+        except Exception:
+            raise RuntimeError("Could not access cloud to check for existing account")
+
+        # create $LOGIN_META
+        try:
+            self.login_manager.create_login_metadata(password, encrypt_alg, split_alg)
+            CloudManager.upload_metadata(
+                self.authenticated_clouds,
+                MAIN_SESSION,
+                self.login_manager.login_metadata,
+                "$LOGIN_META"
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to create or upload login metadata: {e}")
+
+        # create $META
+        try:
+            split = Split.get_class(split_alg)()
+            key = self.login_manager.create_key_from_password(password, self.login_manager.salt)
+            encryptor_class = Encrypt.get_class(encrypt_alg)
+            encryptor = encryptor_class()
+            encryptor.set_key(encryptor.generate_key_from_key(key))
+
+            self.manager = CloudManager(
+                self.authenticated_clouds,
+                MAIN_SESSION,
+                split,
+                encryptor
+            )
+            self.manager.authenticate()
+            self.current_session = self.manager
+            self.session_manager = SessionManager(self.manager)
+            self.start_sync_new_sessions_task()
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to create or upload main metadata: {e}")
+
+        return True
+
+
+    def get_clouds(self):
+        return CloudService.get_cloud_classes()
+        
+
     def change_session(self, uid=None):
         """
         Change the current session to the one specified by path
@@ -249,7 +421,7 @@ class Gateway:
         return self.current_session.create_folder(folder_path)
     
     @promise
-    def create_shared_session(self, folder_name, emails):
+    def create_shared_session(self, folder_name : str, emails : list[str], encryption_algo : str, split_algo : str):
         """
         Create new shared session
         @param folder name
@@ -269,14 +441,15 @@ class Gateway:
             for cloud in self.manager.clouds:
                 user_dict[cloud.get_name()] = email
             shared_with.append(user_dict)
-            
+        
         new_session = SharedCloudManager(
             shared_with,
             None,
             list(self.manager.clouds),
-            folder_name, 
-            self.manager.split.copy(), # shaqed - add parameter to the function. this will be recieved from the user
-            self.manager.encrypt.copy(), # shaqed - add parameter to the function. this will be recieved from the user
+            folder_name,
+            Split.get_class(split_algo)(),
+            self.manager.encrypt.copy(),
+            Encrypt.get_class(encryption_algo)()
         )
 
         self.session_manager.add_session(new_session)
