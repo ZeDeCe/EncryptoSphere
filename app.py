@@ -1634,31 +1634,30 @@ class MessageNotification(ctk.CTkFrame, Popup):
         
         # Ensure the frame respects the specified width and height
         self.pack_propagate(False)  
-        self.grid_propagate(False)  
 
         # Title
-        title_label = ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"), wraplength=width - 20, justify="center")
-        title_label.pack(pady=(10, 5), padx=10)
+        title_label = ctk.CTkLabel(self, text=title, font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"), wraplength=width - 20, justify="center")
+        title_label.pack(pady=(20, 5), padx=10)
 
         # Description
-        desc_label = ctk.CTkLabel(self, text=description, font=("Arial", 12), wraplength=width - 20, justify="center")
+        desc_label = ctk.CTkLabel(self, text=description, font=ctk.CTkFont(family="Segoe UI", size=18), wraplength=width - 20, justify="center")
         desc_label.pack(pady=(5, 10), padx=10)
 
         # Buttons frame
         buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
-        buttons_frame.pack(pady=(5, 10))
+        buttons_frame.pack(side="bottom", pady=(10, 10))
 
         # Cancel button
         cancel_button = ctk.CTkButton(buttons_frame, text="Cancel", width=80,
-                          fg_color="transparent", hover_color="gray",
-                          text_color="white",
-                          command=lambda: self._handle_cancel(on_cancel))
-        cancel_button.grid(row=0, column=0, padx=(10, 5))
+              fg_color="transparent", hover_color="gray",
+              text_color="white",
+              command=lambda: self._handle_cancel(on_cancel))
+        cancel_button.pack(side="left", padx=(10, 5), anchor="se")
 
         # Confirm button
         confirm_button = ctk.CTkButton(buttons_frame, text="Confirm", width=80,
-                           command=lambda: self._handle_confirm(on_confirm))
-        confirm_button.grid(row=0, column=1, padx=(5, 10))
+               command=lambda: self._handle_confirm(on_confirm))
+        confirm_button.pack(side="right", padx=(5, 10), anchor="se")
 
         Popup.show_popup(self)
 
@@ -1679,7 +1678,7 @@ class MessageNotification(ctk.CTkFrame, Popup):
         if on_cancel:
             on_cancel()
         self.hide_popup()
-    
+        
     def _handle_outside_click(self, event):
         """
         Handle clicks outside the notification frame
