@@ -191,7 +191,7 @@ class CloudManager:
             
             self.fs["/"] = Directory(folders, "/")
             self.fs["/"].set_root()
-            self.load_metadata()
+            self.load_metadata(cloud.get_email())
 
             return True  # Authentication and file descriptor loading succeeded
         except Exception as e:
@@ -751,7 +751,7 @@ class CloudManager:
                     return False
             
 
-    def load_metadata(self):
+    def load_metadata(self, email: str):
         """
         Downloads the filedescriptor from the clouds and sets it as this object's file descriptor.
         This function does NOT perform authentication or key creation — it only loads metadata.
@@ -767,10 +767,38 @@ class CloudManager:
             self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
         else:
             self.metadata = json.loads(metadata)
-
             for cloudname in self.metadata.get("order"):
                 if cloudname not in self.cloud_name_list:
-                    raise Exception(f"Missing a required cloud for session: {cloudname}")
+                    cloud_class = next((cls for cls in CloudService.get_cloud_classes() if cls.get_name_static() == cloudname), None)
+                    if cloud_class is not None:
+                        try:
+                            new_cloud = cloud_class(self.root)
+                            new_cloud.authenticate_cloud()
+                            new_cloud.load_metadata(email)
+
+                            self.clouds.append(new_cloud)
+                            self.cloud_name_list.append(cloudname)
+                            print(f"Added missing cloud: {cloudname}")
+
+                            if "/" in self.fs and isinstance(self.fs["/"], Directory):
+                                try:
+                                    session_folder = new_cloud.get_session_folder(self.root)
+                                    if session_folder:
+                                        self.fs["/"].folders[cloudname] = session_folder
+                                except Exception as e:
+                                    print(f"Failed to add root folder for cloud {cloudname}: {e}")
+                        except Exception as e:
+                            print(f"Error while adding cloud {cloudname}: {e}")
+                    else:
+                        raise Exception(f"Cloud class for '{cloudname}' not found, cannot create missing cloud.")
+
+            for cloud in list(self.clouds):
+                if cloud.get_name() not in self.metadata.get("order"):
+                    print(f"Removed cloud not in order: {cloud.get_name()}")
+                    self.clouds.remove(cloud)
+                    self.cloud_name_list.remove(cloud.get_name())
+                    if "/" in self.fs and isinstance(self.fs["/"], Directory):
+                        self.fs["/"].folders.pop(cloud.get_name(), None)
 
             self.cloud_name_list = self.metadata.get("order")
 
@@ -781,7 +809,5 @@ class CloudManager:
             if self.encrypt.get_name() != self.metadata.get("encrypt"):
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
-
-
 
 
