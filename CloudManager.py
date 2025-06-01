@@ -762,12 +762,15 @@ class CloudManager:
         """
         #metadata = self._download_replicated("$META")
         # Download without using the replicated function since we did not set up self.fs yet
-        metadata = self.clouds[0].list_files(self.clouds[0].get_session_folder(self.root), "$META")
-        for meta in metadata:
-            if meta.get_name() == "$META":
-                metadata = self.clouds[0].download_file(meta)
-                print(f"Successfully downloaded metadata for session {self.root}.")
-                break
+        if self.fs.get("/") is None:
+            metadata = self.clouds[0].list_files(self.clouds[0].get_session_folder(self.root), "$META")
+            for meta in metadata:
+                if meta.get_name() == "$META":
+                    metadata = self.clouds[0].download_file(meta)
+                    print(f"Successfully downloaded metadata for session {self.root}.")
+                    break
+        else:
+            metadata = self._download_replicated("$META")
         
         if metadata is None:
             self.metadata = {
