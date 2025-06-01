@@ -769,16 +769,21 @@ class CloudManager:
                     metadata = self.clouds[0].download_file(meta)
                     print(f"Successfully downloaded metadata for session {self.root}.")
                     break
+            
         else:
             metadata = self._download_replicated("$META")
         
-        if metadata is None:
+        if not isinstance(metadata, bytes):
             self.metadata = {
                 "encrypt": self.encrypt.get_name(),
                 "split": self.split.get_name(),
                 "order": self.cloud_name_list
             }
-            self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
+            if self.fs.get("/") is None:
+                for cloud in self.clouds: # If there isn't a root folder, we are creating a session so self.clouds is accurate
+                    cloud.upload_file(json.dumps(self.metadata).encode('utf-8'), "$META", cloud.get_session_folder(self.root))
+            else:
+                self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
         else:
             self.metadata = json.loads(metadata)
             email = self.clouds[0].get_email() # We only support having the same email in all clouds for now
@@ -802,4 +807,69 @@ class CloudManager:
                 print(f"Changing encryption algorithm for session {self.root} to {self.metadata.get('encrypt')}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
+    def search_items_by_name(self, filter: str, path: str):
+        """
+        Search for files and folders by name across all clouds.
+        @param filter: The filter string to search for.
+        @param path: The folder path to start the search from.
+        @return: A tuple containing two lists: one for files and one for folders.
+        """
+        files = []
+        folders = []
 
+        # Get the starting folder object
+        start_folder = self.fs.get(path)
+        if not start_folder:
+            raise FileNotFoundError(f"Start folder '{path}' does not exist!")
+
+        cloud = self.clouds[0]  # Only Dropbox, drive doesn't find all files for some reason
+        try:
+            # Get items matching the filter from the cloud
+            items = cloud.get_items_by_name(filter, [start_folder.get(cloud.get_name())])
+            for item in items:
+                # Skip files that start with "$"
+                if item.name.startswith("$"):
+                    continue
+                print(f"Found item: {item.name} in cloud {cloud.get_name()}")
+
+                if isinstance(item, CloudService.File):
+                    # Process files
+                    split = item.name.split(FILE_INDEX_SEPERATOR)
+                    if len(split) == 2 and split[0] != "1":
+                        # Ignore parts with #2 or higher
+                        continue
+
+                    # Add file data to the files list
+                    yield item
+
+                elif isinstance(item, CloudService.Folder):
+                    # Add folder data to the folders list
+                    yield item
+
+        except Exception as e:
+            print(f"Error searching items in cloud '{cloud.get_name()}': {e}")
+    
+    def object_to_cloudobject(self, item : CloudService.CloudObject):
+        """
+        Enrich a CloudFile or Directory object by retrieving its full metadata, including the path.
+        @param item: The File or Folder object to enrich.
+        @return: The enriched object with the full metadata.
+        """
+        cloud = self.clouds[0] # TODO: use dropbox if available because it is much faster
+        path = cloud.get_full_path(item, self.fs["/"].get(cloud.get_name()))
+        
+        # Create CloudFile or Directory object with the full path
+        try:
+            if isinstance(item, CloudService.File):
+                parent_path  = "/".join(path.split("/")[:-1])
+                parent_path = parent_path if parent_path != '' else '/'
+                filename = item.name.split(FILE_INDEX_SEPERATOR)[-1]
+                path = f"{parent_path}/{filename}" if parent_path != '/' else f"/{filename}"
+                self._get_directory(parent_path) if parent_path != '' else self.fs["/"] # Call get_directory to store directory in self.fs
+                list(self.get_items_in_folder(parent_path)) # Call get_items_in_folder to ensure the file is in the fs
+            elif isinstance(item, CloudService.Folder):
+                self._get_directory(path) # Call get_directory to store directory in self.fs
+            return path
+        except Exception as e: 
+            print(e)
+            raise Exception(f"Failed to convert object to cloud object: {e}")

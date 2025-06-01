@@ -47,19 +47,23 @@ class SessionManager():
         with self.sessions_lock:
             self.sessions[session_name] = session
 
-    def end_session(self, session : SharedCloudManager | str):
+    def end_session(self, session: SharedCloudManager | str):
         """
-        End a session from the session list if test_session returned false from SharedCloudManager
+        End a session from the session list by calling delete_session in SharedCloudManager.
         """
         assert isinstance(session, str) or isinstance(session, SharedCloudManager)
         try:
             if isinstance(session, str):
-                self.sessions.pop(session)
-            elif isinstance(session, SharedCloudManager):
-                self.sessions.pop(session.get_uid())
+                session = self.sessions.get(session)
+                if not session:
+                    raise KeyError(f"No such session '{session}' exists.")
+            session.delete_session()  # Call delete_session in SharedCloudManager
+            self.sessions.pop(session.get_uid(), None)
+            print(f"Session '{session.get_uid()}' ended successfully.")
         except KeyError as e:
-            print("No such session exists")
-            return
+            print(f"No such session exists: {e}")
+        except Exception as e:
+            print(f"Error ending session: {e}")
 
     def sync_new_sessions(self):
         """
@@ -107,6 +111,7 @@ class SessionManager():
                 dir = Directory(folders, "/")
                 future = executor.submit(self.add_session,
                     SharedCloudManager(None, dir, clouds, name, self.main_session.split.copy(), self.main_session.encrypt.copy()))
+                future.add_done_callback(lambda f: print(f.exception()) if f.exception() is not None else print(f"Added session {name} successfully"))
         self.sessions_ready = True
         self.syncing_sessions = False
         print(f"Finished syncing new sessions, found {len(new_sessions)} new sessions")
