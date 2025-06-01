@@ -1127,16 +1127,23 @@ class FileButton(IconButton):
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        label = self.controller.add_message_label(f"Deleting file {file_data['name']}")
-
-        self.controller.get_api().delete_file(
+        file_name = file_data['name']
+        desc_text = f'"{file_name}" will be permanently deleted.'
+        title = "Delete This File?"
+        
+        def on_confirm():
+            label = self.controller.add_message_label(f"Deleting file {file_name}")
+            self.controller.get_api().delete_file(
             lambda f: (
                 self.controller.remove_message(label),
                 self.master.refresh(),
                 messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             file_data["id"]
-        )
+            )
+            # Immediately pop the file from the list
+
+        self.controller.show_message_notification(desc_text, title, on_confirm)
 
     def open_file_from_cloud(self, file_data):
         label = self.controller.add_message_label(f"Opening file {file_data['name']}")
@@ -1275,29 +1282,28 @@ class MessageNotification(ctk.CTkFrame, Popup):
         self.grid_propagate(False)  
 
         # Title
-        title_label = ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"))
-        title_label.pack(pady=(20, 10))
+        title_label = ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"), wraplength=width - 20, justify="center")
+        title_label.pack(pady=(10, 5), padx=10)
 
         # Description
-        desc_label = ctk.CTkLabel(self, text=description, font=("Arial", 12), justify="center")
-        desc_label.pack(pady=(0, 20))
+        desc_label = ctk.CTkLabel(self, text=description, font=("Arial", 12), wraplength=width - 20, justify="center")
+        desc_label.pack(pady=(5, 10), padx=10)
 
         # Buttons frame
         buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
-        buttons_frame.pack(pady=(0, 10))
+        buttons_frame.pack(pady=(5, 10))
 
         # Cancel button
-        cancel_button = ctk.CTkButton(buttons_frame, text="Cancel", width=50,
-                                      fg_color="transparent", hover_color="gray",
-                                      text_color="white",
-                                      command=lambda: self._handle_cancel(on_cancel))
-        cancel_button.grid(row=0, column=0, padx=(0, 10))
+        cancel_button = ctk.CTkButton(buttons_frame, text="Cancel", width=80,
+                          fg_color="transparent", hover_color="gray",
+                          text_color="white",
+                          command=lambda: self._handle_cancel(on_cancel))
+        cancel_button.grid(row=0, column=0, padx=(10, 5))
 
         # Confirm button
-        confirm_button = ctk.CTkButton(buttons_frame, text="Confirm", width=100,
-                                       command=lambda: self._handle_confirm(on_confirm))
-        confirm_button.grid(row=0, column=1)
-        master.bind("<Button-1>", lambda event: self.hide_popup(), add="+")
+        confirm_button = ctk.CTkButton(buttons_frame, text="Confirm", width=80,
+                           command=lambda: self._handle_confirm(on_confirm))
+        confirm_button.grid(row=0, column=1, padx=(5, 10))
 
         Popup.show_popup(self)
 
@@ -1498,14 +1504,16 @@ class SharedFolderButton(IconButton):
 
     def delete_shared_folder(self):
         print("delete_share_clicked")
-        label = self.controller.add_message_label(f"Deleting share {self.name}")
+        folder_name = self.name.split("$")[0]
+        label = self.controller.add_message_label(f"Deleting share {folder_name}")
         # Call a new function with the folder and emails (replace this with your logic)
         self.controller.get_api().delete_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
         
-        desc_text = f'"{self.name}" Will be permanently deleted.'
+        desc_text = f'"{folder_name}" Will be permanently deleted.'
         title = "Are you sure you want to leave this share?"
+        
         def on_confirm():
-            label = self.controller.add_message_label(f"Leaving share {self.name}")
+            label = self.controller.add_message_label(f"Leaving share {folder_name}")
             self.controller.get_api().leave_shared_folder(
                 lambda f: (
                     self.controller.remove_message(label),
@@ -1516,6 +1524,7 @@ class SharedFolderButton(IconButton):
                 self.uid
             )
         self.controller.show_message_notification(desc_text, title, on_confirm)
+
     def manage_share_permissions(self):
         new_window = ctk.CTkToplevel(self)
         new_window.title("Manage Share Permissions")
