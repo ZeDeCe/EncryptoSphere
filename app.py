@@ -80,7 +80,7 @@ class App(ctk.CTk):
         App.controller = self
         ctk.CTk.__init__(self)
         ctk.set_appearance_mode("Dark")
-        ctk.set_default_color_theme("resources/rime.json")
+        ctk.set_default_color_theme("resources/custom_theme.json")
         self.title("EncryptoSphere")
         self.iconbitmap("resources/EncryptoSphere_logo.ico")
  
