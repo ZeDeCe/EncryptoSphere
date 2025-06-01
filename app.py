@@ -1933,10 +1933,17 @@ class SharedFolderButton(IconButton):
         # Function to handle the creation of new share
         def add_to_exsisting_share():
             emails = [email.get() for email in email_inputs]
+            parsed_emails = ", ".join(emails)
             print(f"Adding to share with emails: {emails}")
-            
+            label = self.controller.add_message_label(f"Adding {parsed_emails} to share")
             # Call the API with the final array
-            self.controller.get_api().add_users_to_share(None, self.uid, emails)
+            self.controller.get_api().add_users_to_share(
+                    lambda f: (
+                            self.controller.remove_message(label)
+                        ),
+                        self.uid,
+                        emails
+                    )
             # Close the new window
             new_window.destroy()
 
@@ -1964,9 +1971,11 @@ class SharedFolderButton(IconButton):
             desc_text = f'"Remove User From Share"'
             title = f"Remove {display_email} from share?"
             def on_confirm():
+                label = self.controller.add_message_label(f"Removing {display_email} from share")
                 self.controller.get_api().revoke_user_from_share(
                     lambda f, display_email=display_email: (
-                            remove_email_and_rearrange(display_email) if not f.exception() else messagebox.showerror("Error", f"Failed to revoke user: {f.exception()}")
+                            remove_email_and_rearrange(display_email) if not f.exception() else messagebox.showerror("Error", f"Failed to revoke user: {f.exception()}"),
+                            self.controller.remove_message(label)
                         ),
                         self.uid,
                         email
