@@ -316,11 +316,10 @@ class CloudService(ABC):
     
 
     @abstractmethod
-    def enrich_item_metadata(self, item: File | Folder) -> dict:
+    def get_full_path(self, item: CloudObject, session_root : Folder) -> str:
         """
-        Enrich the metadata of a file or folder object with additional information.
-        This can include size, creation date, modification date, etc.
-        @param item the file or folder object to enrich
-        @return a dictionary with enriched metadata
+        Get the full path of a file or folder in terms of the session_root
+        @param item the file or folder object to get the path of
+        @return the full path in terms of the session_root
         """
         pass

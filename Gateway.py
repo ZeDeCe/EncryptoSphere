@@ -66,6 +66,33 @@ class Gateway:
                 future.add_done_callback(callback)
             return future
         return wrapper
+    
+    def enrichable(func):
+        """
+        Decorator for Gateway methods that take file_path or folder_path.
+        If the argument is an int, it will get the actual path.
+        """
+
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # Find the argument name (file_path or folder_path)
+            import inspect
+            sig = inspect.signature(func)
+            params = list(sig.parameters.keys())
+            params.remove('self')  # Remove 'self' from the parameters list
+
+            # Find which param is file_path or folder_path
+            for i, name in enumerate(params):
+                if name == "path" and len(args) > i:
+                    arg = args[i]
+                    if isinstance(arg, int):
+                        # Enrich and replace in args
+                        path = self.get_path_from_searchindex(arg)
+                        # Replace the int with the enriched value
+                        args = list(args)
+                        args[i] = path
+            return func(self, *args, **kwargs)
+        return wrapper
 
     def is_metadata_exists(self, cloud : CloudService):
         return CloudManager.is_metadata_exists(cloud, MAIN_SESSION, "$LOGIN_META")
@@ -265,14 +292,9 @@ class Gateway:
         else:
             self.current_session = self.session_manager.main_session
     
-    def get_items_in_folder(self, path="/"):
-        """
-        @param path: the path to the folder
-        @return: Yielded iterable (generator) for every file in the current session in the folder given
-        """
-        return self.current_session.get_items_in_folder(path)
     
     @promise
+    @enrichable
     def get_items_in_folder_async(self, path="/"):
         return self.current_session.get_items_in_folder(path)
     
@@ -300,28 +322,6 @@ class Gateway:
                 "uid": "0" if self.current_session == self.manager else self.current_session.get_uid(),
                 "search_index": index,
             }
-    
-    def get_search_result_by_index(self, index):
-        """
-        Retrieve a specific search result by its index.
-        @param index: The index of the item in the search results array.
-        @return: The CloudFile or Directory object.
-        """
-        if index < 0 or index >= len(self.search_results):
-            raise IndexError(f"Index {index} out of range for search results.")
-        return self.search_results[index]
-
-    @promise
-    def enrich_search_result(self, index):
-        """
-        Enrich a specific search result by retrieving its full path.
-        @param index: The index of the item in the search results array.
-        @return: The enriched CloudFile or Directory object.
-        """
-        item = self.get_search_result_by_index(index)
-        enriched_item = self.current_session.enrich_item_metadata(item)
-        return enriched_item
-
 
     @promise
     def sync_session(self):
@@ -338,34 +338,37 @@ class Gateway:
 
         
     @promise
-    def open_file(self, file_path):
+    @enrichable
+    def open_file(self, path):
         """
         Open file function
         @param file_id: the id of the file to open
         @return: True if the file was opened successfully, False otherwise
         """
-        print(f"Open file selected: {file_path}")
-        return self.current_session.open_file(file_path)
+        print(f"Open file selected: {path}")
+        return self.current_session.open_file(path)
     
 
     @promise
-    def download_file(self, file_path):
+    @enrichable
+    def download_file(self, path):
         """
         Download file function
         @param file_id: the id of the file to download
         @return: True if the file was downloaded successfully, False otherwise
         """
-        return self.current_session.download_file(file_path)
+        return self.current_session.download_file(path)
 
     @promise
-    def download_folder(self, folder_path):
+    @enrichable
+    def download_folder(self, path):
         """
         Download folder as a ZIP file.
         @param folder_name: The name of the folder to download.
         @return: The path to the ZIP file if successful, False otherwise.
         """
-        print(f"Download folder selected: {folder_path}")
-        return self.current_session.download_folder(folder_path)
+        print(f"Download folder selected: {path}")
+        return self.current_session.download_folder(path)
     
     @promise
     def upload_file(self, file_path, path):
@@ -390,24 +393,26 @@ class Gateway:
         return self.current_session.upload_folder(folder_path, path)
 
     @promise
-    def delete_file(self, file_path):
+    @enrichable
+    def delete_file(self, path):
         """
         Delete file function
         @param file_id: the id of the file to delete
         @return: True if the file was deleted successfully, False otherwise
         """
-        print(f"Delete file selected {file_path}")
-        return self.current_session.delete_file(file_path)
+        print(f"Delete file selected {path}")
+        return self.current_session.delete_file(path)
 
     @promise
-    def delete_folder(self, folder_path):
+    @enrichable
+    def delete_folder(self, path):
         """
         Delete folder function
         @param path: the path of the folder to delete
         @return: True if the folder was deleted successfully, False otherwise
         """
-        print(f"Delete folder selected {folder_path}")
-        return self.current_session.delete_folder(folder_path)
+        print(f"Delete folder selected {path}")
+        return self.current_session.delete_folder(path)
     
     @promise
     def create_folder(self, folder_path):
@@ -419,6 +424,9 @@ class Gateway:
         """
         print(f"Create folder selected {folder_path}")
         return self.current_session.create_folder(folder_path)
+    
+    def get_path_from_searchindex(self, search_index):
+        return self.current_session.object_to_cloudobject(self.search_results[search_index])
     
     @promise
     def create_shared_session(self, folder_name : str, emails : list[str], encryption_algo : str, split_algo : str):

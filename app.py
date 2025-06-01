@@ -184,7 +184,7 @@ class App(ctk.CTk):
         Change the session in the main page to the given path
         @param path: The path to the session to be changed to
         """
-        self.api.change_session(uid)
+        self.api.change_session(uid if uid != "0" else None)
         self.frames[MainPage].change_session(uid if uid is not None else "0")
 
     def add_message_label(self, message):
@@ -1356,7 +1356,7 @@ class SearchResultsSession(Folder):
         assert session_uid is not None
         print(f"Current folder: {path}")
         self.controller.change_session(session_uid)
-        self.controller.change_folder(path)
+        self.controller.change_folder(self.controller.get_api().get_path_from_searchindex(path))
         # TODO: clear search bar
 
 @clickable
@@ -1365,11 +1365,11 @@ class IconButton(ctk.CTkFrame):
     This class is an abstract button class for all icons that go in MainFrame
     """
     classid = "icon"
-    def __init__(self, master, width, height, icon_path, text, name, controller):
+    def __init__(self, master, width, height, icon_path, text, id, controller):
         ctk.CTkFrame.__init__(self, master, width=width, height=height)
         self.controller = controller
         self.master = master
-        self.name = name
+        self.id = id
         self.file_icon = ctk.CTkImage(light_image=Image.open(icon_path), size=(40, 40))
 
         icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
@@ -1391,9 +1391,9 @@ class IconButton(ctk.CTkFrame):
 
     def __eq__(self, other):
         if isinstance(other, IconButton):
-            return self.name == other.name and other.__class__ == self.__class__
+            return self.id == other.id and other.__class__ == self.__class__
         if isinstance(other, dict):
-            return self.name == other.get("name") and self.__class__.classid == other.get("type")
+            return self.id == other.get("id") and self.__class__.classid == other.get("type")
         return False
     
     def __ne__(self, other):
@@ -1416,7 +1416,7 @@ class FileButton(IconButton):
     """
     classid = "file"
     def __init__(self, master, width, height, data, controller):
-        IconButton.__init__(self, master, width, height, "resources/file_icon.png", data["name"], data["name"], controller)
+        IconButton.__init__(self, master, width, height, "resources/file_icon.png", data["name"], data["id"], controller)
         self.data = data
         self.data["id"] = data.get("id", self.data.get("search_index", None)) 
 
@@ -1499,7 +1499,7 @@ class FileButton(IconButton):
         super().on_double_click(event)
         try:
             print(f"Opening file: {self.data['name']}")
-            self.open_file_from_cloud(self.data)
+            self.open_file_from_cloud()
         except Exception as e:
             print(f"Error opening file: {e}")
 
@@ -1667,10 +1667,12 @@ class FolderButton(IconButton):
     """
     classid = "folder"
     def __init__(self, master, width, height, data, controller):
-        self.folder_path = data.get("path", data.get("search_index", None))
+        self.folder_path = data.get("path")
+        self.id = data.get("id", data.get("search_index", None))
+        self.data = data
         self.session_uid = data.get("uid")
         self.folder_name = data.get("name")
-        IconButton.__init__(self, master, width, height, "resources/folder_icon.png", self.folder_name, self.folder_name, controller)
+        IconButton.__init__(self, master, width, height, "resources/folder_icon.png", self.folder_name, self.id, controller)
         self.controller = controller
         self.master = master
 
@@ -1692,7 +1694,6 @@ class FolderButton(IconButton):
     def delete_folder_from_cloud(self):
         """
         Delete folder from the cloud and refresh the page
-        @param folder_path: The path of the folder to be deleted
         """
         desc_text = f'"{self.folder_name}" will be permanently deleted.'
         title = "Delete This Folder?"
@@ -1704,7 +1705,7 @@ class FolderButton(IconButton):
                 self.master.refresh(),
                 messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.controller.refresh()
             ),
-            self.folder_path
+            self.data.get("id", None)
             )
             # Immediately pop the folder from the list
 
@@ -1713,15 +1714,14 @@ class FolderButton(IconButton):
     def download_folder(self):
         """
         Download folder from the cloud and refresh the page
-        @param folder_path: The path of the folder to be downloaded
         """
-        label = self.controller.add_message_label(f"Downloading folder {self.folder_path}")
+        label = self.controller.add_message_label(f"Downloading folder {self.folder_name}")
         self.controller.get_api().download_folder(
             lambda f: (
                 self.controller.remove_message(label),
                 messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.controller.refresh()
             ),
-            self.folder_path
+            self.data.get("id", None)
             )
 
     def on_double_click(self, event=None):
@@ -1730,7 +1730,7 @@ class FolderButton(IconButton):
         @param event: The event that triggered this function
         """
         super().on_double_click(event)
-        self.controller.change_folder(self.folder_path, self.session_uid)
+        self.controller.change_folder(self.id, self.session_uid)
     
     def on_button3_click(self, event=None):
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)

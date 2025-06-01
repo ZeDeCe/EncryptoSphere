@@ -828,50 +828,57 @@ class GoogleDrive(CloudService):
     @staticmethod
     def get_icon_static():
         return "resources/GoogleDrive_icon.png"
-
-    def enrich_item_metadata(self, item: CloudService.File | CloudService.Folder) -> dict:
-        """
-        Enrich a CloudService.File or CloudService.Folder object by retrieving its full metadata, including the path.
-        @param item: The File or Folder object to enrich.
-        @return: A dictionary containing the enriched metadata, including the full path.
-        """
-        try:
-            # Use Google Drive API to get metadata
-            metadata = self.drive_service.files().get(fileId=item._id, fields="id, name, mimeType, parents, size, modifiedTime").execute()
-
-            # Determine if the item is a file or folder
-            if isinstance(item, CloudService.File) and metadata["mimeType"] != "application/vnd.google-apps.folder":
-                return {
-                    "id": metadata["id"],
-                    "name": metadata["name"],
-                    "path": self._get_full_path(metadata["id"]),
-                    "type": "file",
-                    "size": metadata.get("size"),
-                    "modified": metadata.get("modifiedTime"),
-                }
-            elif isinstance(item, CloudService.Folder) and metadata["mimeType"] == "application/vnd.google-apps.folder":
-                return {
-                    "id": metadata["id"],
-                    "name": metadata["name"],
-                    "path": self._get_full_path(metadata["id"]),
-                    "type": "folder",
-                }
-            else:
-                raise ValueError(f"Unexpected metadata type for item: {item}")
-
-        except HttpError as e:
-            print(f"Error retrieving metadata for item '{item.name}': {e}")
-            raise
-
-    def _get_full_path(self, file_id: str) -> str:
+    
+    def get_full_path(self, item : CloudService.CloudObject, session_root : CloudService.Folder) -> str:
         """
         Helper function to recursively build the full path of a file or folder in Google Drive.
         @param file_id: The ID of the file or folder.
         @return: The full path as a string.
         """
         path = []
-        while file_id:
-            metadata = self.drive_service.files().get(fileId=file_id, fields="id, name, parents").execute()
+        current = item._id
+        while True:
+            metadata = self.drive_service.files().get(fileId=current, fields="id, name, parents").execute()
+            if metadata.get("id") == session_root._id:
+                break
+            if metadata.get("id") is None or metadata.get("id") == "root":
+                raise Exception("Google Drive Error: Item does not exist under session root")
             path.append(metadata["name"])
-            file_id = metadata.get("parents", [None])[0]  # Get the parent ID or None if it's the root
+            current = metadata.get("parents", [None])[0]  # Get the parent ID or None if it's the root
         return "/" + "/".join(reversed(path))
+    
+    # def enrich_item_metadata(self, item: CloudService.File | CloudService.Folder) -> dict:
+    #     """
+    #     Enrich a CloudService.File or CloudService.Folder object by retrieving its full metadata, including the path.
+    #     @param item: The File or Folder object to enrich.
+    #     @return: A dictionary containing the enriched metadata, including the full path.
+    #     """
+    #     try:
+    #         # Use Google Drive API to get metadata
+    #         metadata = self.drive_service.files().get(fileId=item._id, fields="id, name, mimeType, parents, size, modifiedTime").execute()
+
+    #         # Determine if the item is a file or folder
+    #         if isinstance(item, CloudService.File) and metadata["mimeType"] != "application/vnd.google-apps.folder":
+    #             return {
+    #                 "id": metadata["id"],
+    #                 "name": metadata["name"],
+    #                 "path": self._get_full_path(metadata["id"]),
+    #                 "type": "file",
+    #                 "size": metadata.get("size"),
+    #                 "modified": metadata.get("modifiedTime"),
+    #             }
+    #         elif isinstance(item, CloudService.Folder) and metadata["mimeType"] == "application/vnd.google-apps.folder":
+    #             return {
+    #                 "id": metadata["id"],
+    #                 "name": metadata["name"],
+    #                 "path": self._get_full_path(metadata["id"]),
+    #                 "type": "folder",
+    #             }
+    #         else:
+    #             raise ValueError(f"Unexpected metadata type for item: {item}")
+
+    #     except HttpError as e:
+    #         print(f"Error retrieving metadata for item '{item.name}': {e}")
+    #         raise
+
+    

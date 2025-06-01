@@ -817,7 +817,7 @@ class CloudManager:
         if not start_folder:
             raise FileNotFoundError(f"Start folder '{path}' does not exist!")
 
-        cloud = self.clouds[1]  # Only Dropbox, drive doesn't find all files for some reason
+        cloud = self.clouds[0]  # Only Dropbox, drive doesn't find all files for some reason
         try:
             # Get items matching the filter from the cloud
             items = cloud.get_items_by_name(filter, [start_folder.get(cloud.get_name())])
@@ -844,12 +844,27 @@ class CloudManager:
         except Exception as e:
             print(f"Error searching items in cloud '{cloud.get_name()}': {e}")
     
-    def enrich_item_metadata(self, item, cloud):
+    def object_to_cloudobject(self, item : CloudService.CloudObject):
         """
         Enrich a CloudFile or Directory object by retrieving its full metadata, including the path.
         @param item: The File or Folder object to enrich.
         @return: The enriched object with the full metadata.
         """
-        enriched = cloud.enrich_item_metadata(item)
-        print(f"Enriched item: {enriched['name']}, path: {enriched['path']} in cloud {cloud.get_name()}")
-        return enriched
+        cloud = self.clouds[0] # TODO: use dropbox if available because it is much faster
+        path = cloud.get_full_path(item, self.fs["/"].get(cloud.get_name()))
+        
+        # Create CloudFile or Directory object with the full path
+        try:
+            if isinstance(item, CloudService.File):
+                parent_path  = "/".join(path.split("/")[:-1])
+                parent_path = parent_path if parent_path != '' else '/'
+                filename = item.name.split(FILE_INDEX_SEPERATOR)[-1]
+                path = f"{parent_path}/{filename}" if parent_path != '/' else f"/{filename}"
+                self._get_directory(parent_path) if parent_path != '' else self.fs["/"] # Call get_directory to store directory in self.fs
+                list(self.get_items_in_folder(parent_path)) # Call get_items_in_folder to ensure the file is in the fs
+            elif isinstance(item, CloudService.Folder):
+                self._get_directory(path) # Call get_directory to store directory in self.fs
+            return path
+        except Exception as e: 
+            print(e)
+            raise Exception(f"Failed to convert object to cloud object: {e}")
