@@ -44,7 +44,7 @@ class Gateway:
         self.active_shared_folder_sync = False
         self.sync_future_callbacks = []
         self.search_results = []  # Store the most recent search results
-        self.search_results_colud = None  # Store the cloud of the most recent search resultsN
+        self.search_results_cloud = None  # Store the cloud of the most recent search resultsN
 
     def promise(func):
         """
@@ -111,32 +111,23 @@ class Gateway:
         Search for items matching the given string asynchronously.
         @param search_string: The filter string to search for.
         @param path: The folder path to start the search from.
-        @return: A list of dictionaries representing files and folders.
+        @return: A generator yielding dictionaries with item details.
         """
         print(f"Searching for items matching: {search_string}")
-        files, folders, cloud = self.current_session.search_items_by_name(search_string, path)
-        data = files + folders  # Combine files and folders into a single list
-        self.search_results_colud = cloud
-        self.search_results = data
-        for index, item in enumerate(data):  # Iterate over the list of objects
-        # Convert each item to a dictionary with additional metadata
-        # Use the FILE_INDEX_SEPERATOR to split the name and get the index
+        item_iter = self.current_session.search_items_by_name(search_string, path)
+        self.search_results = []
+        for index, item in enumerate(item_iter):
+            self.search_results.append(item)
             if isinstance(item, CloudService.File):
-                split = item.name.split(FILE_INDEX_SEPERATOR)
-            item_dict = {
+                split = item.name.split(FILE_INDEX_SEPERATOR) # Maybe just take care of this in CloudManager?
+            yield {
                 "name": split[1] if isinstance(item, CloudService.File) else item.name,
-                "id": getattr(item, "id", None),  # Safely get the id attribute
+                "id": index,
                 "type": "file" if isinstance(item, CloudService.File) else "folder",
-                "path": None,  # Safely get the path attribute
+                "path": None, 
                 "uid": "0" if self.current_session == self.manager else self.current_session.get_uid(),
-                "search_index": index,  # Add a unique search index
+                "search_index": index,
             }
-            data[index] = item_dict  # Replace the original object with the dictionary
-
-        print("in gateway search results:")
-        for item in data:
-            print(f"Found item: {item['name']}")
-        return data
     
     def get_search_result_by_index(self, index):
         """

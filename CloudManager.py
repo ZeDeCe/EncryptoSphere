@@ -721,7 +721,7 @@ class CloudManager:
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
-    def search_items_by_name(self, filter: str, path: str) -> tuple[list[dict], list[dict]]:
+    def search_items_by_name(self, filter: str, path: str):
         """
         Search for files and folders by name across all clouds.
         @param filter: The filter string to search for.
@@ -736,7 +736,7 @@ class CloudManager:
         if not start_folder:
             raise FileNotFoundError(f"Start folder '{path}' does not exist!")
 
-        cloud = self.clouds[1]  # Only Dropbox, drive dosent find all files for some reason
+        cloud = self.clouds[1]  # Only Dropbox, drive doesn't find all files for some reason
         try:
             # Get items matching the filter from the cloud
             items = cloud.get_items_by_name(filter, [start_folder.get(cloud.get_name())])
@@ -754,16 +754,14 @@ class CloudManager:
                         continue
 
                     # Add file data to the files list
-                    files.append(item)
+                    yield item
 
                 elif isinstance(item, CloudService.Folder):
                     # Add folder data to the folders list
-                    folders.append(item)
+                    yield item
 
         except Exception as e:
             print(f"Error searching items in cloud '{cloud.get_name()}': {e}")
-        
-        return files, folders, cloud
     
     def enrich_item_metadata(self, item, cloud):
         """
