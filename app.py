@@ -756,7 +756,7 @@ class MainPage(ctk.CTkFrame):
             """
             query = self.search_entry.get()
             print(f"Searching for: {query}")
-            self.search_results_session.set_query(query, self.current_session.curr_path)
+            self.search_results_session.set_query(query, self.current_session.curr_path, isinstance(self.current_session, SessionsFolder))
             self.display_page(self.search_results_session, options=[])
 
     def reset_search_placeholder(self):
@@ -1294,6 +1294,8 @@ class SessionsFolder(Folder):
         Folder.__init__(self, parent, controller, path)
         self.loadingpage = LoadingPage(self, controller)
         self.loaded = False
+        self.path = "/"
+        self.curr_path = "/"
         self.loadingpage.pack(anchor=ctk.N, fill=ctk.BOTH, expand=True, padx=5, pady=3)
         self.loadingpage.start()
         self.controller.get_api().add_callback_to_sync_task(lambda: self.remove_loading())
@@ -1327,7 +1329,7 @@ class SearchResultsSession(Folder):
         self.path = None
         self.query = None
 
-    def set_query(self, query, path):
+    def set_query(self, query, path, from_sessions_folder=False):
         """
         Set the query for the search results folder
         @param query: The query to be set
@@ -1336,6 +1338,7 @@ class SearchResultsSession(Folder):
         self.query = query
         self.path = path
         self.curr_path = path
+        self.from_sessions_folder = from_sessions_folder
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
@@ -1344,8 +1347,10 @@ class SearchResultsSession(Folder):
                 item.grid_forget()
         for itemlist in self.item_lists:
             itemlist.clear()
-
-        self.controller.get_api().get_search_results_async(lambda f: self.update_button_lists(f.result()), self.query, self.path)
+        if self.from_sessions_folder:
+            self.controller.get_api().get_search_results_sharedsessions(lambda f: self.update_button_lists(f.result()), self.query)
+        else:
+            self.controller.get_api().get_search_results_async(lambda f: self.update_button_lists(f.result()), self.query, self.path)
 
     def change_folder(self, path, session_uid=None):
         """

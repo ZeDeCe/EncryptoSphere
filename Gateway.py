@@ -300,6 +300,19 @@ class Gateway:
     
     
     @promise
+    def get_search_results_sharedsessions(self, search_string):
+        """
+        Search for items matching the given string in shared sessions.
+        @param search_string: The filter string to search for.
+        @param path: The folder path to start the search from.
+        @return: A list of dictionaries with item details.
+        """
+        
+        for folder in self.get_shared_folders():
+            if folder["uid"].startswith(search_string):
+                yield folder
+
+    @promise
     def get_search_results_async(self, search_string, path):
         """
         Search for items matching the given string asynchronously.
@@ -480,23 +493,23 @@ class Gateway:
 
         # Add pending folders to the result
         for uid in pending_uids:
-            result.append({
+            yield {
                 "name": uid,
                 "type": "pending",  # Indicate this is a pending session
                 "uid": uid,
                 "id": uid,
                 "isowner": False  # Pending folders are not owned yet
-            })
+            }
 
         # Add ready folders to the result
         for uid in ready_uids:
-            result.append({
+            yield {
                 "name": uid,
                 "type": "session",  # Indicate this is a shared session
                 "uid": uid,
                 "id": uid,
                 "isowner": self.session_manager.sessions[uid].user_is_owner()
-            })
+            }
 
         return result
     
