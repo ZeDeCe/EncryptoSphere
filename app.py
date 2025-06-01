@@ -757,7 +757,7 @@ class MainPage(ctk.CTkFrame):
             query = self.search_entry.get()
             print(f"Searching for: {query}")
             self.search_results_session.set_query(query, self.current_session.curr_path)
-            self.display_page(self.search_results_session)
+            self.display_page(self.search_results_session, options=[])
 
     def reset_search_placeholder(self):
         """
@@ -1534,6 +1534,7 @@ class OptionMenu(ctk.CTkFrame, Popup):
         self.controller = controller
         self.buttons : list[ctk.CTkButton] = []
         self.context_hidden = True
+        self.enabled = True
         for button in buttons:
             butt = ctk.CTkButton(self, text=button["label"],
                                       command=button["event"],
@@ -1555,6 +1556,8 @@ class OptionMenu(ctk.CTkFrame, Popup):
         """
         Display the current context menu on the selected location
         """ 
+        if not self.enabled:
+            return
         if self.context_hidden:
             x_anchor = "w" if x < self.master.winfo_width()/2 else "e"
             # this doesn't work because of the scrollable frame
@@ -1563,13 +1566,17 @@ class OptionMenu(ctk.CTkFrame, Popup):
         Popup.show_popup(self)
 
     def change_options(self, options : list[str]):
+        self.hide_popup()
+        self.enabled = False
         for butt in self.buttons:
             butt.pack_forget()
         for butt in self.buttons:
             if butt.cget("text") in options:
+                self.enabled = True
                 butt.pack(pady=5, padx=10, fill="x")
     
     def show_all_options(self):
+        self.enabled = True
         for butt in self.buttons:
             butt.pack_forget()
         for butt in self.buttons:
