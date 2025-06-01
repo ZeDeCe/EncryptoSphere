@@ -1761,6 +1761,7 @@ class SharedFolderButton(IconButton):
         # Get the folder name from the path
         self.uid = data.get("uid")
         self.name = self.uid.split("$")[0]
+        self.id = self.uid # For the stupid comparison in Folder
         super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, self.uid, controller)
         self.controller = controller
         self.master = master
@@ -1965,6 +1966,7 @@ class PendingSharedFolderButton(IconButton):
     def __init__(self, master, width, height, data, controller):
         self.uid = data.get("uid")
         self.name = self.uid.split("$")[0]
+        self.id = self.uid  # For the stupid comparison in Folder
         super().__init__(master, width, height, "resources/folder_icon_pending.png", self.name, self.uid, controller)
         self.controller = controller
         self.master = master

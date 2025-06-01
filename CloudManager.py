@@ -769,16 +769,21 @@ class CloudManager:
                     metadata = self.clouds[0].download_file(meta)
                     print(f"Successfully downloaded metadata for session {self.root}.")
                     break
+            
         else:
             metadata = self._download_replicated("$META")
         
-        if metadata is None:
+        if not isinstance(metadata, bytes):
             self.metadata = {
                 "encrypt": self.encrypt.get_name(),
                 "split": self.split.get_name(),
                 "order": self.cloud_name_list
             }
-            self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
+            if self.fs.get("/") is None:
+                for cloud in self.clouds: # If there isn't a root folder, we are creating a session so self.clouds is accurate
+                    cloud.upload_file(json.dumps(self.metadata).encode('utf-8'), "$META", cloud.get_session_folder(self.root))
+            else:
+                self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
         else:
             self.metadata = json.loads(metadata)
             email = self.clouds[0].get_email() # We only support having the same email in all clouds for now

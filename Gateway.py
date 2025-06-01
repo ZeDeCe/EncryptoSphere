@@ -484,6 +484,7 @@ class Gateway:
                 "name": uid,
                 "type": "pending",  # Indicate this is a pending session
                 "uid": uid,
+                "id": uid,
                 "isowner": False  # Pending folders are not owned yet
             })
 
@@ -493,6 +494,7 @@ class Gateway:
                 "name": uid,
                 "type": "session",  # Indicate this is a shared session
                 "uid": uid,
+                "id": uid,
                 "isowner": self.session_manager.sessions[uid].user_is_owner()
             })
 

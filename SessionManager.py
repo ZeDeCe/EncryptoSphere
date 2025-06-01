@@ -111,6 +111,7 @@ class SessionManager():
                 dir = Directory(folders, "/")
                 future = executor.submit(self.add_session,
                     SharedCloudManager(None, dir, clouds, name, self.main_session.split.copy(), self.main_session.encrypt.copy()))
+                future.add_done_callback(lambda f: print(f.exception()) if f.exception() is not None else print(f"Added session {name} successfully"))
         self.sessions_ready = True
         self.syncing_sessions = False
         print(f"Finished syncing new sessions, found {len(new_sessions)} new sessions")
