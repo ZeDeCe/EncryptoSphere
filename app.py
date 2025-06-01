@@ -365,7 +365,7 @@ class LocalPasswordPage(FormPage):
         if message is None:
             message = self.error_message
         self.remove_loading()
-        self.__show_error(self.error_message, self.controller.show_frame(LocalPasswordPage))
+        self.__show_error(self.error_message, lambda: False)
     
     def __show_error(self, error_message, func):
         """
@@ -374,7 +374,7 @@ class LocalPasswordPage(FormPage):
         """
         # Display the error message
         self.error_label.configure(text=error_message)
-        self.submit_button.configure(state="normal", width=200)
+        self.submit_button.configure(state="normal")
 
 @clickable
 class LoginCloudsPage(ctk.CTkFrame):
@@ -791,7 +791,7 @@ class MainPage(ctk.CTkFrame):
         """
         print("Upload button clicked")
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup(self.upload_button.winfo_x() + 120, self.upload_button.winfo_y())
+            self.context_menu.show_popup(self.upload_button.winfo_x(), self.upload_button.winfo_y()+5)
         else:
             self.context_menu.hide_popup()
 
