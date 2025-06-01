@@ -910,10 +910,10 @@ class MainPage(ctk.CTkFrame):
         scrollable_frame.pack(fill=ctk.BOTH, expand=True)
 
         # Folder name input (label above the entry field)
-        folder_label = ctk.CTkLabel(scrollable_frame, text="Enter Folder Name:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16))
-        folder_label.grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
-        folder_name_entry = ctk.CTkEntry(scrollable_frame, width=200)
-        folder_name_entry.grid(row=1, column=0, padx=20, pady=5, sticky="w")
+        folder_label = ctk.CTkLabel(scrollable_frame, text="Folder Name:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
+        folder_label.grid(row=0, column=0, padx=20, pady=(10, 0), sticky="w")
+        folder_name_entry = ctk.CTkEntry(scrollable_frame, width=200, placeholder_text="Enter folder name")
+        folder_name_entry.grid(row=1, column=0, padx=20, pady=(0,20), sticky="w")
 
         # Encryption Algorithem option menu
         encryption, split =self.controller.get_api().get_algorithms()
@@ -932,14 +932,14 @@ class MainPage(ctk.CTkFrame):
         if index != -1:
             split.insert(0, split.pop(index))
 
-        message_encription = ctk.CTkLabel(scrollable_frame, text="Select Encryption Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16))
+        message_encription = ctk.CTkLabel(scrollable_frame, text="Select Encryption Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
         message_encription.grid(row=2, column=0, padx=20, sticky="w")
 
         encryption_algorithm = ctk.CTkOptionMenu(scrollable_frame, values=[cls.get_name() for cls in encryption], command=lambda x: None)
         encryption_algorithm.grid(row=3, column=0, padx=20, pady=(0,20), sticky="ew")
 
         
-        message_split = ctk.CTkLabel(scrollable_frame, text="Select Split Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16))
+        message_split = ctk.CTkLabel(scrollable_frame, text="Select Split Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
         message_split.grid(row=4, column=0, padx=20, sticky="w")
 
         # Split Algorithem option menu
@@ -947,19 +947,19 @@ class MainPage(ctk.CTkFrame):
         split_algorithm.grid(row=5, column=0, padx=20, pady=(0,20), sticky="ew")
 
         # Share with header
-        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16))
-        share_with_label.grid(row=6, column=0, padx=20, pady=(0, 5), sticky="w")
+        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
+        share_with_label.grid(row=6, column=0, padx=20, sticky="w")
         
         # Email list input
         email_frame = ctk.CTkFrame(scrollable_frame, fg_color=scrollable_frame.cget('fg_color'))  # Match background
-        email_frame.grid(row=7, column=0, padx=20, columnspan=2, pady=0, sticky="w")
+        email_frame.grid(row=7, column=0, padx=20, columnspan=2, pady=(0,20), sticky="w")
 
         # List to hold email input fields
         email_inputs = []  
 
         # Initial email input field
-        initial_email_entry = ctk.CTkEntry(email_frame, width=200)
-        initial_email_entry.grid(row=1, column=0, pady=5, padx=(0, 10), sticky="w")
+        initial_email_entry = ctk.CTkEntry(email_frame, width=200, placeholder_text="Enter email address")
+        initial_email_entry.grid(row=1, column=0, pady=(0,5), padx=(0, 10), sticky="w")
         email_inputs.append(initial_email_entry)
 
         # Function to add new email input
@@ -986,10 +986,10 @@ class MainPage(ctk.CTkFrame):
 
         # Create new share button (this now does both actions: create share and close the window)
         create_share_button = ctk.CTkButton(scrollable_frame, text="Create New Share", command=create_new_share)
-        create_share_button.grid(row=100, column=0, pady=50, padx=100, sticky="s")
+        create_share_button.grid(row=100, column=0, pady=20, padx=100, sticky="s")
 
         # Adjust the scrollbar to make it thinner (no slider_length argument)
-        new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
+        #new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
     
 
     def upload_file(self):
@@ -1836,7 +1836,7 @@ class SharedFolderButton(IconButton):
             menu_options = [
                 {
                     "label": "Leave Share",
-                    "color": "#2B2D2F",
+                    "color": "#3A3C41",
                     "event": lambda: self.leave_shared_folder()
                 }
             ]
@@ -1857,11 +1857,12 @@ class SharedFolderButton(IconButton):
 
 
     def leave_shared_folder(self):
-        print("leave_share_clicked")
-        desc_text = f'You will no longer can see "{self.name}".'
+        folder_name = self.name.split("$")[0]
+        print(f"Leaving share: {folder_name}")
+        desc_text = f'You will no longer can see "{folder_name}".'
         title = "Are you sure you want to leave this share?"
         def on_confirm():
-            label = self.controller.add_message_label(f"Leaving share {self.name}")
+            label = self.controller.add_message_label(f"Leaving share {folder_name}")
             self.controller.get_api().leave_shared_folder(
                 lambda f: (
                     self.controller.remove_message(label),
@@ -1907,7 +1908,7 @@ class SharedFolderButton(IconButton):
         main_h = self.controller.winfo_height()
         # Size of the new window
         # TODO: dynamic sizing
-        new_w, new_h = 400, 350  
+        new_w, new_h = 430, 350  
 
         # Calculate the position to center the new window over the parent window
         new_x = main_x + (main_w // 2) - (new_w // 2)
@@ -2035,7 +2036,7 @@ class SharedFolderButton(IconButton):
         
 
         # Adjust the scrollbar to make it thinner (no slider_length argument)
-        new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
+        #new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
     def on_button3_click(self, event=None):
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
