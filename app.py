@@ -692,7 +692,7 @@ class MainPage(ctk.CTkFrame):
         self.search_bar.pack_propagate(False)  # Prevent the side bar from resizing to fit its contents
 
         # Add a search entry field to the search bar
-        self.search_entry = ctk.CTkEntry(self.search_bar, placeholder_text="Search in EncryptoSphere", width=400, height=30, corner_radius=15)
+        self.search_entry = ctk.CTkEntry(self.search_bar, placeholder_text="Search in EncryptoSphere", width=500, height=35, corner_radius=15)
         self.search_entry.pack(side=ctk.LEFT, padx=10, pady=10)
 
         # Bind the "Enter" key to trigger the search
@@ -1889,7 +1889,7 @@ class SharedFolderButton(IconButton):
         scrollable_frame.pack(fill=ctk.BOTH, expand=True)
 
         # Share with header
-        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w")
+        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
         share_with_label.grid(row=0, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
         
         # Email list input
@@ -1926,32 +1926,38 @@ class SharedFolderButton(IconButton):
             new_window.destroy()
 
         # Create new share button (this now does both actions: create share and close the window)
-        add_to_share_button = ctk.CTkButton(scrollable_frame, text="Share", command=add_to_exsisting_share, width=80, height=25, corner_radius=10)
-        add_to_share_button.grid(row=2, column=1, pady=50, padx=100, sticky="e")
+        add_to_share_button = ctk.CTkButton(scrollable_frame, text="Share", command=add_to_exsisting_share, width=80, height=37, corner_radius=15)
+        add_to_share_button.grid(row=2, column=0, pady=20, sticky="w")
 
         # Already shared emails
-        shared_with_label = ctk.CTkLabel(scrollable_frame, text="Already shared with:", anchor="w")
+        shared_with_label = ctk.CTkLabel(scrollable_frame, text="Already shared with:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
         shared_with_label.grid(row=3, column=0, padx=(0, 10), pady=(10, 5), sticky="w")
 
         # List of emails already shared
         self.shared_emails = self.controller.get_api().get_shared_emails(self.uid)  # Fetch shared emails from API
+         
 
         def remove_email(display_email, email):
             """
             Function to remove an email from the shared list
             """
-            confirm = messagebox.askyesno("Remove Share", f"Remove {display_email} from share?")
+            
             for widget in scrollable_frame.winfo_children():
                 if hasattr(widget, 'custom_id') and widget.custom_id == display_email and isinstance(widget, ctk.CTkButton):
                     widget.configure(state="disabled")
-            if confirm:
+
+            desc_text = f'"Remove User From Share"'
+            title = f"Remove {display_email} from share?"
+            def on_confirm():
                 self.controller.get_api().revoke_user_from_share(
                     lambda f, display_email=display_email: (
-                        remove_email_and_rearrange(display_email) if not f.exception() else messagebox.showerror("Error", f"Failed to revoke user: {f.exception()}")
-                    ),
-                    self.uid,
-                    email
-                )
+                            remove_email_and_rearrange(display_email) if not f.exception() else messagebox.showerror("Error", f"Failed to revoke user: {f.exception()}")
+                        ),
+                        self.uid,
+                        email
+                    )
+                # Immediately pop the folder from the list
+            MessageNotification(new_window, self.controller, title=title, description=desc_text, on_confirm=on_confirm)
 
         def remove_email_and_rearrange(display_email):
             # Remove the relevant email label and remove button using custom_id
@@ -1979,7 +1985,7 @@ class SharedFolderButton(IconButton):
                 # Add "Remove" button aligned to the right
                 remove_button = ctk.CTkButton(scrollable_frame, text="Remove", 
                                 command=lambda email=email, display_email=display_email: remove_email(display_email, email), 
-                                width=80, height=25, corner_radius=10)
+                                width=80, height=37, corner_radius=15)
                 remove_button.grid(row=idx + 4, column=1, padx=100, sticky="e")
                 remove_button.custom_id = display_email
         
