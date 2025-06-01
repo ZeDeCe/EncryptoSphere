@@ -292,3 +292,25 @@ class CloudService(ABC):
         """
         return CloudService.__subclasses__()
     
+    @staticmethod
+    @abstractmethod
+    def get_name_static(self) -> str:
+        """
+        Returns the name of the cloud service
+        This is a static method that should be overridden in each subclass
+        @return the name of the cloud service
+        """
+        pass
+
+    @staticmethod
+    def get_class(name : str):
+        """
+        Returns the cloud service class with the specified name
+        @param name the name of the cloud service
+        @return the cloud service class
+        """
+        for cls in CloudService.__subclasses__():
+            if cls.get_name_static() == name:
+                return cls
+        return None
+    
