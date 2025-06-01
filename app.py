@@ -367,6 +367,8 @@ class LocalPasswordPage(FormPage):
         FormPage.__init__(self, parent, controller, "", "Password ", "Your Password", "Login", self.validate_password, self.error_login,"Wrong password, Please try again")
         self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
         self.error_label.pack()
+        self.entry.configure(show="*")
+        
         
     def validate_password(self, password):
         """
@@ -563,7 +565,7 @@ class RegistrationPage(ctk.CTkFrame):
         self.message_pass.pack(padx=20)
 
         # Password Entry Field
-        self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300, height=35)
+        self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300, height=35, show="*")
         self.entry_pass.pack(padx=20, pady=(0, 20))
 
         # Encryption Algorithm option menu
@@ -583,8 +585,8 @@ class RegistrationPage(ctk.CTkFrame):
         if index != -1:
             split.insert(0, split.pop(index))
 
-        self.message_encription = ctk.CTkLabel(self, text="Select Encryption Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16), width=300,anchor="w")
-        self.message_encription.pack(padx=20)
+        self.message_encryption = ctk.CTkLabel(self, text="Select Encryption Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16), width=300,anchor="w")
+        self.message_encryption.pack(padx=20)
 
         self.encryption_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in encryption], command=lambda x: None, width=300, height=35)
         self.encryption_algorithm.pack(padx=20, pady=(0, 20))
