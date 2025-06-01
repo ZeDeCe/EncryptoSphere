@@ -252,7 +252,7 @@ class FormPage(ctk.CTkFrame):
     This class creates the Form page frame -  Where user enters email and authenticates to the different clouds.
     This class inherits ctk.CTkFrame class.
     """
-    def __init__(self, parent, controller, title, message, input_placeholder_text, button_text, func, error_func ,error_message):
+    def __init__(self, parent, controller, title, message, input_placeholder_text, button_text, func, error_func ,error_message, previous_page=None):
         ctk.CTkFrame.__init__(self, parent)
         self.controller = controller
         self.func = func
@@ -272,7 +272,10 @@ class FormPage(ctk.CTkFrame):
         # === Right Form Panel ===
         self.right_panel = ctk.CTkFrame(self, fg_color="#2B2D2F", corner_radius=0)
         self.right_panel.place(relx=0.4, rely=0, relwidth=0.6, relheight=1)
-
+        
+        if previous_page is not None:
+            self.backbutton = ctk.CTkButton(self.right_panel, text="Back", command=lambda: self.controller.show_frame(previous_page), width=100, height=35, corner_radius=10)
+            self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 0), padx=20, anchor="w")
         # Title Label
         label = ctk.CTkLabel(self.right_panel, text=title, 
                              font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"), anchor="w")
@@ -306,16 +309,18 @@ class FormPage(ctk.CTkFrame):
 
     def refresh(self):
         """
-        Login page refresh - as of now we dont need this functionality
+        Login page refresh
         """
         pass
-    
+
     def submit(self):
         """
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
         self.submit_button.configure(state="disabled")
+        if hasattr(self, 'backbutton'):
+            self.backbutton.configure(state="disabled")
 
         user_input = self.entry.get()
         self.show_loading()
@@ -332,10 +337,15 @@ class EmailPage(FormPage):
     This class inherits ctk.CTkFrame class.
     """
     def __init__(self, parent, controller):
-        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere", "Email address ", "Your Email Address", "Login", self.handle_login, self.error_func, "Error while connecting to the Clouds")
+        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere", "Email address ", "Your Email Address", "Login", self.handle_login, self.error_func, "Error while connecting to the Clouds", None)
         self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
         self.error_label.pack()
     
+    def refresh(self):
+        self.remove_loading()
+        self.error_label.configure(text="")
+        self.submit_button.configure(state="normal")
+
     def error_func(self):
         """
         This function is called when the login process fails.
@@ -364,7 +374,7 @@ class LocalPasswordPage(FormPage):
     This class inherits ctk.CTkFrame class.
     """
     def __init__(self, parent, controller):
-        FormPage.__init__(self, parent, controller, "", "Password ", "Your Password", "Login", self.validate_password, self.error_login,"Wrong password, Please try again")
+        FormPage.__init__(self, parent, controller, "", "Password ", "Your Password", "Login", self.validate_password, self.error_login,"Wrong password, Please try again", LoginCloudsPage)
         self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
         self.error_label.pack()
         self.entry.configure(show="*")
@@ -392,6 +402,7 @@ class LocalPasswordPage(FormPage):
         # Display the error message
         self.error_label.configure(text=error_message)
         self.submit_button.configure(state="normal")
+        self.backbutton.configure(state="normal")
 
 @clickable
 class LoginCloudsPage(ctk.CTkFrame):
@@ -419,27 +430,28 @@ class LoginCloudsPage(ctk.CTkFrame):
         self.right_panel = ctk.CTkFrame(self, width=580,fg_color="#2B2D2F", corner_radius=0)
         self.right_panel.place(relx=0.4, rely=0, relwidth=0.6, relheight=1)
 
-        self.right_panel.grid_columnconfigure(0, weight=1)
-        self.right_panel.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
-
+        self.backbutton = ctk.CTkButton(self.right_panel, text="Back", command=lambda: self.controller.show_frame(EmailPage), width=100, height=35, corner_radius=10)
+        self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 0), padx=20, anchor="w")
         # Title Label
         self.message = ctk.CTkLabel(self.right_panel, text="Choose Your Clouds", font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"))
-        self.message.grid(row=0, column=0, pady=(40, 35), padx=20, columnspan=5, sticky="n")
+        self.message.pack(pady=(40, 35), padx=20)
 
         # Clouds container
         self.clouds_container = ctk.CTkFrame(self.right_panel, corner_radius=0)
-        self.clouds_container.grid(row=1, column=0, columnspan=3, padx=50, sticky="nsew")
+        self.clouds_container.pack(pady=(0, 35), padx=50, fill="x", expand=False)
                 
         # Submit Button
         self.submit_button = ctk.CTkButton(self.right_panel, text="Create New Account", command=self.__handle_login, width=300, height=35, corner_radius=10)
-        self.submit_button.grid(row=3, column=0, padx=20, pady=(0, 60), sticky="n")
+        self.submit_button.pack(pady=(0, 60), padx=20)
         self.submit_button.configure(state="disabled")
         self.loadingpage = LoadingPage(self, controller)
+        
 
         self.notice_message()
-    
+
+
     def show_loading(self):
-        self.loadingpage.grid(row=4, column=0, sticky="n")
+        self.loadingpage.pack(anchor=ctk.CENTER)
         
         self.loadingpage.start()
         self.loadingpage.lift()
@@ -447,12 +459,12 @@ class LoginCloudsPage(ctk.CTkFrame):
 
     def remove_loading(self):
         self.loadingpage.stop()
-        self.loadingpage.grid_forget()
+        self.loadingpage.pack_forget()
 
     def notice_message(self):
         # Remove existing notice label if present
         if hasattr(self, 'notice_label'):
-            self.notice_label.grid_forget()
+            self.notice_label.pack_forget()
             self.notice_label.destroy()
             del self.notice_label
 
@@ -465,12 +477,16 @@ class LoginCloudsPage(ctk.CTkFrame):
                 "If you already have an account, please login to at least one cloud and you'll be moved to the authentication page."
             )
             self.notice_label = ctk.CTkLabel(self.right_panel, text=notice_text, font=ctk.CTkFont(family="Segoe UI", size=12), wraplength=400, justify="center")
-            self.notice_label.grid(row=5, column=0, padx=20, pady=(0, 10), sticky="n")
+            self.notice_label.pack(side=ctk.BOTTOM, pady=(0, 10), padx=20)
 
     def refresh(self):
         """
         Login page refresh - as of now we dont need this functionality
         """
+        self.remove_loading()
+        for widget in self.clouds_container.winfo_children():
+            widget.destroy()
+        self.backbutton.configure(state="normal")
         self.authenticated_clouds = self.controller.get_api().get_authenticated_clouds()
         for i, cloud in enumerate(self.cloud_list):
             icon_path = cloud.get_icon_static()
@@ -515,12 +531,10 @@ class LoginCloudsPage(ctk.CTkFrame):
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
         self.submit_button.configure(state="disabled")
-        
+        self.backbutton.configure(state="disabled")
         # Remove error label and block the button
         if hasattr(self, 'error_label'):
-            self.error_label.grid_forget()
-        if hasattr(self, 'retry_button'):
-            self.retry_button.configure(state="disabled")
+            self.error_label.pack_forget()
         if self.controller.get_api().get_authenticated_clouds():
             if self.controller.get_api().get_metadata_exists():
                 self.controller.show_frame(LocalPasswordPage)
@@ -559,11 +573,13 @@ class RegistrationPage(ctk.CTkFrame):
         label = ctk.CTkLabel(self, text="Create Your Account", 
                              font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"))
         label.pack(pady=(40, 20), padx=20)
+        self.backbutton = ctk.CTkButton(self, text="Back", command=lambda: self.controller.show_frame(LoginCloudsPage), width=100, height=35, corner_radius=10)
+        self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 0), padx=20, anchor="w")
 
         # Password Label
         self.message_pass = ctk.CTkLabel(self, text="Enter Your Password:", font=ctk.CTkFont(family="Segoe UI", size=16), anchor="w",width=300)
         self.message_pass.pack(padx=20)
-
+        
         # Password Entry Field
         self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300, height=35, show="*")
         self.entry_pass.pack(padx=20, pady=(0, 20))
@@ -622,7 +638,8 @@ class RegistrationPage(ctk.CTkFrame):
         """
         Login page refresh - as of now we don't need this functionality
         """
-        pass
+        self.backbutton.configure(state="normal")
+        self.submit_button.configure(state="normal")
 
     def show_error(self, error_message):
         """
@@ -638,7 +655,7 @@ class RegistrationPage(ctk.CTkFrame):
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
         self.submit_button.configure(state="disabled")
-
+        self.backbutton.configure(state="disabled")
         if hasattr(self, 'retry_button'):
             self.retry_button.configure(state="disabled")
 
