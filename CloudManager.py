@@ -1,7 +1,5 @@
 import os
 import tempfile
-import hashlib
-import zipfile
 import shutil
 
 
@@ -10,11 +8,9 @@ from modules import Encrypt
 from modules.CloudAPI import CloudService
 import json
 from CloudObjects import Directory, CloudFile
-from typing import Optional
 
 
 import concurrent.futures
-import time
 import threading
 import tempfile
 
@@ -48,6 +44,7 @@ class CloudManager:
         self.root = root # Temporary until login module
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.clouds) * 5)
         self.initialize_temp_folder()
+
 
     def __del__(self):
         try:
@@ -699,29 +696,92 @@ class CloudManager:
         
         for item_path in to_remove:
             self.fs.pop(item_path)
+    
+        
+    @staticmethod
+    def is_metadata_exists(cloud : CloudService, root : str, file_name : str) -> bool:
+        """
+        Checks if the metadata file exists in the cloud.
+        @param cloud: The cloud service to check.
+        @param root: The root directory name.
+        @return: True if the metadata file exists, False otherwise.
+        """
+        try:
+            files = cloud.list_files(cloud.get_session_folder(root), file_name)
+            return len(list(files)) > 0
+        except Exception as e:
+            print(f"Error checking metadata existence: {e}")
+            return False
 
+    @staticmethod
+    def download_metadata(cloud : CloudService, root : str, file_name : str):
+        if not cloud.is_authenticated():
+            raise Exception("Cloud is not authenticated")
+        files = cloud.list_files(cloud.get_session_folder(root), file_name)
+        metadata = None
+        for file in files:
+            metadata = file
+            break
+        if metadata is None:
+            raise Exception("Failed to find metadata- run is_metadata_exists to check if metadata exists")
+        return cloud.download_file(metadata)
+    
+    @staticmethod
+    def upload_metadata(clouds : list[CloudService], root : str, metadata : dict, file_name : str):
+        """
+        Uploads the metadata to the cloud.
+        @param cloud: The cloud service to upload to.
+        @param root: The root directory name.
+        @param metadata: The metadata dictionary to upload.
+        @return: True if the upload is successful, False otherwise.
+        """
+        def upload(cloud : CloudService):
+            if not cloud.is_authenticated():
+                raise Exception("Cloud is not authenticated")
+            metadata_json = json.dumps(metadata).encode('utf-8')
+            return cloud.upload_file(metadata_json, file_name, cloud.get_session_folder(root))
         
-        
-                
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(clouds)) as executor:
+            futures = [executor.submit(upload, cloud) for cloud in clouds]
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()  # Wait for the upload to complete
+                except Exception as e:
+                    print(f"Error uploading metadata to cloud: {e}")
+                    return False
+            
+
     def load_metadata(self):
         """
-        Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor
+        Downloads the filedescriptor from the clouds and sets it as this object's file descriptor.
+        This function does NOT perform authentication or key creation — it only loads metadata.
         """
         metadata = self._download_replicated("$META")
-        if metadata is None: # Metadata does not exist, new session, make our own
-            self.metadata = {"encrypt": self.encrypt.get_name(), "split": self.split.get_name(), "order": self.cloud_name_list}
+
+        if metadata is None:
+            self.metadata = {
+                "encrypt": self.encrypt.get_name(),
+                "split": self.split.get_name(),
+                "order": self.cloud_name_list
+            }
             self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
         else:
             self.metadata = json.loads(metadata)
+
             for cloudname in self.metadata.get("order"):
-                if not cloudname in self.cloud_name_list: # TODO: Make it so only the needed amount of clouds are checked
+                if cloudname not in self.cloud_name_list:
                     raise Exception(f"Missing a required cloud for session: {cloudname}")
+
             self.cloud_name_list = self.metadata.get("order")
+
             if self.split.get_name() != self.metadata.get("split"):
                 print(f"Changing splitting algorithm for session {self.root}")
                 self.split = Split.get_class(self.metadata.get("split"))()
+
             if self.encrypt.get_name() != self.metadata.get("encrypt"):
                 print(f"Changing encryption algorithm for session {self.root}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
+
+
 
 
