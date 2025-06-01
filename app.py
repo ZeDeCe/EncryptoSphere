@@ -7,7 +7,7 @@ from customtkinter import filedialog
 import os
 from threading import Thread
 import tkinter.messagebox as messagebox
-import queue
+import re
 
 
 
@@ -332,13 +332,28 @@ class EmailPage(FormPage):
     This class inherits ctk.CTkFrame class.
     """
     def __init__(self, parent, controller):
-        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere", "Email address ", "Your Email Address", "Login", self.handle_login, None,"Error While connecting to the Clouds")
+        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere", "Email address ", "Your Email Address", "Login", self.handle_login, self.error_func, "Error while connecting to the Clouds")
+        self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
+        self.error_label.pack()
+    
+    def error_func(self):
+        """
+        This function is called when the login process fails.
+        It displays an error message and enables the submit button.
+        """
+        self.remove_loading()
+        self.error_label.configure(text=self.error_message)
+        self.submit_button.configure(state="normal")
 
     def handle_login(self, email):
         """
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
+        if re.match(r"[^@]+@[^@]+\.[^@]+", email) is None:
+            self.error_message = "Invalid email address format"
+            return False
+        
         self.controller.get_api().set_email(email)
         return self.controller.get_api().clouds_authenticate_by_token(lambda f: self.controller.show_frame(LoginCloudsPage))
 
