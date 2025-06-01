@@ -25,15 +25,35 @@ GOOGLE_ENCRYPTOSPHERE_ROOT = "EncryptoSphere"
 
 class GoogleDrive(CloudService):
     
-    def authenticate_cloud(self):
-        """
-        Authenticate with Google Drive using CloudDataManager.
-        Loads the token from JSON by email, or initiates new login if needed.
-        Also creates the root folder if it does not exist.
-        """
+    def build_drive_service(self, creds):
+        # Set up Drive service
+        def build_request(http, *args, **kwargs):
+            new_http = AuthorizedHttp(creds, http=httplib2.Http())
+            return HttpRequest(new_http, *args, **kwargs)
+
+        authorized_http = AuthorizedHttp(creds, http=httplib2.Http())
+        self.drive_service = build('drive', 'v3', requestBuilder=build_request, http=authorized_http)
+
+        self.authenticated = True
+        return True
+    
+    def create_session_folder(self):
+        try:
+            self.root_folder = self.create_folder(GOOGLE_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
+            self.root_folder.name = ""
+            print("Google Drive     : Root folder ready")
+        except Exception as e:
+            print(f"Google Drive     : Failed to create root folder: {e}")
+            return False
+        try:
+            self.deleted_items_folder = self.create_folder("$DELETED", self.root_folder)
+        except Exception as e:
+            print(f"Google Drive     : Failed to create deleted folder: {e}")
+        
+        
+    def authenticate_by_token(self):
         if self.authenticated:
             return True
-
         self.token_manager = CloudDataManager("EncryptoSphereApp", "google")
         creds = None
 
@@ -57,43 +77,41 @@ class GoogleDrive(CloudService):
                 creds.refresh(Request())
                 self._save_google_token_to_json(creds)
             else:
-                # Start new authentication flow
-                flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
-                creds = flow.run_local_server(port=0)
-
-                # Verify email
-                if not self._verify_google_token_for_user(creds):
-                    return False
-
-                self._save_google_token_to_json(creds)
-
-            # Set up Drive service
-            def build_request(http, *args, **kwargs):
-                new_http = AuthorizedHttp(creds, http=httplib2.Http())
-                return HttpRequest(new_http, *args, **kwargs)
-
-            authorized_http = AuthorizedHttp(creds, http=httplib2.Http())
-            self.drive_service : Resource = build('drive', 'v3', requestBuilder=build_request, http=authorized_http)
-
-            self.authenticated = True
-            print("Google Drive     : Authentication successful")
-
+                return False
+            self.build_drive_service(creds)
+            self.create_session_folder()
+            return True
         except Exception as e:
             print(f"Google Drive     : Authentication error: {e}")
             return False
-
-        try:
-            self.root_folder = self.create_folder(GOOGLE_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
-            self.root_folder.name = ""
-            print("Google Drive     : Root folder ready")
-        except Exception as e:
-            print(f"Google Drive     : Failed to create root folder: {e}")
-            return False
-        try:
-            self.deleted_items_folder = self.create_folder("$DELETED", self.root_folder)
-        except Exception as e:
-            print(f"Google Drive     : Failed to create deleted folder: {e}")
         
+
+    def authenticate_cloud(self):
+        """
+        Authenticate with Google Drive using CloudDataManager.
+        Loads the token from JSON by email, or initiates new login if needed.
+        Also creates the root folder if it does not exist.
+        """
+        if self.authenticated:
+            return True
+
+        if self.authenticate_by_token():
+            return True
+            
+        # Start new authentication flow
+        flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
+        creds = flow.run_local_server(port=0)
+
+        # Verify email
+        if not self._verify_google_token_for_user(creds):
+            return False
+
+        self._save_google_token_to_json(creds)
+
+        self.build_drive_service(creds)
+        print("Google Drive     : Authentication successful")
+
+        self.create_session_folder()
         self.__delete_leftover_files()
         return True
 
@@ -230,6 +248,7 @@ class GoogleDrive(CloudService):
     def get_items_by_name(self, filter: str, folders: list[CloudService.Folder]) -> Iterable[CloudService.CloudObject]:
         """
         Get all files and folders in the given folders where the name contains the filter string.
+        Performs a recursive search.
         """
         try:
             for folder in folders:
@@ -247,10 +266,13 @@ class GoogleDrive(CloudService):
 
                     items = results.get('files', [])
                     for item in items:
-                        if filter in item['name']:
+                        if filter.lower() in item['name'].lower():
                             is_folder = item['mimeType'] == 'application/vnd.google-apps.folder'
                             if is_folder:
-                                yield CloudService.Folder(id=item['id'], name=item['name'])
+                                # Yield the folder and recursively search its children
+                                subfolder = CloudService.Folder(id=item['id'], name=item['name'])
+                                yield subfolder
+                                yield from self.get_items_by_name(filter, [subfolder])
                             else:
                                 yield CloudService.File(id=item['id'], name=item['name'])
 
@@ -261,7 +283,6 @@ class GoogleDrive(CloudService):
         except Exception as e:
             print(f"Google Drive - Error in get_items_by_name: {e}")
             raise
-
 
     def upload_file(self, data: bytes, file_name: str, parent: CloudService.Folder):
         """
@@ -793,3 +814,71 @@ class GoogleDrive(CloudService):
         Return the name of the cloud service
         """
         return "G"  #G for Google Drive
+    
+    @staticmethod
+    def get_name_static():
+        return "G"
+    
+    def get_icon(self) -> str:
+        if self.authenticated:
+            return "resources/GoogleDrive_icon_checked.png"
+        else:
+            return "resources/GoogleDrive_icon.png"
+        
+    @staticmethod
+    def get_icon_static():
+        return "resources/GoogleDrive_icon.png"
+    
+    def get_full_path(self, item : CloudService.CloudObject, session_root : CloudService.Folder) -> str:
+        """
+        Helper function to recursively build the full path of a file or folder in Google Drive.
+        @param file_id: The ID of the file or folder.
+        @return: The full path as a string.
+        """
+        path = []
+        current = item._id
+        while True:
+            metadata = self.drive_service.files().get(fileId=current, fields="id, name, parents").execute()
+            if metadata.get("id") == session_root._id:
+                break
+            if metadata.get("id") is None or metadata.get("id") == "root":
+                raise Exception("Google Drive Error: Item does not exist under session root")
+            path.append(metadata["name"])
+            current = metadata.get("parents", [None])[0]  # Get the parent ID or None if it's the root
+        return "/" + "/".join(reversed(path))
+    
+    # def enrich_item_metadata(self, item: CloudService.File | CloudService.Folder) -> dict:
+    #     """
+    #     Enrich a CloudService.File or CloudService.Folder object by retrieving its full metadata, including the path.
+    #     @param item: The File or Folder object to enrich.
+    #     @return: A dictionary containing the enriched metadata, including the full path.
+    #     """
+    #     try:
+    #         # Use Google Drive API to get metadata
+    #         metadata = self.drive_service.files().get(fileId=item._id, fields="id, name, mimeType, parents, size, modifiedTime").execute()
+
+    #         # Determine if the item is a file or folder
+    #         if isinstance(item, CloudService.File) and metadata["mimeType"] != "application/vnd.google-apps.folder":
+    #             return {
+    #                 "id": metadata["id"],
+    #                 "name": metadata["name"],
+    #                 "path": self._get_full_path(metadata["id"]),
+    #                 "type": "file",
+    #                 "size": metadata.get("size"),
+    #                 "modified": metadata.get("modifiedTime"),
+    #             }
+    #         elif isinstance(item, CloudService.Folder) and metadata["mimeType"] == "application/vnd.google-apps.folder":
+    #             return {
+    #                 "id": metadata["id"],
+    #                 "name": metadata["name"],
+    #                 "path": self._get_full_path(metadata["id"]),
+    #                 "type": "folder",
+    #             }
+    #         else:
+    #             raise ValueError(f"Unexpected metadata type for item: {item}")
+
+    #     except HttpError as e:
+    #         print(f"Error retrieving metadata for item '{item.name}': {e}")
+    #         raise
+
+    

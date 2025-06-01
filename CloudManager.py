@@ -1,7 +1,5 @@
 import os
 import tempfile
-import hashlib
-import zipfile
 import shutil
 
 
@@ -10,11 +8,9 @@ from modules import Encrypt
 from modules.CloudAPI import CloudService
 import json
 from CloudObjects import Directory, CloudFile
-from typing import Optional
 
 
 import concurrent.futures
-import time
 import threading
 import tempfile
 
@@ -48,6 +44,7 @@ class CloudManager:
         self.root = root # Temporary until login module
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.clouds) * 5)
         self.initialize_temp_folder()
+
 
     def __del__(self):
         try:
@@ -169,7 +166,11 @@ class CloudManager:
         """
         futures = {}
         folders = {}
+        if not self.clouds[0].is_authenticated():
+            raise Exception("Clouds are not authenticated. Please authenticate at least one before proceeding.")
         
+        self.load_metadata()
+
         # Authenticate all clouds
         for cloud in self.clouds:
             try:
@@ -194,7 +195,7 @@ class CloudManager:
             
             self.fs["/"] = Directory(folders, "/")
             self.fs["/"].set_root()
-            self.load_metadata()
+            
 
             return True  # Authentication and file descriptor loading succeeded
         except Exception as e:
@@ -707,29 +708,176 @@ class CloudManager:
         
         for item_path in to_remove:
             self.fs.pop(item_path)
+    
+        
+    @staticmethod
+    def is_metadata_exists(cloud : CloudService, root : str, file_name : str) -> bool:
+        """
+        Checks if the metadata file exists in the cloud.
+        @param cloud: The cloud service to check.
+        @param root: The root directory name.
+        @return: True if the metadata file exists, False otherwise.
+        """
+        try:
+            files = cloud.list_files(cloud.get_session_folder(root), file_name)
+            return len(list(files)) > 0
+        except Exception as e:
+            print(f"Error checking metadata existence: {e}")
+            return False
 
+    @staticmethod
+    def download_metadata(cloud : CloudService, root : str, file_name : str):
+        if not cloud.is_authenticated():
+            raise Exception("Cloud is not authenticated")
+        files = cloud.list_files(cloud.get_session_folder(root), file_name)
+        metadata = None
+        for file in files:
+            metadata = file
+            break
+        if metadata is None:
+            raise Exception("Failed to find metadata- run is_metadata_exists to check if metadata exists")
+        return cloud.download_file(metadata)
+    
+    @staticmethod
+    def upload_metadata(clouds : list[CloudService], root : str, metadata : dict, file_name : str):
+        """
+        Uploads the metadata to the cloud.
+        @param cloud: The cloud service to upload to.
+        @param root: The root directory name.
+        @param metadata: The metadata dictionary to upload.
+        @return: True if the upload is successful, False otherwise.
+        """
+        def upload(cloud : CloudService):
+            if not cloud.is_authenticated():
+                raise Exception("Cloud is not authenticated")
+            metadata_json = json.dumps(metadata).encode('utf-8')
+            return cloud.upload_file(metadata_json, file_name, cloud.get_session_folder(root))
         
-        
-                
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(clouds)) as executor:
+            futures = [executor.submit(upload, cloud) for cloud in clouds]
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()  # Wait for the upload to complete
+                except Exception as e:
+                    print(f"Error uploading metadata to cloud: {e}")
+                    return False
+            
+
     def load_metadata(self):
         """
-        Downloads the filedescriptor from the clouds, decrypts it using self.decrypt, and sets it as this object's file descriptor
+        Downloads the filedescriptor from the clouds and sets it as this object's file descriptor.
+        This function does NOT perform authentication or key creation — it only loads metadata.
         """
-        metadata = self._download_replicated("$META")
-        if metadata is None: # Metadata does not exist, new session, make our own
-            self.metadata = {"encrypt": self.encrypt.get_name(), "split": self.split.get_name(), "order": self.cloud_name_list}
-            self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
+        #metadata = self._download_replicated("$META")
+        # Download without using the replicated function since we did not set up self.fs yet
+        if self.fs.get("/") is None:
+            metadata = self.clouds[0].list_files(self.clouds[0].get_session_folder(self.root), "$META")
+            for meta in metadata:
+                if meta.get_name() == "$META":
+                    metadata = self.clouds[0].download_file(meta)
+                    print(f"Successfully downloaded metadata for session {self.root}.")
+                    break
+            
+        else:
+            metadata = self._download_replicated("$META")
+        
+        if not isinstance(metadata, bytes):
+            self.metadata = {
+                "encrypt": self.encrypt.get_name(),
+                "split": self.split.get_name(),
+                "order": self.cloud_name_list
+            }
+            if self.fs.get("/") is None:
+                for cloud in self.clouds: # If there isn't a root folder, we are creating a session so self.clouds is accurate
+                    cloud.upload_file(json.dumps(self.metadata).encode('utf-8'), "$META", cloud.get_session_folder(self.root))
+            else:
+                self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
         else:
             self.metadata = json.loads(metadata)
-            for cloudname in self.metadata.get("order"):
-                if not cloudname in self.cloud_name_list: # TODO: Make it so only the needed amount of clouds are checked
-                    raise Exception(f"Missing a required cloud for session: {cloudname}")
+            email = self.clouds[0].get_email() # We only support having the same email in all clouds for now
+            for index,cloudname in enumerate(self.metadata.get("order")):
+                if index >= len(self.clouds):
+                    print(f"Adding cloud {cloudname} to session {self.root}")
+                    self.clouds.append(CloudService.get_class(cloudname)(email))
+                elif self.clouds[index].get_name() != cloudname:
+                    print(f"Changing cloud order for session {self.root}")
+                    self.clouds[index] = CloudService.get_class(cloudname)(email)
+            if len(self.clouds) > len(self.metadata.get("order")):
+                print(f"Removing extra clouds from session {self.root}")
+                self.clouds = self.clouds[:len(self.metadata.get("order"))]
             self.cloud_name_list = self.metadata.get("order")
+                
             if self.split.get_name() != self.metadata.get("split"):
-                print(f"Changing splitting algorithm for session {self.root}")
+                print(f"Changing splitting algorithm for session {self.root} to {self.metadata.get('split')}")
                 self.split = Split.get_class(self.metadata.get("split"))()
+
             if self.encrypt.get_name() != self.metadata.get("encrypt"):
-                print(f"Changing encryption algorithm for session {self.root}")
+                print(f"Changing encryption algorithm for session {self.root} to {self.metadata.get('encrypt')}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
 
+    def search_items_by_name(self, filter: str, path: str):
+        """
+        Search for files and folders by name across all clouds.
+        @param filter: The filter string to search for.
+        @param path: The folder path to start the search from.
+        @return: A tuple containing two lists: one for files and one for folders.
+        """
+        files = []
+        folders = []
 
+        # Get the starting folder object
+        start_folder = self.fs.get(path)
+        if not start_folder:
+            raise FileNotFoundError(f"Start folder '{path}' does not exist!")
+
+        cloud = self.clouds[0]  # Only Dropbox, drive doesn't find all files for some reason
+        try:
+            # Get items matching the filter from the cloud
+            items = cloud.get_items_by_name(filter, [start_folder.get(cloud.get_name())])
+            for item in items:
+                # Skip files that start with "$"
+                if item.name.startswith("$"):
+                    continue
+                print(f"Found item: {item.name} in cloud {cloud.get_name()}")
+
+                if isinstance(item, CloudService.File):
+                    # Process files
+                    split = item.name.split(FILE_INDEX_SEPERATOR)
+                    if len(split) == 2 and split[0] != "1":
+                        # Ignore parts with #2 or higher
+                        continue
+
+                    # Add file data to the files list
+                    yield item
+
+                elif isinstance(item, CloudService.Folder):
+                    # Add folder data to the folders list
+                    yield item
+
+        except Exception as e:
+            print(f"Error searching items in cloud '{cloud.get_name()}': {e}")
+    
+    def object_to_cloudobject(self, item : CloudService.CloudObject):
+        """
+        Enrich a CloudFile or Directory object by retrieving its full metadata, including the path.
+        @param item: The File or Folder object to enrich.
+        @return: The enriched object with the full metadata.
+        """
+        cloud = self.clouds[0] # TODO: use dropbox if available because it is much faster
+        path = cloud.get_full_path(item, self.fs["/"].get(cloud.get_name()))
+        
+        # Create CloudFile or Directory object with the full path
+        try:
+            if isinstance(item, CloudService.File):
+                parent_path  = "/".join(path.split("/")[:-1])
+                parent_path = parent_path if parent_path != '' else '/'
+                filename = item.name.split(FILE_INDEX_SEPERATOR)[-1]
+                path = f"{parent_path}/{filename}" if parent_path != '/' else f"/{filename}"
+                self._get_directory(parent_path) if parent_path != '' else self.fs["/"] # Call get_directory to store directory in self.fs
+                list(self.get_items_in_folder(parent_path)) # Call get_items_in_folder to ensure the file is in the fs
+            elif isinstance(item, CloudService.Folder):
+                self._get_directory(path) # Call get_directory to store directory in self.fs
+            return path
+        except Exception as e: 
+            print(e)
+            raise Exception(f"Failed to convert object to cloud object: {e}")

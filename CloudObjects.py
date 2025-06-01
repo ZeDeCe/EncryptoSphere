@@ -72,7 +72,7 @@ class CloudFile:
         for cloud in self.parts.keys():
             if cloud.get_name() == cloud_name:
                 return self.parts[cloud]
-        return None
+        return []
     
     def get_data(self):
         return self.data
