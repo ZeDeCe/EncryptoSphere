@@ -7,7 +7,7 @@ from customtkinter import filedialog
 import os
 from threading import Thread
 import tkinter.messagebox as messagebox
-import queue
+import re
 
 
 
@@ -332,13 +332,28 @@ class EmailPage(FormPage):
     This class inherits ctk.CTkFrame class.
     """
     def __init__(self, parent, controller):
-        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere", "Email address ", "Your Email Address", "Login", self.handle_login, None,"Error While connecting to the Clouds")
+        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere", "Email address ", "Your Email Address", "Login", self.handle_login, self.error_func, "Error while connecting to the Clouds")
+        self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
+        self.error_label.pack()
+    
+    def error_func(self):
+        """
+        This function is called when the login process fails.
+        It displays an error message and enables the submit button.
+        """
+        self.remove_loading()
+        self.error_label.configure(text=self.error_message)
+        self.submit_button.configure(state="normal")
 
     def handle_login(self, email):
         """
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
+        if re.match(r"[^@]+@[^@]+\.[^@]+", email) is None:
+            self.error_message = "Invalid email address format"
+            return False
+        
         self.controller.get_api().set_email(email)
         return self.controller.get_api().clouds_authenticate_by_token(lambda f: self.controller.show_frame(LoginCloudsPage))
 
@@ -352,6 +367,8 @@ class LocalPasswordPage(FormPage):
         FormPage.__init__(self, parent, controller, "", "Password ", "Your Password", "Login", self.validate_password, self.error_login,"Wrong password, Please try again")
         self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
         self.error_label.pack()
+        self.entry.configure(show="*")
+        
         
     def validate_password(self, password):
         """
@@ -548,7 +565,7 @@ class RegistrationPage(ctk.CTkFrame):
         self.message_pass.pack(padx=20)
 
         # Password Entry Field
-        self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300, height=35)
+        self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300, height=35, show="*")
         self.entry_pass.pack(padx=20, pady=(0, 20))
 
         # Encryption Algorithm option menu
@@ -568,8 +585,8 @@ class RegistrationPage(ctk.CTkFrame):
         if index != -1:
             split.insert(0, split.pop(index))
 
-        self.message_encription = ctk.CTkLabel(self, text="Select Encryption Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16), width=300,anchor="w")
-        self.message_encription.pack(padx=20)
+        self.message_encryption = ctk.CTkLabel(self, text="Select Encryption Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16), width=300,anchor="w")
+        self.message_encryption.pack(padx=20)
 
         self.encryption_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in encryption], command=lambda x: None, width=300, height=35)
         self.encryption_algorithm.pack(padx=20, pady=(0, 20))
