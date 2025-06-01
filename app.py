@@ -337,7 +337,7 @@ class EmailPage(FormPage):
     This class inherits ctk.CTkFrame class.
     """
     def __init__(self, parent, controller):
-        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere", "Email address ", "Your Email Address", "Login", self.handle_login, self.error_func, "Error while connecting to the Clouds", None)
+        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere", "Email address ", "Your Email Address", "Continue", self.handle_login, self.error_func, "Error while connecting to the Clouds", None)
         self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
         self.error_label.pack()
     
