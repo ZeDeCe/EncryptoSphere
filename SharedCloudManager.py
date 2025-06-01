@@ -22,16 +22,18 @@ class SharedCloudManager(CloudManager):
     shared_suffix = "_ENCRSH"
 
     
-    def __init__(self, shared_with : list[dict] | None, root_folder : Directory | None, clouds : list[CloudService], root : str, split : Split, encrypt : Encrypt):
+    def __init__(self, shared_with : list[dict] | None, root_folder : Directory | None, clouds : list[CloudService], root : str, split : Split, encrypt : Encrypt, new_encrypt : Encrypt= None):
         """
         Initialize sharedcloudmanager
         Pass either shared_with or root_folder, but not both
         Passing shared_with creates a new session with the emails provided, passing root_folder initializes an already existing session
         @param shared_with a list of dictionaries as such: [{"Cloud1Name":"email", "Cloud2Name":"email", ...}, ...] or None for an existing session
         @param root_folder the directory to use as the root folder if the session already exists
+        @param new_encrypt if creating a session, we need to determine the encryptor. If not, metadata already has the encryptor set
         """
         assert (shared_with is None and not root_folder is None) or (not shared_with is None and root_folder is None)
         super().__init__(clouds, root, split, encrypt)
+        self.new_encrypt = new_encrypt
         self.root = f"{self.root}{SharedCloudManager.shared_suffix}"
         self.users = []
         self.loaded = False
@@ -66,8 +68,9 @@ class SharedCloudManager(CloudManager):
                 key = self.create_new_session()
                 if not key:
                     return False
-                self.load_metadata()
+                self.encrypt = self.new_encrypt
                 self.encrypt.set_key(key)
+                self.load_metadata()
             except:
                 return False
         else:
@@ -139,7 +142,7 @@ class SharedCloudManager(CloudManager):
             return False
         self.uid = f"{self.root.replace(SharedCloudManager.shared_suffix, '')}${uuid}"
         self._upload_replicated(f"$UID_{uuid}",uuid.encode())
-        key = self.encrypt.generate_key()
+        key = self.new_encrypt.generate_key()
         self.executor.submit(self._upload_replicated, "$FEK", self._encrypt(key), True)
         return key
 
