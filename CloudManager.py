@@ -166,7 +166,11 @@ class CloudManager:
         """
         futures = {}
         folders = {}
+        if not self.clouds[0].is_authenticated():
+            raise Exception("Clouds are not authenticated. Please authenticate at least one before proceeding.")
         
+        self.load_metadata()
+
         # Authenticate all clouds
         for cloud in self.clouds:
             try:
@@ -191,7 +195,7 @@ class CloudManager:
             
             self.fs["/"] = Directory(folders, "/")
             self.fs["/"].set_root()
-            self.load_metadata()
+            
 
             return True  # Authentication and file descriptor loading succeeded
         except Exception as e:
@@ -756,8 +760,18 @@ class CloudManager:
         Downloads the filedescriptor from the clouds and sets it as this object's file descriptor.
         This function does NOT perform authentication or key creation — it only loads metadata.
         """
-        metadata = self._download_replicated("$META")
-
+        #metadata = self._download_replicated("$META")
+        # Download without using the replicated function since we did not set up self.fs yet
+        if self.fs.get("/") is None:
+            metadata = self.clouds[0].list_files(self.clouds[0].get_session_folder(self.root), "$META")
+            for meta in metadata:
+                if meta.get_name() == "$META":
+                    metadata = self.clouds[0].download_file(meta)
+                    print(f"Successfully downloaded metadata for session {self.root}.")
+                    break
+        else:
+            metadata = self._download_replicated("$META")
+        
         if metadata is None:
             self.metadata = {
                 "encrypt": self.encrypt.get_name(),
@@ -767,21 +781,25 @@ class CloudManager:
             self._upload_replicated("$META", json.dumps(self.metadata).encode('utf-8'))
         else:
             self.metadata = json.loads(metadata)
-
-            for cloudname in self.metadata.get("order"):
-                if cloudname not in self.cloud_name_list:
-                    raise Exception(f"Missing a required cloud for session: {cloudname}")
-
+            email = self.clouds[0].get_email() # We only support having the same email in all clouds for now
+            for index,cloudname in enumerate(self.metadata.get("order")):
+                if index >= len(self.clouds):
+                    print(f"Adding cloud {cloudname} to session {self.root}")
+                    self.clouds.append(CloudService.get_class(cloudname)(email))
+                elif self.clouds[index].get_name() != cloudname:
+                    print(f"Changing cloud order for session {self.root}")
+                    self.clouds[index] = CloudService.get_class(cloudname)(email)
+            if len(self.clouds) > len(self.metadata.get("order")):
+                print(f"Removing extra clouds from session {self.root}")
+                self.clouds = self.clouds[:len(self.metadata.get("order"))]
             self.cloud_name_list = self.metadata.get("order")
-
+                
             if self.split.get_name() != self.metadata.get("split"):
-                print(f"Changing splitting algorithm for session {self.root}")
+                print(f"Changing splitting algorithm for session {self.root} to {self.metadata.get('split')}")
                 self.split = Split.get_class(self.metadata.get("split"))()
 
             if self.encrypt.get_name() != self.metadata.get("encrypt"):
-                print(f"Changing encryption algorithm for session {self.root}")
+                print(f"Changing encryption algorithm for session {self.root} to {self.metadata.get('encrypt')}")
                 self.encrypt = Encrypt.get_class(self.metadata.get("encrypt"))()
-
-
 
 
