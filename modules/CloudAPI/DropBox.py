@@ -65,40 +65,44 @@ class DropBox(CloudService):
         The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
         The function creates and save the root folder (if not already exsist)
         """
-        if self.authenticated:
+        try: 
+            if self.authenticated:
+                return True
+
+            if self.authenticate_by_token():
+                return True
+
+            print("DropBox : No token found, starting authentication...")
+            # Start the OAuth flow
+            auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
+            # Generate the authorization URL
+            auth_url = auth_flow.start()
+            # Automatically open the URL in the default browser
+            webbrowser.open(auth_url)
+            # Get the authorization code from the user
+            auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code").result()
+            
+            # Verify if the token is valid for the given email
+            auth_result = self._verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
+            if not auth_result:
+                return False
+            
+            # Save the token to a JSON file for future use
+            self._save_dropbox_token_to_json(auth_result.access_token)
+            
+            
+            # Extract access token and user_id from the result object
+            access_token = auth_result.access_token
+            self.user_id = auth_result.user_id
+            self.authenticated = True
+
+            self.create_session_folder()
+            
             return True
+        except Exception as e:
+            error_mag = f"DropBox : Unexpected error during authentication: {e}"
+            raise error_mag
 
-        if self.authenticate_by_token():
-            return True
-
-        print("DropBox : No token found, starting authentication...")
-        # Start the OAuth flow
-        auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
-        # Generate the authorization URL
-        auth_url = auth_flow.start()
-        # Automatically open the URL in the default browser
-        webbrowser.open(auth_url)
-        # Get the authorization code from the user
-        auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code").result()
-        
-        # Verify if the token is valid for the given email
-        auth_result = self._verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
-        if not auth_result:
-            return False
-        
-        # Save the token to a JSON file for future use
-        self._save_dropbox_token_to_json(auth_result.access_token)
-        
-        
-        # Extract access token and user_id from the result object
-        access_token = auth_result.access_token
-        self.user_id = auth_result.user_id
-        self.authenticated = True
-
-        self.create_session_folder()
-        
-        return True
-    
     def _save_dropbox_token_to_json(self, access_token):
         """
         Save the Dropbox access token to a JSON file.

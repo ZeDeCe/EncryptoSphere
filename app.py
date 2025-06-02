@@ -9,8 +9,10 @@ from threading import Thread
 import tkinter.messagebox as messagebox
 import queue
 
-import time
 import threading
+import time
+
+AUTO_REFRESH_TIME = 30
 
 
 def clickable(cls):
@@ -64,7 +66,6 @@ class App(ctk.CTk):
     """
     This class creates the UI features and the program main window.
     """
-    AUTO_REFRESH_INTERVAL = 30
     controller = None
 
     def __new__(cls, *args, **kwargs):
@@ -94,13 +95,7 @@ class App(ctk.CTk):
         
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        # auto refresh
-        self.current_folder = None  # Track the currently active folder
-        self.auto_refresh_thread = None  # Thread for auto-refresh
-        self.auto_refresh_stop_event = threading.Event()  # Event to signal the thread to stop
-        self.start_auto_refresh_thread()  # Start the auto-refresh thread
-
-       # Creating a container for the frames
+        # Creating a container for the frames
         container = ctk.CTkFrame(self)
         container.pack(side="top", fill="both", expand=True)
         container.grid_rowconfigure(0, weight=1)
@@ -116,6 +111,10 @@ class App(ctk.CTk):
         self.buttons = []
         self.current_popup : Popup = None
         
+        self._auto_refresh_running = True
+        self._start_auto_refresh_task()
+
+
         # Creating the frames
         for F in (EmailPage, LoginCloudsPage, LocalPasswordPage, RegistrationPage, MainPage):
             frame = F(container, self)
@@ -125,6 +124,22 @@ class App(ctk.CTk):
         # Show the start page (as of this POC, login to the clouds)
         self.show_frame(EmailPage)
         
+    def _start_auto_refresh_task(self):
+        def auto_refresh_loop():
+            while self._auto_refresh_running:
+                time.sleep(AUTO_REFRESH_TIME)
+                # Schedule the refresh on the main thread
+                self.after(0, self._trigger_mainpage_refresh)
+        threading.Thread(target=auto_refresh_loop, daemon=True).start()
+
+    def _trigger_mainpage_refresh(self):
+        try:
+            # Only refresh if authenticated/session is ready
+            if self.api and hasattr(self.api, "current_session") and self.api.current_session:
+                print("Auto-refreshing")
+                self.frames[MainPage].refresh_button_click()
+        except Exception as e:
+            print(f"Auto-refresh error: {e}")
 
     def show_frame(self, cont):
         """
@@ -146,12 +161,11 @@ class App(ctk.CTk):
         """
         Ensure proper cleanup before closing the application
         """    
+        self._auto_refresh_running = False
         self.destroy() 
         if self.api.manager:
             self.api.manager.cleanup_temp_folder() 
             self.api.stop_sync_new_sessions_task()
-            self.stop_auto_refresh_thread()  # Stop the auto-refresh thread
-
     
     def set_popup(self, popup):
         if self.current_popup is not None:
@@ -181,28 +195,6 @@ class App(ctk.CTk):
                 break
         
         self.current_popup.hide_popup()
-    
-    def start_auto_refresh_thread(self):
-        """
-        Start the auto-refresh thread.
-        """
-        def auto_refresh_loop():
-            while not self.auto_refresh_stop_event.is_set():  # Check if the stop event is set
-                time.sleep(self.AUTO_REFRESH_INTERVAL)  # Wait for the specified interval
-                if self.current_folder:
-                    print(f"Auto-refreshing folder: {self.current_folder.path}")
-                    self.current_folder.refresh()
-
-        self.auto_refresh_thread = threading.Thread(target=auto_refresh_loop, daemon=True)
-        self.auto_refresh_thread.start()
-
-    def stop_auto_refresh_thread(self):
-        """
-        Stop the auto-refresh thread.
-        """
-        self.auto_refresh_stop_event.set()  # Signal the thread to stop
-        print("Auto-refresh thread stopped.")
-
 
     def change_folder(self, path, uid=None):
         """
@@ -210,10 +202,6 @@ class App(ctk.CTk):
         @param path: The path to the folder to be changed to
         """
         self.frames[MainPage].change_folder(path, uid)
-        folder = self.frames[MainPage].current_session.folders.get(path)
-        if isinstance(folder, Folder):
-            self.current_folder = folder  # Update the current folder
-
     
     def change_session(self, uid):
         """
@@ -1072,7 +1060,6 @@ class MainPage(ctk.CTkFrame):
         Call this function to let the mainpage know that a folder change in the current session has occurred
         """
         self.current_session.change_folder(path, uid)
-        self.controller.current_folder = self.current_session.folders.get(path)  # Update the current folder
         self.messages_pannel.lift()
         if hasattr(self, 'uploading_labels'):
             for label in self.uploading_labels:
@@ -1273,7 +1260,6 @@ class Folder(ctk.CTkScrollableFrame):
         self._scrollbar.configure(width=16)
 
     def refresh(self):
-        print(f"Refreshing folder: {self.path}")
         self.pack(fill=ctk.BOTH, expand=True)
         self.controller.get_api().get_items_in_folder_async(lambda f: self.update_button_lists(f.result()), self.path)
         
