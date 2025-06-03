@@ -314,3 +314,12 @@ class CloudService(ABC):
                 return cls
         return None
     
+
+    @abstractmethod
+    def get_full_path(self, item: CloudObject, session_root : Folder) -> str:
+        """
+        Get the full path of a file or folder in terms of the session_root
+        @param item the file or folder object to get the path of
+        @return the full path in terms of the session_root
+        """
+        pass

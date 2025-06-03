@@ -33,15 +33,16 @@ class DropBox(CloudService):
     def authenticate_by_token(self):
         if self.authenticated:
             return True
+
         self.token_manager = CloudDataManager("EncryptoSphereApp", "dropbox")
         access_token = self.token_manager.get_data(self.email)
+
         if access_token:
             try:
                 print("DropBox : Loading clouds token file...")
-                # Load the tokens from the JSON file
-                
+                # Initialize Dropbox client with the access token
                 self.dbx = dropbox.Dropbox(access_token)
-                
+
                 # Verify the stored token email matches the current user
                 current_email = self.dbx.users_get_current_account().email
                 if current_email == self.email:
@@ -53,7 +54,7 @@ class DropBox(CloudService):
                     print("DropBox : Email mismatch with stored Dropbox token.")
                     return False
             except dropbox.exceptions.AuthError as e:
-                print(f"DropBox : Error {e}")
+                print(f"DropBox : Authentication error: {e}")
                 self.authenticated = False
                 access_token = None
                 return False
@@ -64,40 +65,44 @@ class DropBox(CloudService):
         The function recives an email address to authenticate to, and call verify_dropbox_token_for_user to verify the authentication
         The function creates and save the root folder (if not already exsist)
         """
-        if self.authenticated:
+        try: 
+            if self.authenticated:
+                return True
+
+            if self.authenticate_by_token():
+                return True
+
+            print("DropBox : No token found, starting authentication...")
+            # Start the OAuth flow
+            auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
+            # Generate the authorization URL
+            auth_url = auth_flow.start()
+            # Automatically open the URL in the default browser
+            webbrowser.open(auth_url)
+            # Get the authorization code from the user
+            auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code").result()
+            
+            # Verify if the token is valid for the given email
+            auth_result = self._verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
+            if not auth_result:
+                return False
+            
+            # Save the token to a JSON file for future use
+            self._save_dropbox_token_to_json(auth_result.access_token)
+            
+            
+            # Extract access token and user_id from the result object
+            access_token = auth_result.access_token
+            self.user_id = auth_result.user_id
+            self.authenticated = True
+
+            self.create_session_folder()
+            
             return True
+        except Exception as e:
+            error_mag = f"DropBox : Unexpected error during authentication: {e}"
+            raise error_mag
 
-        if self.authenticate_by_token():
-            return True
-
-        print("DropBox : No token found, starting authentication...")
-        # Start the OAuth flow
-        auth_flow = dropbox.DropboxOAuth2FlowNoRedirect(DROPBOX_APP_KEY, DROPBOX_APP_SECRET)
-        # Generate the authorization URL
-        auth_url = auth_flow.start()
-        # Automatically open the URL in the default browser
-        webbrowser.open(auth_url)
-        # Get the authorization code from the user
-        auth_code = input_dialog("DropBox Authentication", f"Browse to {auth_url} and insert here your dropbox access code").result()
-        
-        # Verify if the token is valid for the given email
-        auth_result = self._verify_dropbox_token_for_user(auth_flow, auth_code, self.email)
-        if not auth_result:
-            return False
-        
-        # Save the token to a JSON file for future use
-        self._save_dropbox_token_to_json(auth_result.access_token)
-        
-        
-        # Extract access token and user_id from the result object
-        access_token = auth_result.access_token
-        self.user_id = auth_result.user_id
-        self.authenticated = True
-
-        self.create_session_folder()
-        
-        return True
-    
     def _save_dropbox_token_to_json(self, access_token):
         """
         Save the Dropbox access token to a JSON file.
@@ -118,15 +123,16 @@ class DropBox(CloudService):
             self.dbx = dropbox.Dropbox(auth_result.access_token)
             current_account = self.dbx.users_get_current_account()
             current_email = current_account.email
-            # Authentication succeded
+            # Authentication succeeded
             if current_email == expected_email:
                 return auth_result  # Return the entire auth result
-            # Athentication failed
+            # Authentication failed
             else:
+                print(f"DropBox : Email mismatch. Expected {expected_email}, got {current_email}.")
                 return None
-            
         except dropbox.exceptions.AuthError as e:
-            raise Exception(f"Error {e}")
+            print(f"DropBox : Error verifying token: {e}")
+            return None
 
     def get_children(self, folder : CloudService.Folder, filter=None):
         """
@@ -175,9 +181,6 @@ class DropBox(CloudService):
         except dropbox.exceptions.ApiError as e:
             print(f"Dropbox: API error: {e}")
             raise Exception(f"Error {e}")
-
-    def get_items_by_name(self, filter, folders):
-        pass
 
     def upload_file(self, data, file_name: str, parent : CloudService.Folder):
         """
@@ -274,9 +277,6 @@ class DropBox(CloudService):
 
         except dropbox.exceptions.ApiError as error:
             raise Exception(f"Error getting owner: {error}")
-    
-    def leave_shared_folder(self, folder):
-        raise NotImplementedError("Still missing implementation")
     
     def delete_folder(self, folder : CloudService.Folder):
         """
@@ -437,12 +437,12 @@ class DropBox(CloudService):
         if not folder.is_shared():
             raise Exception("Error: Folder ID should be a shared ID")
         try:
-            self.dbx.sharing_unshare_folder(id) # TODO: delete folder from dropbox
+            self.dbx.sharing_unshare_folder(id, leave_a_copy=False) 
             print(f"Folder '{folder.name}' has been unshared.")
             return True
         except dropbox.exceptions.ApiError as e:
              raise Exception(f"Error unsharing or deleting folder: {e}")
-
+ 
     '''
     # Function to share a file with an email address (without sending an email), as of now - uneccacery 
     def share_file_with_email(self, dropbox_file_path, recipient_email):
@@ -589,7 +589,7 @@ class DropBox(CloudService):
         except Exception as e:
             print(f"Error in get_items_by_name: {e}")
             raise
-    
+
     def get_icon(self) -> str:
         if self.authenticated:
             return "resources/DropBox_icon_checked.png"
@@ -601,9 +601,102 @@ class DropBox(CloudService):
         return "resources/DropBox_icon.png"
     
 
+    def leave_shared_folder(self, folder):
+        """
+        Leave a shared folder in Dropbox.
+        If the user is the owner of the folder, raises an error.
+        """
+        if not folder.shared:
+            raise Exception("Error: Folder is not shared")
 
-# Unit Test, make sure to enter email!
+        try:
+            # Get the shared folder metadata
+            shared_folder_metadata = self.dbx.sharing_get_folder_metadata(folder.shared)
+
+            # Check if the current user is the owner
+            if shared_folder_metadata.access_type.is_owner():
+                raise Exception("Error: Cannot leave folder as the owner. Unshare or delete the folder instead.")
+
+            # Leave the shared folder
+            self.dbx.sharing_remove_folder_member(
+                folder.shared,
+                dropbox.sharing.MemberSelector.email(self.email),  # Use email instead of Dropbox ID
+                leave_a_copy=False
+            )
+            print(f"Left shared folder '{folder.name}'.")
+            return True
+
+        except dropbox.exceptions.ApiError as error:
+            raise Exception(f"Error leaving shared folder: {error}")
+
+    def get_owner(self, folder):
+        """
+        Get the owner of the shared folder in Dropbox.
+        If the folder is not shared, raise an error.
+        """
+        if not folder.shared:
+            raise Exception("Error: Folder is not shared")
+
+        if hasattr(folder, "_owner"):  # Cache the owner since it doesn't change
+            return folder._owner
+
+        try:
+            # Get the shared folder metadata
+            members = self.dbx.sharing_list_folder_members(folder.shared)
+
+            # Find the owner from the permissions
+            for member in members.users:
+                        if member.access_type.is_owner():
+                            folder._owner = member.user.email
+                            return member.user.email
+
+            return None  # No owner found (shouldn't happen)
+
+        except dropbox.exceptions.ApiError as error:
+            raise Exception(f"Error getting owner: {error}")
+    
+    def get_full_path(self, item : CloudService.CloudObject, session_root : CloudService.Folder) -> str:
+        if item._id.startswith(session_root._id):
+            return item._id.replace(session_root._id, "")
+        raise Exception("DropBox Error: Item is not in the session root folder")
+
+            
+    # def enrich_item_metadata(self, item: CloudService.File | CloudService.Folder) -> dict:
+    #     """
+    #     Enrich a CloudService.File or CloudService.Folder object by retrieving its full metadata, including the path.
+    #     @param item: The File or Folder object to enrich.
+    #     @return: A dictionary containing the enriched metadata, including the full path.
+    #     """
+    #     try:
+    #         # Use Dropbox API to get metadata
+    #         metadata = self.dbx.files_get_metadata(item._id)
+
+    #         if isinstance(item, CloudService.File) and isinstance(metadata, dropbox.files.FileMetadata):
+    #             return {
+    #                 "id": metadata.id,
+    #                 "name": metadata.name,
+    #                 "path": metadata.path_display,
+    #                 "type": "file",
+    #                 "size": metadata.size,
+    #                 "modified": metadata.server_modified,
+    #             }
+    #         elif isinstance(item, CloudService.Folder) and isinstance(metadata, dropbox.files.FolderMetadata):
+    #             return {
+    #                 "id": metadata.id,
+    #                 "name": metadata.name,
+    #                 "path": metadata.path_display,
+    #                 "type": "folder",
+    #             }
+    #         else:
+    #             raise ValueError(f"Unexpected metadata type for item: {item}")
+
+    #     except dropbox.exceptions.ApiError as e:
+    #         print(f"Error retrieving metadata for item '{item.name}': {e}")
+    #         raise
+
 '''
+# Unit Test, make sure to enter email!
+
 import customtkinter as ctk
 def input_dialog(title, text):
     # Create the input dialog
@@ -660,6 +753,7 @@ def test():
     dbx.unshare_folder(shared)
     print("Done")
 
+    
 def test2():
     """
     Test function for DropBox
@@ -667,12 +761,16 @@ def test2():
     dbx = DropBox("hadas.shalev10@cs.colman.ac.il")
     dbx.authenticate_cloud()
     folder = dbx.get_session_folder("test")
-    get_items_by_name = dbx.get_items_by_name("test", [folder])
-    for item in get_items_by_name:
-        print(f"Found: {item.get_name()} ({item.__class__.__name__})")
-
+    shared_folders = dbx.list_shared_folders()
+    print("Shared folders:")    
+    for folder in shared_folders:
+        print(folder.name)
+        print(dbx.get_owner(folder))
+        leave = dbx.leave_shared_folder(folder)
+        print(f"Left shared folder: {leave}")
     
-
 if __name__ == "__main__":
     test2()
+
 '''
+    

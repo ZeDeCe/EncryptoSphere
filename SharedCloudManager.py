@@ -10,6 +10,7 @@ from CloudObjects import Directory, CloudFile
 import re
 from uuid import uuid4
 import concurrent.futures
+import time
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -411,9 +412,6 @@ class SharedCloudManager(CloudManager):
                     user.pop(cloud_name, None)  # Remove the cloud from the user dictionary if sharing fails
             self.users.append(user)
 
-
-
-
     @staticmethod
     def is_valid_session_root(cloud : CloudService, root : CloudService.Folder) -> bool:
         """
@@ -480,3 +478,67 @@ class SharedCloudManager(CloudManager):
                     u[cloud.get_name()] = user
             self.users.append(u)
         return self.users
+    
+    def delete_session(self):
+        """
+        Deletes the shared session by leaving the shared folders in all clouds.
+        If the user is the owner, removes everyone (except the owner) from the shared folder and deletes it.
+        """
+        if self.user_is_owner():
+            print("User is the owner. Removing all users (except the owner) and deleting the shared folder.")
+            for cloud in self.clouds:
+                folder = self.root_folder.get(cloud.get_name())
+                if folder and folder.is_shared():
+                    try:
+                        # Get the list of shared emails
+                        shared_emails = cloud.get_members_shared(folder)
+
+                        # Exclude the owner's email from the list of users to remove
+                        owner_email = cloud.get_email()
+                        users_to_remove = [email for email in shared_emails if email != owner_email]
+
+                        if users_to_remove:
+                            # Remove all users (except the owner) from the shared folder
+                            cloud.unshare_by_email(folder, users_to_remove)
+                            print(f"Removed all users (except the owner) from shared folder '{folder.name}' on cloud '{cloud.get_name()}'.")
+
+                        # Unshare the folder (make it private)
+                        cloud.unshare_folder(folder)
+                        print(f"Unshared folder '{folder.name}' on cloud '{cloud.get_name()}'.")
+
+                        # Delete the folder
+                        print(f"Deleted shared folder '{folder.name}' on cloud '{cloud.get_name()}'.")
+                        if cloud.get_name() == "D":
+                            time.sleep(5)
+                            cloud.delete_file(folder)
+                        else:
+                            cloud.delete_folder(folder)
+
+                    except Exception as e:
+                        print(f"Error while removing users or deleting folder '{folder.name}' on cloud '{cloud.get_name()}': {e}")
+        else:
+            print("User is not the owner. Leaving the shared folder.")
+            for cloud in self.clouds:
+                folder = self.root_folder.get(cloud.get_name())
+                if folder and folder.is_shared():
+                    try:
+                        # Get the email of the current user
+                        user_email = cloud.get_email()
+                        if user_email:
+                            # Delete the user's specific FEK file
+                            fek_file_name = f"$FEK_{user_email}"
+                            fek_files = cloud.list_files(folder, fek_file_name)
+                            for fek in fek_files:
+                                try:
+                                    cloud.delete_file(fek)
+                                    print(f"Deleted FEK file '{fek_file_name}' for user {user_email} on {cloud.get_name()}.")
+                                except Exception as e:
+                                    print(f"Failed to delete FEK file '{fek_file_name}' for user {user_email} on {cloud.get_name()}: {e}")
+
+                        # Leave the shared folder
+                        cloud.leave_shared_folder(folder)
+                        print(f"Left shared folder '{folder.name}' on cloud '{cloud.get_name()}'.")
+                    except Exception as e:
+                        print(f"Error while leaving folder '{folder.name}' on cloud '{cloud.get_name()}': {e}")
+
+        print(f"Shared session '{self.root}' deleted successfully.")

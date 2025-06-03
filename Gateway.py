@@ -28,6 +28,7 @@ import app as app
 # This is temporary:
 from cryptography.fernet import Fernet
 
+FILE_INDEX_SEPERATOR = "#"
 SYNC_TIME = 90 # 1 min 30 sec
 MAIN_SESSION  = "main_session"
 
@@ -50,6 +51,8 @@ class Gateway:
         self.metadata_exists = False
         self.login_manager = LoginManager()
         
+        self.search_results = []  # Store the most recent search results
+        self.search_results_cloud = None  # Store the cloud of the most recent search resultsN
 
     def promise(func):
         """
@@ -62,6 +65,33 @@ class Gateway:
             if not callback is None:
                 future.add_done_callback(callback)
             return future
+        return wrapper
+    
+    def enrichable(func):
+        """
+        Decorator for Gateway methods that take file_path or folder_path.
+        If the argument is an int, it will get the actual path.
+        """
+
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # Find the argument name (file_path or folder_path)
+            import inspect
+            sig = inspect.signature(func)
+            params = list(sig.parameters.keys())
+            params.remove('self')  # Remove 'self' from the parameters list
+
+            # Find which param is file_path or folder_path
+            for i, name in enumerate(params):
+                if name == "path" and len(args) > i:
+                    arg = args[i]
+                    if isinstance(arg, int):
+                        # Enrich and replace in args
+                        path = self.get_path_from_searchindex(arg)
+                        # Replace the int with the enriched value
+                        args = list(args)
+                        args[i] = path
+            return func(self, *args, **kwargs)
         return wrapper
 
     def is_metadata_exists(self, cloud : CloudService):
@@ -261,27 +291,50 @@ class Gateway:
         else:
             self.current_session = self.session_manager.main_session
     
-    def get_items_in_folder(self, path="/"):
-        """
-        @param path: the path to the folder
-        @return: Yielded iterable (generator) for every file in the current session in the folder given
-        """
-        return self.current_session.get_items_in_folder(path)
     
     @promise
+    @enrichable
     def get_items_in_folder_async(self, path="/"):
         return self.current_session.get_items_in_folder(path)
     
-    @promise
-    def get_search_results_async(self, search_string):
-        """
-        @param path: the path to the folder
-        @return: Yielded iterable (generator) for every file in the current session in the folder given
-        """
-        #return self.current_session.get_search_results(search_string)
-        print(f"Searching for {search_string}")
-        return iter([])
     
+    @promise
+    def get_search_results_sharedsessions(self, search_string):
+        """
+        Search for items matching the given string in shared sessions.
+        @param search_string: The filter string to search for.
+        @param path: The folder path to start the search from.
+        @return: A list of dictionaries with item details.
+        """
+        
+        for folder in self.get_shared_folders():
+            if folder["uid"].startswith(search_string):
+                yield folder
+
+    @promise
+    def get_search_results_async(self, search_string, path):
+        """
+        Search for items matching the given string asynchronously.
+        @param search_string: The filter string to search for.
+        @param path: The folder path to start the search from.
+        @return: A generator yielding dictionaries with item details.
+        """
+        print(f"Searching for items matching: {search_string}")
+        item_iter = self.current_session.search_items_by_name(search_string, path)
+        self.search_results = []
+        for index, item in enumerate(item_iter):
+            self.search_results.append(item)
+            if isinstance(item, CloudService.File):
+                split = item.name.split(FILE_INDEX_SEPERATOR) # Maybe just take care of this in CloudManager?
+            yield {
+                "name": split[1] if isinstance(item, CloudService.File) else item.name,
+                "id": index,
+                "type": "file" if isinstance(item, CloudService.File) else "folder",
+                "path": None, 
+                "uid": "0" if self.current_session == self.manager else self.current_session.get_uid(),
+                "search_index": index,
+            }
+
     @promise
     def sync_session(self):
         print("Refresh button clicked")
@@ -297,34 +350,37 @@ class Gateway:
 
         
     @promise
-    def open_file(self, file_path):
+    @enrichable
+    def open_file(self, path):
         """
         Open file function
         @param file_id: the id of the file to open
         @return: True if the file was opened successfully, False otherwise
         """
-        print(f"Open file selected: {file_path}")
-        return self.current_session.open_file(file_path)
+        print(f"Open file selected: {path}")
+        return self.current_session.open_file(path)
     
 
     @promise
-    def download_file(self, file_path):
+    @enrichable
+    def download_file(self, path):
         """
         Download file function
         @param file_id: the id of the file to download
         @return: True if the file was downloaded successfully, False otherwise
         """
-        return self.current_session.download_file(file_path)
+        return self.current_session.download_file(path)
 
     @promise
-    def download_folder(self, folder_path):
+    @enrichable
+    def download_folder(self, path):
         """
         Download folder as a ZIP file.
         @param folder_name: The name of the folder to download.
         @return: The path to the ZIP file if successful, False otherwise.
         """
-        print(f"Download folder selected: {folder_path}")
-        return self.current_session.download_folder(folder_path)
+        print(f"Download folder selected: {path}")
+        return self.current_session.download_folder(path)
     
     @promise
     def upload_file(self, file_path, path):
@@ -349,24 +405,26 @@ class Gateway:
         return self.current_session.upload_folder(folder_path, path)
 
     @promise
-    def delete_file(self, file_path):
+    @enrichable
+    def delete_file(self, path):
         """
         Delete file function
         @param file_id: the id of the file to delete
         @return: True if the file was deleted successfully, False otherwise
         """
-        print(f"Delete file selected {file_path}")
-        return self.current_session.delete_file(file_path)
+        print(f"Delete file selected {path}")
+        return self.current_session.delete_file(path)
 
     @promise
-    def delete_folder(self, folder_path):
+    @enrichable
+    def delete_folder(self, path):
         """
         Delete folder function
         @param path: the path of the folder to delete
         @return: True if the folder was deleted successfully, False otherwise
         """
-        print(f"Delete folder selected {folder_path}")
-        return self.current_session.delete_folder(folder_path)
+        print(f"Delete folder selected {path}")
+        return self.current_session.delete_folder(path)
     
     @promise
     def create_folder(self, folder_path):
@@ -378,6 +436,9 @@ class Gateway:
         """
         print(f"Create folder selected {folder_path}")
         return self.current_session.create_folder(folder_path)
+    
+    def get_path_from_searchindex(self, search_index):
+        return self.current_session.object_to_cloudobject(self.search_results[search_index])
     
     @promise
     def create_shared_session(self, folder_name : str, emails : list[str], encryption_algo : str, split_algo : str):
@@ -431,21 +492,23 @@ class Gateway:
 
         # Add pending folders to the result
         for uid in pending_uids:
-            result.append({
+            yield {
                 "name": uid,
                 "type": "pending",  # Indicate this is a pending session
                 "uid": uid,
+                "id": uid,
                 "isowner": False  # Pending folders are not owned yet
-            })
+            }
 
         # Add ready folders to the result
         for uid in ready_uids:
-            result.append({
+            yield {
                 "name": uid,
                 "type": "session",  # Indicate this is a shared session
                 "uid": uid,
+                "id": uid,
                 "isowner": self.session_manager.sessions[uid].user_is_owner()
-            })
+            }
 
         return result
     
@@ -457,9 +520,18 @@ class Gateway:
     """
     
     @promise
-    def leave_shared_folder(self, shared_session_name):
-        raise NotImplementedError("Leaving shared folders is not implemented yet")
-        
+    def leave_shared_folder(self, shared_session_uid):
+        """
+        Leave a shared folder for the given session name.
+        Delegates the logic to SessionManager.
+        """
+        try:
+            self.session_manager.end_session(shared_session_uid)
+            print(f"Successfully left shared folder for session '{shared_session_uid}'.")
+            return True
+        except Exception as e:
+            print(f"Error leaving shared folder for session '{shared_session_uid}': {e}")
+            return False
 
     @promise
     def delete_shared_folder(self, shared_session_name):
@@ -572,8 +644,7 @@ class Gateway:
         """
         if hasattr(self, 'stop_event'):
             self.stop_event.set()  # Signal the task to stop
-            print("sync_new_sessions task stopped.")            
-
+            print("sync_new_sessions task stopped.")
 
 def main():
     """
