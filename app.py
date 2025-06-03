@@ -1154,6 +1154,8 @@ class MainPage(ctk.CTkFrame):
         self.current_session.refresh()
         self.current_session.lift()
         self.messages_pannel.lift()
+        for label in self.uploading_labels:
+            label.lift()
 
     def refresh(self):
         """
@@ -1170,11 +1172,11 @@ class MainPage(ctk.CTkFrame):
         
         self.refresh_button.configure(state="disabled")
         if self.current_session == self.sessions_folder:
-            self.controller.get_api().sync_session(lambda f: (self.sessions_folder.refresh(), self.refresh_button.configure(state="normal")))
+            self.controller.get_api().sync_session(lambda f: (self.sessions_folder.refresh(), self.refresh_button.configure(state="normal", width=20, height=20, corner_radius=20)))
             return
         else:
             self.current_session.refresh()
-            self.refresh_button.configure(state="normal")
+            self.refresh_button.configure(state="normal", width=20, height=20, corner_radius=20)
     
 
     def get_previous_window(self, path):
@@ -1861,11 +1863,15 @@ class SharedFolderButton(IconButton):
         self.uid = data.get("uid")
         self.name = self.uid.split("$")[0]
         self.id = self.uid # For the stupid comparison in Folder
-        super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, self.uid, controller)
+        self.is_owner = data.get("isowner", False)
+        if self.is_owner:
+            super().__init__(master, width, height, "resources/shared_folder_owner_icon.png", self.name, self.uid, controller)
+        else:
+            super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, self.uid, controller)
         self.controller = controller
         self.master = master
 
-        self.is_owner = data.get("is_owner", False)
+        
         
 
         # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
