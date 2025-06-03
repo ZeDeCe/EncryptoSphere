@@ -156,7 +156,6 @@ class Gateway:
 
 
     def set_email(self, email: str):
-        assert self.email is None
         self.email = email
 
 

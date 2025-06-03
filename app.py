@@ -7,7 +7,7 @@ from customtkinter import filedialog
 import os
 from threading import Thread
 import tkinter.messagebox as messagebox
-import queue
+import re
 
 import threading
 import time
@@ -82,13 +82,15 @@ class App(ctk.CTk):
         app = self
         App.controller = self
         ctk.CTk.__init__(self)
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode("Dark")
+        ctk.set_default_color_theme("resources/custom_theme.json")
         self.title("EncryptoSphere")
-
+        self.iconbitmap("resources/EncryptoSphere_logo.ico")
+ 
         # As of now we are using specific sizing, on the advanced ui we will need to make dynamic sizing
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
-        self.geometry("650x400+%d+%d" % (screen_width/2-325, screen_height/2-200))
+        self.geometry("900x600+%d+%d" % (screen_width/2-325, screen_height/2-200))
         
         # "Backend" functions
         self.api = gateway
@@ -253,7 +255,7 @@ class LoadingPage(ctk.CTkFrame):
         self.controller = controller
         
         # loading bar
-        self.p = ctk.CTkProgressBar(self, orientation="horizontal", mode="indeterminate")
+        self.p = ctk.CTkProgressBar(self, orientation="horizontal", mode="indeterminate", width=300)
         self.p.pack(anchor=ctk.CENTER, expand=True, fill=ctk.BOTH)
 
     
@@ -274,36 +276,51 @@ class FormPage(ctk.CTkFrame):
     This class creates the Form page frame -  Where user enters email and authenticates to the different clouds.
     This class inherits ctk.CTkFrame class.
     """
-    def __init__(self, parent, controller, title, message, input_placeholder_text, button_text, func, error_func ,error_message):
+    def __init__(self, parent, controller, title, message, input_placeholder_text, button_text, func, error_func ,error_message, previous_page=None):
         ctk.CTkFrame.__init__(self, parent)
         self.controller = controller
         self.func = func
         self.error_message = error_message
         self.error_func = error_func
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
 
+        # === Left Image Panel ===
+        self.left_panel = ctk.CTkFrame(self, width=320, fg_color="#5389C7", corner_radius=0)
+        self.left_panel.place(relx=0, rely=0, relwidth=0.4, relheight=1)
+
+        self.image = ctk.CTkImage(Image.open("resources/main_logo.png"), size=(320, 320))
+        self.image_label = ctk.CTkLabel(self.left_panel, image=self.image, text="")
+        self.image_label.place(relx=0.5, rely=0.5, anchor="center")
+        
+
+
+        # === Right Form Panel ===
+        self.right_panel = ctk.CTkFrame(self, fg_color="#2B2D2F", corner_radius=0)
+        self.right_panel.place(relx=0.4, rely=0, relwidth=0.6, relheight=1)
+        
+        if previous_page is not None:
+            self.backbutton = ctk.CTkButton(self.right_panel, image=ctk.CTkImage(Image.open("resources/back.png"), size=(40,40)), text="", command=lambda: self.controller.show_frame(previous_page), width=40, height=40, fg_color="#2B2D2F", corner_radius=1000)
+            self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
         # Title Label
-        label = ctk.CTkLabel(self, text=title, 
-                             font=("Aharoni", 28, "bold"), text_color="white")
-        label.grid(row=0, column=0, pady=(40, 8), padx=20, columnspan=5, sticky="n")
+        label = ctk.CTkLabel(self.right_panel, text=title, 
+                             font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"), anchor="w")
+        label.pack(pady=(40, 8), padx=20)
 
         # Email Label
-        self.message = ctk.CTkLabel(self, text=message, font=("Aharoni", 20) , text_color="white")
-        self.message.grid(row=1, column=0, padx=20, sticky="w")
+        self.message = ctk.CTkLabel(self.right_panel, text=message, width=300, font=ctk.CTkFont(family="Segoe UI", size=20), anchor="w")
+        self.message.pack(pady=(60, 10), padx=20)
 
         # Email Entry Field
-        self.entry = ctk.CTkEntry(self, placeholder_text=input_placeholder_text, width=300)
-        self.entry.grid(row=2, column=0, padx=20, sticky="ew")
+        self.entry = ctk.CTkEntry(self.right_panel, placeholder_text=input_placeholder_text, width=300, height=35)
+        self.entry.pack(padx=20)
 
         # Submit Button
-        self.submit_button = ctk.CTkButton(self, text=button_text, command=self.submit, width=200, fg_color="#3A7EBF")
-        self.submit_button.grid(row=3, column=0, padx=20, pady=(20, 60), sticky="n")
+        self.submit_button = ctk.CTkButton(self.right_panel, text=button_text, command=self.submit, width=300, height=35, corner_radius=10)
+        self.submit_button.pack(pady=(20, 60), padx=20)
 
-        self.loadingpage = LoadingPage(self, controller)
+        self.loadingpage = LoadingPage(self.right_panel, controller)
     
     def show_loading(self):
-        self.loadingpage.grid(row=4, column=0, sticky="n")
+        self.loadingpage.pack(anchor=ctk.CENTER)
         
         self.loadingpage.start()
         self.loadingpage.lift()
@@ -311,21 +328,23 @@ class FormPage(ctk.CTkFrame):
 
     def remove_loading(self):
         self.loadingpage.stop()
-        self.loadingpage.grid_forget()
+        self.loadingpage.pack_forget()
         
 
     def refresh(self):
         """
-        Login page refresh - as of now we dont need this functionality
+        Login page refresh
         """
         pass
-    
+
     def submit(self):
         """
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
         self.submit_button.configure(state="disabled")
+        if hasattr(self, 'backbutton'):
+            self.backbutton.configure(state="disabled")
 
         user_input = self.entry.get()
         self.show_loading()
@@ -342,13 +361,33 @@ class EmailPage(FormPage):
     This class inherits ctk.CTkFrame class.
     """
     def __init__(self, parent, controller):
-        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere ☁︎", "Please enter your email address ", "Email Address", "Login", self.handle_login, None,"Error While connecting to the Clouds")
+        FormPage.__init__(self, parent, controller, "Welcome to EncryptoSphere", "Email address ", "Your Email Address", "Continue", self.handle_login, self.error_func, "Error while connecting to the Clouds", None)
+        self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
+        self.error_label.pack()
+    
+    def refresh(self):
+        self.remove_loading()
+        self.error_label.configure(text="")
+        self.submit_button.configure(state="normal")
+
+    def error_func(self):
+        """
+        This function is called when the login process fails.
+        It displays an error message and enables the submit button.
+        """
+        self.remove_loading()
+        self.error_label.configure(text=self.error_message)
+        self.submit_button.configure(state="normal")
 
     def handle_login(self, email):
         """
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
+        if re.match(r"[^@]+@[^@]+\.[^@]+", email) is None:
+            self.error_message = "Invalid email address format"
+            return False
+        
         self.controller.get_api().set_email(email)
         return self.controller.get_api().clouds_authenticate_by_token(lambda f: self.controller.show_frame(LoginCloudsPage))
 
@@ -359,9 +398,11 @@ class LocalPasswordPage(FormPage):
     This class inherits ctk.CTkFrame class.
     """
     def __init__(self, parent, controller):
-        FormPage.__init__(self, parent, controller, "", "Please enter your Encryptosphere Password ", "Your Password", "Login", self.validate_password, self.error_login,"Wrong password, Please try again")
-        self.error_label = ctk.CTkLabel(self, text="", font=("Arial", 12), text_color="red")
-        self.error_label.grid(row=4, column=0, pady=20, sticky="n")
+        FormPage.__init__(self, parent, controller, "", "Password ", "Your Password", "Login", self.validate_password, self.error_login,"Wrong password, Please try again", LoginCloudsPage)
+        self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
+        self.error_label.pack()
+        self.entry.configure(show="*")
+        
         
     def validate_password(self, password):
         """
@@ -375,7 +416,7 @@ class LocalPasswordPage(FormPage):
         if message is None:
             message = self.error_message
         self.remove_loading()
-        self.__show_error(self.error_message, self.controller.show_frame(LocalPasswordPage))
+        self.__show_error(self.error_message, lambda: False)
     
     def __show_error(self, error_message, func):
         """
@@ -384,7 +425,8 @@ class LocalPasswordPage(FormPage):
         """
         # Display the error message
         self.error_label.configure(text=error_message)
-        self.submit_button.configure(state="normal", width=200)
+        self.submit_button.configure(state="normal")
+        self.backbutton.configure(state="normal")
 
 @clickable
 class LoginCloudsPage(ctk.CTkFrame):
@@ -397,28 +439,43 @@ class LoginCloudsPage(ctk.CTkFrame):
         
         self.controller = controller
         self.cloud_list = self.controller.get_api().get_clouds()
+        
+        # === Left Image Panel ===
+        self.left_panel = ctk.CTkFrame(self, width=320, fg_color="#5389C7", corner_radius=0)
+        self.left_panel.place(relx=0, rely=0, relwidth=0.4, relheight=1)
 
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
+        self.image = ctk.CTkImage(Image.open("resources/main_logo.png"), size=(320, 320))
+        self.image_label = ctk.CTkLabel(self.left_panel, image=self.image, text="")
+        self.image_label.place(relx=0.5, rely=0.5, anchor="center")
+        
 
+
+        # === Right Form Panel ===
+        self.right_panel = ctk.CTkFrame(self, width=580,fg_color="#2B2D2F", corner_radius=0)
+        self.right_panel.place(relx=0.4, rely=0, relwidth=0.6, relheight=1)
+
+        self.backbutton = ctk.CTkButton(self.right_panel, image=ctk.CTkImage(Image.open("resources/back.png"), size=(40,40)) ,text="", command=lambda: self.controller.show_frame(EmailPage), width=40, height=40, corner_radius=1000, fg_color="#2B2D2F", hover=True)
+        self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
         # Title Label
-        self.message = ctk.CTkLabel(self, text="Choose Your Clouds", font=("Aharoni", 20), text_color="white")
-        self.message.grid(row=0, column=0, pady=(40, 8), padx=20, columnspan=5, sticky="n")
+        self.message = ctk.CTkLabel(self.right_panel, text="Choose Your Clouds", font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"))
+        self.message.pack(pady=(40, 35), padx=20)
 
         # Clouds container
-        self.clouds_container = ctk.CTkFrame(self, corner_radius=0)
-        self.clouds_container.grid(row=2, column=0, columnspan=5, padx=20, pady=(0, 20), sticky="nsew")
+        self.clouds_container = ctk.CTkFrame(self.right_panel, corner_radius=0)
+        self.clouds_container.pack(pady=(0, 35), padx=50, fill="x", expand=False)
                 
         # Submit Button
-        self.submit_button = ctk.CTkButton(self, text="Create New Account", command=self.__handle_login, width=200, fg_color="#3A7EBF")
-        self.submit_button.grid(row=4, column=0, padx=20, pady=(20, 60), sticky="n")
+        self.submit_button = ctk.CTkButton(self.right_panel, text="Create New Account", command=self.__handle_login, width=300, height=35, corner_radius=10)
+        self.submit_button.pack(pady=(0, 60), padx=20)
         self.submit_button.configure(state="disabled")
         self.loadingpage = LoadingPage(self, controller)
+        
 
         self.notice_message()
-    
+
+
     def show_loading(self):
-        self.loadingpage.grid(row=4, column=0, sticky="n")
+        self.loadingpage.pack(anchor=ctk.CENTER)
         
         self.loadingpage.start()
         self.loadingpage.lift()
@@ -426,12 +483,12 @@ class LoginCloudsPage(ctk.CTkFrame):
 
     def remove_loading(self):
         self.loadingpage.stop()
-        self.loadingpage.grid_forget()
+        self.loadingpage.pack_forget()
 
     def notice_message(self):
         # Remove existing notice label if present
         if hasattr(self, 'notice_label'):
-            self.notice_label.grid_forget()
+            self.notice_label.pack_forget()
             self.notice_label.destroy()
             del self.notice_label
 
@@ -440,18 +497,20 @@ class LoginCloudsPage(ctk.CTkFrame):
             authenticated_clouds = self.controller.get_api().get_authenticated_clouds()
             cloud_names = ", ".join([cloud.get_name_static() if hasattr(cloud, "get_name_static") else str(cloud) for cloud in authenticated_clouds])
             notice_text = (
-                "Notice: Your account will be created using the clouds you select here. "
-                "Please select all the clouds you want the app will use now. This cannot be changed later. "
-                f"The clouds selected are: {cloud_names if cloud_names else 'None'}.\n"
+                "Notice: Your account will be created using the clouds you select here. This cannot be changed later!\n "
                 "If you already have an account, please login to at least one cloud and you'll be moved to the authentication page."
             )
-            self.notice_label = ctk.CTkLabel(self, text=notice_text, font=("Arial", 12), text_color="white", wraplength=400, justify="center")
-            self.notice_label.grid(row=5, column=0, padx=20, pady=(0, 10), sticky="n")
+            self.notice_label = ctk.CTkLabel(self.right_panel, text=notice_text, font=ctk.CTkFont(family="Segoe UI", size=12), wraplength=400, justify="center")
+            self.notice_label.pack(side=ctk.BOTTOM, pady=(0, 10), padx=20)
 
     def refresh(self):
         """
         Login page refresh - as of now we dont need this functionality
         """
+        self.remove_loading()
+        for widget in self.clouds_container.winfo_children():
+            widget.destroy()
+        self.backbutton.configure(state="normal", width=40, height=40)
         self.authenticated_clouds = self.controller.get_api().get_authenticated_clouds()
         for i, cloud in enumerate(self.cloud_list):
             icon_path = cloud.get_icon_static()
@@ -461,12 +520,14 @@ class LoginCloudsPage(ctk.CTkFrame):
                     icon_path = cloud_object.get_icon()
                     is_auth = True
                     break
-            cloud_button = ctk.CTkLabel(self.clouds_container, image=ctk.CTkImage(Image.open(icon_path), size=(100, 100)), text="")
-            cloud_button.grid(row=2, column=i, padx=20, sticky="w")
+            cloud_button = ctk.CTkButton(self.clouds_container, image=ctk.CTkImage(Image.open(icon_path), size=(100, 100)), text="", hover=True, fg_color="#2B2D2F", corner_radius=20, width=90, height=90)
+            cloud_button.pack(side=ctk.LEFT, expand=True)
+            cloud_button.pack_propagate(False)
             if not is_auth:
-                cloud_button.bind("<Button-1>", lambda f, cloud_button=cloud_button, cloud=cloud: self.cloud_button_clicked(cloud, cloud_button))
+                cloud_button.configure(command=lambda cloud=cloud, cloud_button=cloud_button: self.cloud_button_clicked(cloud, cloud_button))
             else:
                 self.submit_button.configure(state="normal", width=200)
+                cloud_button.configure(state="disabled")  # Disable the button after successful authentication
         if self.controller.get_api().get_metadata_exists():
             self.submit_button.configure(text="Continue to Login")
         self.notice_message()
@@ -480,6 +541,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         
         if f.result():
             cloud_button.configure(image=ctk.CTkImage(Image.open(f.result().get_icon()), size=(100, 100)))
+            cloud_button.configure(state="disabled")  # Disable the button after successful authentication
             self.submit_button.configure(state="normal")
             self.notice_message()
         else:
@@ -493,12 +555,10 @@ class LoginCloudsPage(ctk.CTkFrame):
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
         self.submit_button.configure(state="disabled")
-        
-        # Remove error lable and block the button
+        self.backbutton.configure(state="disabled")
+        # Remove error label and block the button
         if hasattr(self, 'error_label'):
-            self.error_label.grid_forget()
-        if hasattr(self, 'retry_button'):
-            self.retry_button.configure(state="disabled")
+            self.error_label.pack_forget()
         if self.controller.get_api().get_authenticated_clouds():
             if self.controller.get_api().get_metadata_exists():
                 self.controller.show_frame(LocalPasswordPage)
@@ -529,73 +589,66 @@ class RegistrationPage(ctk.CTkFrame):
     """
     This class creates the Registration page frame.
     """
-    """
-    This class creates the Form page frame -  Where user enters email and authenticates to the different clouds.
-    This class inherits ctk.CTkFrame class.
-    """
     def __init__(self, parent, controller):
         ctk.CTkFrame.__init__(self, parent)
         self.controller = controller
 
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure((0, 1, 2, 3, 4, 5,6,7,8), weight=1)
-
         # Title Label
         label = ctk.CTkLabel(self, text="Create Your Account", 
-                             font=("Aharoni", 28, "bold"), text_color="white")
-        label.grid(row=0, column=0, pady=(40, 8), padx=20, columnspan=5, sticky="n")
+                             font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"))
+        label.pack(pady=(40, 20), padx=20)
+        self.backbutton = ctk.CTkButton(self, image=ctk.CTkImage(Image.open("resources/back.png"), size=(40,40)), text="", command=lambda: self.controller.show_frame(LoginCloudsPage), width=40, height=40, corner_radius=1000, fg_color="#2B2D2F", hover=True)
+        self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
 
-        # Email Label
-        self.message_pass = ctk.CTkLabel(self, text="Enter Your Password:", font=("Aharoni", 16) , text_color="white")
-        self.message_pass.grid(row=1, column=0, padx=20, sticky="w")
+        # Password Label
+        self.message_pass = ctk.CTkLabel(self, text="Enter Your Password:", font=ctk.CTkFont(family="Segoe UI", size=16), anchor="w",width=300)
+        self.message_pass.pack(padx=20)
+        
+        # Password Entry Field
+        self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300, height=35, show="*")
+        self.entry_pass.pack(padx=20, pady=(0, 20))
 
-        # Email Entry Field
-        self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300)
-        self.entry_pass.grid(row=2, column=0, padx=20, sticky="ew")
-
-        # Encryption Algorithem option menu
-        encryption, split =self.controller.get_api().get_algorithms()
+        # Encryption Algorithm option menu
+        encryption, split = self.controller.get_api().get_algorithms()
         index = -1
-        for ind,cls in enumerate(encryption):
+        for ind, cls in enumerate(encryption):
             if cls.get_name() == "AES":
                 index = ind
                 break
         if index != -1:
             encryption.insert(0, encryption.pop(index))
         index = -1
-        for ind,cls in enumerate(split):
+        for ind, cls in enumerate(split):
             if cls.get_name() == "Shamir":
                 index = ind
                 break
         if index != -1:
             split.insert(0, split.pop(index))
 
-        self.message_encription = ctk.CTkLabel(self, text="Select Encryption Algorithm:", font=("Aharoni", 16) , text_color="white")
-        self.message_encription.grid(row=3, column=0, padx=20, sticky="w")
+        self.message_encryption = ctk.CTkLabel(self, text="Select Encryption Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16), width=300,anchor="w")
+        self.message_encryption.pack(padx=20)
 
-        self.encryption_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in encryption], command=lambda x: None)
-        self.encryption_algorithm.grid(row=4, column=0, padx=20, sticky="ew")
+        self.encryption_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in encryption], command=lambda x: None, width=300, height=35)
+        self.encryption_algorithm.pack(padx=20, pady=(0, 20))
 
-        
-        self.message_split = ctk.CTkLabel(self, text="Select Split Algorithm:", font=("Aharoni", 16) , text_color="white")
-        self.message_split.grid(row=5, column=0, padx=20, sticky="w")
+        self.message_split = ctk.CTkLabel(self, text="Select Split Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16),width=300, anchor="w")
+        self.message_split.pack(padx=20)
 
-        # Split Algorithem option menu
-        self.split_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in split], command=lambda x: None)
-        self.split_algorithm.grid(row=6, column=0, padx=20, sticky="ew")
+        # Split Algorithm option menu
+        self.split_algorithm = ctk.CTkOptionMenu(self, values=[cls.get_name() for cls in split], command=lambda x: None, width=300, height=35)
+        self.split_algorithm.pack(padx=20, pady=(0, 20))
 
-      
         # Submit Button
-        self.submit_button = ctk.CTkButton(self, text="Create New Account", command=self.submit, width=200, fg_color="#3A7EBF")
-        self.submit_button.grid(row=7, column=0, padx=20, pady=(10,0), sticky="n")
+        self.submit_button = ctk.CTkButton(self, text="Create New Account", command=self.submit, width=300, height=35, corner_radius=10)
+        self.submit_button.pack(pady=(20, 0))
 
-        self.error_label = ctk.CTkLabel(self, text="", font=("Arial", 12), text_color="red")
-        self.error_label.grid(row=8, column=0, pady=20, sticky="n")
+        self.error_label = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
+        self.error_label.pack(pady=20)
 
         self.loadingpage = LoadingPage(self, controller)
-    
+
     def show_loading(self):
-        self.loadingpage.grid(row=8, column=0)
+        self.loadingpage.pack()
         self.error_label.configure(text="")
         self.loadingpage.start()
         self.loadingpage.lift()
@@ -603,14 +656,15 @@ class RegistrationPage(ctk.CTkFrame):
 
     def remove_loading(self):
         self.loadingpage.stop()
-        self.loadingpage.grid_forget()
-        
+        self.loadingpage.pack_forget()
 
     def refresh(self):
         """
-        Login page refresh - as of now we dont need this functionality
+        Login page refresh - as of now we don't need this functionality
         """
-        pass
+        self.backbutton.configure(state="normal", width=40, height=40)
+        self.submit_button.configure(state="normal")
+
     def show_error(self, error_message):
         """
         Show an error message to the user
@@ -619,15 +673,13 @@ class RegistrationPage(ctk.CTkFrame):
         self.remove_loading()
         self.error_label.configure(text=error_message)
 
-        
-
     def submit(self):
         """
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
         self.submit_button.configure(state="disabled")
-        
+        self.backbutton.configure(state="disabled")
         if hasattr(self, 'retry_button'):
             self.retry_button.configure(state="disabled")
 
@@ -656,34 +708,34 @@ class MainPage(ctk.CTkFrame):
         self.prev_window = None
 
         # Create the side bar
-        self.side_bar = ctk.CTkFrame(self, fg_color="gray25", corner_radius=0)
+        self.side_bar = ctk.CTkFrame(self, corner_radius=0, width=200, fg_color="#3A3C41")
         self.side_bar.pack(side=ctk.LEFT, fill="y", expand=False)
+        self.side_bar.pack_propagate(False)  # Prevent the side bar from resizing to fit its contents
 
         # Add the EncryptoSphere label to the side bar
-        self.encryptosphere_label = ctk.CTkLabel(self.side_bar, text="EncryptoSphere", font=("Verdana", 15))
+        encryptosphere_icon = ctk.CTkImage(light_image=Image.open("resources/encryptosphere_logo.png"), size=(40, 40))
+        self.encryptosphere_label = ctk.CTkLabel(self.side_bar, image=encryptosphere_icon, text="  EncryptoSphere", font=("Segoe UI", 15), compound="left")
         self.encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
 
         # Create the upload button and shared files button
         self.upload_button = ctk.CTkButton(self.side_bar, text=" + New ",
                                            command=lambda: self.open_upload_menu(),
-                                           width=120, height=30, fg_color="gray25", hover=False)
-        self.upload_button.pack(anchor="nw", padx=10, pady=10, expand=False)
+                                           width=80, height=40, corner_radius=10)
+        self.upload_button.pack(anchor="w", padx=10, pady=10, expand=False)
         
         home_icon = ctk.CTkImage(light_image=Image.open("resources/home_icon.png"), size=(20, 20))
         self.homepage_button = ctk.CTkButton(self.side_bar, image=home_icon, text="Home", compound="left",
                                                  command=lambda: (self.controller.change_session(None), self.search_entry.delete(0, 'end')),
-                                                 width=120, height=30, fg_color="gray25", hover=False)
-        self.homepage_button.pack(anchor="nw", padx=10, pady=5, expand=False)
+                                                 width=120, height=30, hover=False, fg_color="#3A3C41", anchor="w")
+        self.homepage_button.pack(anchor="w", padx=10, pady=5, expand=False)
 
-        self.shared_files_button = ctk.CTkButton(self.side_bar, text="Shared Files",
+        users_icon = ctk.CTkImage(light_image=Image.open("resources/users_icon.png"), size=(20, 20))
+        self.shared_files_button = ctk.CTkButton(self.side_bar, image=users_icon, text="Shared Files",compound="left",
                                                  command=lambda: self.display_page(self.sessions_folder, options=["New Share"]),
-                                                 width=120, height=30, fg_color="gray25", hover=False)
-        self.shared_files_button.pack(anchor="nw", padx=10, pady=0, expand=False)
+                                                 width=120, height=30, hover=False, fg_color="#3A3C41", anchor="w")
+        self.shared_files_button.pack(anchor="w", padx=10, pady=0, expand=False)
 
         # Bind hover events to the buttons (to change font to bold)
-        self.upload_button.bind("<Enter>", lambda e: self.set_bold(self.upload_button))
-        self.upload_button.bind("<Leave>", lambda e: self.set_normal(self.upload_button))
-
         self.homepage_button.bind("<Enter>", lambda e: self.set_bold(self.homepage_button), add="+")
         self.homepage_button.bind("<Leave>", lambda e: self.set_normal(self.homepage_button), add="+")
 
@@ -693,11 +745,12 @@ class MainPage(ctk.CTkFrame):
         self.container = ctk.CTkFrame(self, corner_radius=0)
         self.container.pack(fill = ctk.BOTH, expand = True)
 
-        self.search_bar = ctk.CTkFrame(self.container, fg_color="gray25", height=50, corner_radius=0)
+        self.search_bar = ctk.CTkFrame(self.container, height=60, corner_radius=0, fg_color="#3A3C41")
         self.search_bar.pack(side=ctk.TOP, fill=ctk.X)
+        self.search_bar.pack_propagate(False)  # Prevent the side bar from resizing to fit its contents
 
         # Add a search entry field to the search bar
-        self.search_entry = ctk.CTkEntry(self.search_bar, placeholder_text="Search in EncryptoSphere", width=400, height=30, corner_radius=15)
+        self.search_entry = ctk.CTkEntry(self.search_bar, placeholder_text="Search in EncryptoSphere", width=500, height=35, corner_radius=15)
         self.search_entry.pack(side=ctk.LEFT, padx=10, pady=10)
 
         # Bind the "Enter" key to trigger the search
@@ -709,7 +762,7 @@ class MainPage(ctk.CTkFrame):
 
         # Add refresh button to the search bar
         refresh_icon = ctk.CTkImage(light_image=Image.open("resources/refresh_icon.png"), size=(20, 20))
-        self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.refresh_button_click(), width=20, height=20, corner_radius=10, fg_color="gray30", hover_color="gray40")
+        self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.refresh_button_click(), width=20, height=20, corner_radius=20, fg_color="#2B2D2F", hover_color="gray40")
         self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
 
         self.main_session : Session  = Session(self.container, controller, "EncryptoSphere")
@@ -740,22 +793,26 @@ class MainPage(ctk.CTkFrame):
         self.context_menu = OptionMenu(self, self.controller, [
             {
                 "label": "New Folder",
-                "color": "gray25",
+                "image": ctk.CTkImage(Image.open("resources/new_folder.png"), size=(20, 20)),
+                "color": "#3A3C41",
                 "event": lambda: self.create_new_folder()
             },
             {
                 "label": "Upload File",
-                "color": "gray25",
+                "image": ctk.CTkImage(Image.open("resources/upload_file.png"), size=(20, 20)),
+                "color": "#3A3C41",
                 "event": lambda: self.upload_file()
             },
             {
                 "label": "Upload Folder",
-                "color": "gray25",
+                "image": ctk.CTkImage(Image.open("resources/upload_folder.png"), size=(20, 20)),
+                "color": "#3A3C41",
                 "event": lambda: self.upload_folder()
             },
             {
                 "label": "New Share",
-                "color": "gray25",
+                "image": ctk.CTkImage(Image.open("resources/new_share.png"), size=(20, 20)),
+                "color": "#3A3C41",
                 "event": lambda: self.open_sharing_window()
             }
         ])
@@ -765,14 +822,14 @@ class MainPage(ctk.CTkFrame):
         Change the button text to bold on hover
         @param button: The button to be changed
         """
-        button.configure(font=("Verdana", 13, "bold"))
+        button.configure(font=("Segoe UI", 13, "bold"))
 
     def set_normal(self, button):
         """
         Revert the button text to normal when not hovered
         @param button: The button to be changed
         """
-        button.configure(font=("Verdana", 13))
+        button.configure(font=("Segoe UI", 13))
         
     def perform_search(self):
             """
@@ -796,7 +853,7 @@ class MainPage(ctk.CTkFrame):
         """
         print("Upload button clicked")
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup(self.upload_button.winfo_x() + 120, self.upload_button.winfo_y())
+            self.context_menu.show_popup(self.upload_button.winfo_x(), self.upload_button.winfo_y()+5)
         else:
             self.context_menu.hide_popup()
 
@@ -881,10 +938,10 @@ class MainPage(ctk.CTkFrame):
         scrollable_frame.pack(fill=ctk.BOTH, expand=True)
 
         # Folder name input (label above the entry field)
-        folder_label = ctk.CTkLabel(scrollable_frame, text="Enter Folder Name:", anchor="w", font=("Aharoni", 16))
-        folder_label.grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
-        folder_name_entry = ctk.CTkEntry(scrollable_frame, width=200)
-        folder_name_entry.grid(row=1, column=0, padx=20, pady=5, sticky="w")
+        folder_label = ctk.CTkLabel(scrollable_frame, text="Folder Name:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
+        folder_label.grid(row=0, column=0, padx=20, pady=(10, 0), sticky="w")
+        folder_name_entry = ctk.CTkEntry(scrollable_frame, width=200, placeholder_text="Enter folder name")
+        folder_name_entry.grid(row=1, column=0, padx=20, pady=(0,20), sticky="w")
 
         # Encryption Algorithem option menu
         encryption, split =self.controller.get_api().get_algorithms()
@@ -903,14 +960,14 @@ class MainPage(ctk.CTkFrame):
         if index != -1:
             split.insert(0, split.pop(index))
 
-        message_encription = ctk.CTkLabel(scrollable_frame, text="Select Encryption Algorithm:", font=("Aharoni", 16) , text_color="white")
+        message_encription = ctk.CTkLabel(scrollable_frame, text="Select Encryption Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
         message_encription.grid(row=2, column=0, padx=20, sticky="w")
 
         encryption_algorithm = ctk.CTkOptionMenu(scrollable_frame, values=[cls.get_name() for cls in encryption], command=lambda x: None)
         encryption_algorithm.grid(row=3, column=0, padx=20, pady=(0,20), sticky="ew")
 
         
-        message_split = ctk.CTkLabel(scrollable_frame, text="Select Split Algorithm:", font=("Aharoni", 16) , text_color="white")
+        message_split = ctk.CTkLabel(scrollable_frame, text="Select Split Algorithm:", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
         message_split.grid(row=4, column=0, padx=20, sticky="w")
 
         # Split Algorithem option menu
@@ -918,19 +975,19 @@ class MainPage(ctk.CTkFrame):
         split_algorithm.grid(row=5, column=0, padx=20, pady=(0,20), sticky="ew")
 
         # Share with header
-        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w", font=("Aharoni", 16))
-        share_with_label.grid(row=6, column=0, padx=20, pady=(0, 5), sticky="w")
+        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
+        share_with_label.grid(row=6, column=0, padx=20, sticky="w")
         
         # Email list input
         email_frame = ctk.CTkFrame(scrollable_frame, fg_color=scrollable_frame.cget('fg_color'))  # Match background
-        email_frame.grid(row=7, column=0, padx=20, columnspan=2, pady=0, sticky="w")
+        email_frame.grid(row=7, column=0, padx=20, columnspan=2, pady=(0,20), sticky="w")
 
         # List to hold email input fields
         email_inputs = []  
 
         # Initial email input field
-        initial_email_entry = ctk.CTkEntry(email_frame, width=200)
-        initial_email_entry.grid(row=1, column=0, pady=5, padx=(0, 10), sticky="w")
+        initial_email_entry = ctk.CTkEntry(email_frame, width=200, placeholder_text="Enter email address")
+        initial_email_entry.grid(row=1, column=0, pady=(0,5), padx=(0, 10), sticky="w")
         email_inputs.append(initial_email_entry)
 
         # Function to add new email input
@@ -941,7 +998,7 @@ class MainPage(ctk.CTkFrame):
                 email_inputs.append(new_email_entry)
 
         # "+" button to add email inputs (styled as a small circular button)
-        plus_button = ctk.CTkButton(email_frame, text="+", command=add_email_input, width=30, height=30, corner_radius=15, font=("Aharoni", 16))
+        plus_button = ctk.CTkButton(email_frame, text="+", command=add_email_input, width=30, height=30, corner_radius=15, font=ctk.CTkFont(family="Segoe UI", size=16))
         plus_button.grid(row=1, column=1, padx=10, pady=5)
 
         # Function to handle the creation of new share
@@ -957,10 +1014,10 @@ class MainPage(ctk.CTkFrame):
 
         # Create new share button (this now does both actions: create share and close the window)
         create_share_button = ctk.CTkButton(scrollable_frame, text="Create New Share", command=create_new_share)
-        create_share_button.grid(row=100, column=0, pady=50, padx=100, sticky="s")
+        create_share_button.grid(row=100, column=0, pady=20, padx=100, sticky="s")
 
         # Adjust the scrollbar to make it thinner (no slider_length argument)
-        new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
+        #new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
     
 
     def upload_file(self):
@@ -1097,6 +1154,8 @@ class MainPage(ctk.CTkFrame):
         self.current_session.refresh()
         self.current_session.lift()
         self.messages_pannel.lift()
+        for label in self.uploading_labels:
+            label.lift()
 
     def refresh(self):
         """
@@ -1113,11 +1172,11 @@ class MainPage(ctk.CTkFrame):
         
         self.refresh_button.configure(state="disabled")
         if self.current_session == self.sessions_folder:
-            self.controller.get_api().sync_session(lambda f: (self.sessions_folder.refresh(), self.refresh_button.configure(state="normal")))
+            self.controller.get_api().sync_session(lambda f: (self.sessions_folder.refresh(), self.refresh_button.configure(state="normal", width=20, height=20, corner_radius=20)))
             return
         else:
             self.current_session.refresh()
-            self.refresh_button.configure(state="normal")
+            self.refresh_button.configure(state="normal", width=20, height=20, corner_radius=20)
     
 
     def get_previous_window(self, path):
@@ -1139,15 +1198,19 @@ class Breadcrums(ctk.CTkFrame):
     def __init__(self, parent, controller : App, root : str):
         ctk.CTkFrame.__init__(self, parent, corner_radius=0)
         self.controller = controller
-        folder = ctk.CTkLabel(self, text=root, anchor="w", corner_radius=0)
+        folder = ctk.CTkLabel(self, text=root, anchor="w", corner_radius=0, font=ctk.CTkFont(family="Segoe UI", size=18))
         folder.pack(side="left", pady=2, padx=(5,0))
         folder.bind("<Button-1>", lambda e,p="/": self.controller.change_folder(p), add="+")
+        folder.bind("<Enter>", lambda e: folder.configure(font=ctk.CTkFont(family="Segoe UI", size=18, weight="bold")), add="+")
+        folder.bind("<Leave>", lambda e: folder.configure(font=ctk.CTkFont(family="Segoe UI", size=18)), add="+")
         self.folders = [folder]
 
     def __create_label(self, text, path):
-        folder = ctk.CTkLabel(self, text=text, anchor="w", corner_radius=0)
-        folder.pack(side="left", pady=2)
+        folder = ctk.CTkLabel(self, text=text, anchor="w", corner_radius=0, font=ctk.CTkFont(family="Segoe UI", size=18))
+        folder.pack(side="left", pady=2, padx=(5,0))
         folder.bind("<Button-1>", lambda e,p=path: self.controller.change_folder(p), add="+")
+        folder.bind("<Enter>", lambda e: folder.configure(font=ctk.CTkFont(family="Segoe UI", size=18, weight="bold")), add="+")
+        folder.bind("<Leave>", lambda e: folder.configure(font=ctk.CTkFont(family="Segoe UI", size=18)), add="+")
         return folder
 
     def set_path(self, path : str):
@@ -1180,7 +1243,6 @@ class Breadcrums(ctk.CTkFrame):
         for i in range(i, len(folders)):
             curr_path += f"/{f}"
             self.folders.insert(i, self.__create_label(f" > {folders[i]}", curr_path))
-            
 
         
 
@@ -1399,12 +1461,12 @@ class IconButton(ctk.CTkFrame):
         self.controller = controller
         self.master = master
         self.id = id
-        self.file_icon = ctk.CTkImage(light_image=Image.open(icon_path), size=(40, 40))
+        self.file_icon = ctk.CTkImage(light_image=Image.open(icon_path), size=(60, 60))
 
         icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
         icon_label.pack(pady=(5, 0))
 
-        name_label = ctk.CTkLabel(self, text=text, font=("Arial", 9), wraplength=90, justify="center")
+        name_label = ctk.CTkLabel(self, text=text, wraplength=90, justify="center")
         name_label.pack(pady=(0, 5))
 
         # Connect all file related content to do the same action when clicked (open the context_menu)
@@ -1453,12 +1515,14 @@ class FileButton(IconButton):
         self.context_menu = OptionMenu(controller.container, self.controller, [
             {
                 "label": "Download File",
-                "color": "gray25",
+                "color": "#3A3C41",
+                "image": ctk.CTkImage(Image.open("resources/download.png"), size=(20, 20)),
                 "event": lambda: self.download_file_from_cloud()
              },
              {
                  "label": "Delete File",
-                 "color": "gray25",
+                 "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
+                 "color": "#3A3C41",
                  "event": lambda: self.delete_file_from_cloud()
              }
         ])
@@ -1484,16 +1548,23 @@ class FileButton(IconButton):
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
-        label = self.controller.add_message_label(f"Deleting file {self.data['name']}")
-
-        self.controller.get_api().delete_file(
+        file_name = self.data['name']
+        desc_text = f'"{file_name}" will be permanently deleted.'
+        title = "Delete This File?"
+        
+        def on_confirm():
+            label = self.controller.add_message_label(f"Deleting file {file_name}")
+            self.controller.get_api().delete_file(
             lambda f: (
                 self.controller.remove_message(label),
                 self.master.refresh(),
                 messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             self.data.get("id", None)
-        )
+            )
+            # Immediately pop the file from the list
+
+        self.controller.show_message_notification(desc_text, title, on_confirm)
 
     def open_file_from_cloud(self):
         label = self.controller.add_message_label(f"Opening file {self.data['name']}")
@@ -1559,18 +1630,19 @@ class OptionMenu(ctk.CTkFrame, Popup):
         """
         @param buttons list of dictionaries as such: [{"label" : str, "color": str, "event": function}]
         """
-        ctk.CTkFrame.__init__(self, master, corner_radius=0, fg_color="gray25")
+        ctk.CTkFrame.__init__(self, master, corner_radius=0, fg_color="#3A3C41")
         self.controller = controller
         self.buttons : list[ctk.CTkButton] = []
         self.context_hidden = True
         self.enabled = True
         for button in buttons:
-            butt = ctk.CTkButton(self, text=button["label"],
-                                      command=button["event"],
-                                      width=120, height=30, fg_color=button["color"])
+            butt = ctk.CTkButton(self, image=button["image"] ,text=button["label"],
+                                      command=button["event"], compound="left",
+                                      width=130, height=30, fg_color=button["color"], anchor="w")
             butt.pack(pady=5, padx=10, fill="x")
             butt.bind("<Button-1>", lambda event: self.hide_popup(), add="+")
             self.buttons.append(butt)
+
 
     def hide_popup(self):
         """
@@ -1616,7 +1688,7 @@ class MessageNotification(ctk.CTkFrame, Popup):
     """
     This class represents a message notification popup
     """
-    def __init__(self, master, controller, width=300, height=150, title="Notification", description="", on_confirm=None, on_cancel=None):
+    def __init__(self, master, controller, width=350, height=200, title="Notification", description="", on_confirm=None, on_cancel=None):
         """
         Initialize the message notification popup
         @param master: The parent widget
@@ -1627,7 +1699,7 @@ class MessageNotification(ctk.CTkFrame, Popup):
         @param on_confirm: Function to call when the confirm button is clicked
         @param on_cancel: Function to call when the cancel button is clicked
         """
-        ctk.CTkFrame.__init__(self, master, width=width, height=height, corner_radius=10)
+        ctk.CTkFrame.__init__(self, master, width=width, height=height, corner_radius=10, fg_color="#3A3C41")
         self.place(relx=0.5, rely=0.5, anchor="center")  # Center of the parent window
         self.controller = controller
         self.context_hidden = True
@@ -1636,32 +1708,30 @@ class MessageNotification(ctk.CTkFrame, Popup):
         
         # Ensure the frame respects the specified width and height
         self.pack_propagate(False)  
-        self.grid_propagate(False)  
 
         # Title
-        title_label = ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"))
-        title_label.pack(pady=(20, 10))
+        title_label = ctk.CTkLabel(self, text=title, font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"), wraplength=width - 20, justify="center")
+        title_label.pack(pady=(20, 5), padx=10)
 
         # Description
-        desc_label = ctk.CTkLabel(self, text=description, font=("Arial", 12), justify="center")
-        desc_label.pack(pady=(0, 20))
+        desc_label = ctk.CTkLabel(self, text=description, font=ctk.CTkFont(family="Segoe UI", size=18), wraplength=width - 20, justify="center")
+        desc_label.pack(pady=(5, 10), padx=10)
 
         # Buttons frame
         buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
-        buttons_frame.pack(pady=(0, 10))
+        buttons_frame.pack(side="bottom", pady=(10, 10))
 
         # Cancel button
-        cancel_button = ctk.CTkButton(buttons_frame, text="Cancel", width=50,
-                                      fg_color="transparent", hover_color="gray",
-                                      text_color="white",
-                                      command=lambda: self._handle_cancel(on_cancel))
-        cancel_button.grid(row=0, column=0, padx=(0, 10))
+        cancel_button = ctk.CTkButton(buttons_frame, text="Cancel", width=80,
+              fg_color="transparent", hover_color="gray",
+              text_color="white",
+              command=lambda: self._handle_cancel(on_cancel))
+        cancel_button.pack(side="left", padx=(10, 5), anchor="se")
 
         # Confirm button
-        confirm_button = ctk.CTkButton(buttons_frame, text="Confirm", width=100,
-                                       command=lambda: self._handle_confirm(on_confirm))
-        confirm_button.grid(row=0, column=1)
-        master.bind("<Button-1>", lambda event: self.hide_popup(), add="+")
+        confirm_button = ctk.CTkButton(buttons_frame, text="Confirm", width=80,
+               command=lambda: self._handle_confirm(on_confirm))
+        confirm_button.pack(side="right", padx=(5, 10), anchor="se")
 
         Popup.show_popup(self)
 
@@ -1682,7 +1752,7 @@ class MessageNotification(ctk.CTkFrame, Popup):
         if on_cancel:
             on_cancel()
         self.hide_popup()
-    
+        
     def _handle_outside_click(self, event):
         """
         Handle clicks outside the notification frame
@@ -1716,12 +1786,14 @@ class FolderButton(IconButton):
         self.context_menu = OptionMenu(self.controller.container, self.controller, [
             {
                 "label": "Download Folder",
-                "color": "gray25",
+                "image": ctk.CTkImage(Image.open("resources/download.png"), size=(20, 20)),
+                "color": "#3A3C41",
                 "event": lambda: self.download_folder()
              },
              {
                  "label": "Delete Folder",
-                 "color": "gray25",
+                 "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
+                 "color": "#3A3C41",
                  "event": lambda: self.delete_folder_from_cloud() 
              }
         ])
@@ -1791,11 +1863,15 @@ class SharedFolderButton(IconButton):
         self.uid = data.get("uid")
         self.name = self.uid.split("$")[0]
         self.id = self.uid # For the stupid comparison in Folder
-        super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, self.uid, controller)
+        self.is_owner = data.get("isowner", False)
+        if self.is_owner:
+            super().__init__(master, width, height, "resources/shared_folder_owner_icon.png", self.name, self.uid, controller)
+        else:
+            super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, self.uid, controller)
         self.controller = controller
         self.master = master
 
-        self.is_owner = data.get("is_owner", False)
+        
         
 
         # Create a context menu using CTkFrame (for shared folder operations (As of now we don't suport these operations)
@@ -1803,12 +1879,14 @@ class SharedFolderButton(IconButton):
             menu_options = [
                 {
                     "label": "Manage Permissions",
-                    "color": "gray25",
+                    "image": ctk.CTkImage(Image.open("resources/manage_permissions.png"), size=(20, 20)),
+                    "color": "#3A3C41",
                     "event": lambda: self.manage_share_permissions()
                 },
                 {
                     "label": "Delete Share",
-                    "color": "gray25",
+                    "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
+                    "color": "#3A3C41",
                     "event": lambda: self.delete_shared_folder()
                 }
             ]
@@ -1816,7 +1894,8 @@ class SharedFolderButton(IconButton):
             menu_options = [
                 {
                     "label": "Leave Share",
-                    "color": "gray25",
+                    "image": ctk.CTkImage(Image.open("resources/leave.png"), size=(20, 20)),
+                    "color": "#3A3C41",
                     "event": lambda: self.leave_shared_folder()
                 }
             ]
@@ -1837,17 +1916,42 @@ class SharedFolderButton(IconButton):
 
 
     def leave_shared_folder(self):
-        print("leave_share_clicked")
-        label = self.controller.add_message_label(f"Leaving share {self.name}")
-        # Call a new function with the folder and emails (replace this with your logic)
-        self.controller.get_api().leave_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
+        folder_name = self.name.split("$")[0]
+        print(f"Leaving share: {folder_name}")
+        desc_text = f'You will no longer can see "{folder_name}".'
+        title = "Are you sure you want to leave this share?"
+        def on_confirm():
+            label = self.controller.add_message_label(f"Leaving share {folder_name}")
+            self.controller.get_api().leave_shared_folder(
+                lambda f: (
+                    self.controller.remove_message(label),
+                    self.controller.refresh(),
+                    messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.controller.refresh()
+                    
+                ), 
+                self.uid
+            )
+        self.controller.show_message_notification(desc_text, title, on_confirm)
 
 
     def delete_shared_folder(self):
         print("delete_share_clicked")
-        label = self.controller.add_message_label(f"Deleting share {self.name}")
-        # Call a new function with the folder and emails (replace this with your logic)
-        self.controller.get_api().delete_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
+        folder_name = self.name.split("$")[0]
+        desc_text = f'"{folder_name}" Will be permanently deleted.'
+        title = "Are you sure you want to leave this share?"
+        
+        def on_confirm():
+            label = self.controller.add_message_label(f"Deleting share {folder_name}")
+            self.controller.get_api().delete_shared_folder(
+                lambda f: (
+                    self.controller.remove_message(label),
+                    self.controller.refresh(),
+                    messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.controller.refresh()
+                    
+                ), 
+                self.uid
+            )
+        self.controller.show_message_notification(desc_text, title, on_confirm)
 
     def manage_share_permissions(self):
         new_window = ctk.CTkToplevel(self)
@@ -1863,7 +1967,7 @@ class SharedFolderButton(IconButton):
         main_h = self.controller.winfo_height()
         # Size of the new window
         # TODO: dynamic sizing
-        new_w, new_h = 400, 350  
+        new_w, new_h = 430, 350  
 
         # Calculate the position to center the new window over the parent window
         new_x = main_x + (main_w // 2) - (new_w // 2)
@@ -1879,7 +1983,7 @@ class SharedFolderButton(IconButton):
         scrollable_frame.pack(fill=ctk.BOTH, expand=True)
 
         # Share with header
-        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w")
+        share_with_label = ctk.CTkLabel(scrollable_frame, text="Share with:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
         share_with_label.grid(row=0, column=0, padx=(0, 10), pady=(20, 5), sticky="w")
         
         # Email list input
@@ -1908,40 +2012,55 @@ class SharedFolderButton(IconButton):
         # Function to handle the creation of new share
         def add_to_exsisting_share():
             emails = [email.get() for email in email_inputs]
+            parsed_emails = ", ".join(emails)
             print(f"Adding to share with emails: {emails}")
-            
+            label = self.controller.add_message_label(f"Adding {parsed_emails} to share")
             # Call the API with the final array
-            self.controller.get_api().add_users_to_share(None, self.uid, emails)
+            self.controller.get_api().add_users_to_share(
+                    lambda f: (
+                            self.controller.remove_message(label)
+                        ),
+                        self.uid,
+                        emails
+                    )
             # Close the new window
             new_window.destroy()
 
         # Create new share button (this now does both actions: create share and close the window)
-        add_to_share_button = ctk.CTkButton(scrollable_frame, text="Share", command=add_to_exsisting_share, width=80, height=25, corner_radius=10)
-        add_to_share_button.grid(row=2, column=1, pady=50, padx=100, sticky="e")
+        add_to_share_button = ctk.CTkButton(scrollable_frame, text="Share", command=add_to_exsisting_share, width=80, height=37, corner_radius=15)
+        add_to_share_button.grid(row=2, column=0, pady=20, sticky="w")
 
         # Already shared emails
-        shared_with_label = ctk.CTkLabel(scrollable_frame, text="Already shared with:", anchor="w")
+        shared_with_label = ctk.CTkLabel(scrollable_frame, text="Already shared with:", anchor="w", font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"))
         shared_with_label.grid(row=3, column=0, padx=(0, 10), pady=(10, 5), sticky="w")
 
         # List of emails already shared
         self.shared_emails = self.controller.get_api().get_shared_emails(self.uid)  # Fetch shared emails from API
+         
 
         def remove_email(display_email, email):
             """
             Function to remove an email from the shared list
             """
-            confirm = messagebox.askyesno("Remove Share", f"Remove {display_email} from share?")
+            
             for widget in scrollable_frame.winfo_children():
                 if hasattr(widget, 'custom_id') and widget.custom_id == display_email and isinstance(widget, ctk.CTkButton):
                     widget.configure(state="disabled")
-            if confirm:
+
+            desc_text = f'"Remove User From Share"'
+            title = f"Remove {display_email} from share?"
+            def on_confirm():
+                label = self.controller.add_message_label(f"Removing {display_email} from share")
                 self.controller.get_api().revoke_user_from_share(
                     lambda f, display_email=display_email: (
-                        remove_email_and_rearrange(display_email) if not f.exception() else messagebox.showerror("Error", f"Failed to revoke user: {f.exception()}")
-                    ),
-                    self.uid,
-                    email
-                )
+                            remove_email_and_rearrange(display_email) if not f.exception() else messagebox.showerror("Error", f"Failed to revoke user: {f.exception()}"),
+                            self.controller.remove_message(label)
+                        ),
+                        self.uid,
+                        email
+                    )
+                # Immediately pop the folder from the list
+            MessageNotification(new_window, self.controller, title=title, description=desc_text, on_confirm=on_confirm)
 
         def remove_email_and_rearrange(display_email):
             # Remove the relevant email label and remove button using custom_id
@@ -1962,21 +2081,21 @@ class SharedFolderButton(IconButton):
             for idx, email in enumerate(self.shared_emails):
                 # Display email aligned to the left
                 display_email = list(email.values())[0]  # Get the value of the first element in the dictionary
-                email_label = ctk.CTkLabel(scrollable_frame, text=display_email, anchor="w", text_color="white")
+                email_label = ctk.CTkLabel(scrollable_frame, text=display_email, anchor="w")
                 email_label.grid(row=idx + 4, column=0, sticky="w")
                 email_label.custom_id = display_email
 
                 # Add "Remove" button aligned to the right
                 remove_button = ctk.CTkButton(scrollable_frame, text="Remove", 
                                 command=lambda email=email, display_email=display_email: remove_email(display_email, email), 
-                                width=80, height=25, corner_radius=10)
+                                width=80, height=37, corner_radius=15)
                 remove_button.grid(row=idx + 4, column=1, padx=100, sticky="e")
                 remove_button.custom_id = display_email
         
         
 
         # Adjust the scrollbar to make it thinner (no slider_length argument)
-        new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
+        #new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
     def on_button3_click(self, event=None):
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
@@ -2004,7 +2123,8 @@ class PendingSharedFolderButton(IconButton):
         menu_options = [
             {
                 "label": "Decline Share",
-                "color": "gray25",
+                "image": ctk.CTkImage(Image.open("resources/decline.png"), size=(20, 20)),
+                "color": "#3A3C41",
                 "event": lambda: self.leave_shared_folder()
             }
         ]
