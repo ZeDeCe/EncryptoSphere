@@ -135,13 +135,14 @@ class App(ctk.CTk):
         threading.Thread(target=auto_refresh_loop, daemon=True).start()
 
     def _trigger_mainpage_refresh(self):
-        try:
-            # Only refresh if authenticated/session is ready
-            if self.api and hasattr(self.api, "current_session") and self.api.current_session:
-                print("Auto-refreshing")
-                self.frames[MainPage].refresh_button_click()
-        except Exception as e:
-            print(f"Auto-refresh error: {e}")
+        pass
+        # try:
+        #     # Only refresh if authenticated/session is ready
+        #     if self.api and hasattr(self.api, "current_session") and self.api.current_session:
+        #         print("Auto-refreshing")
+        #         self.frames[MainPage].refresh_button_click()
+        # except Exception as e:
+        #     print(f"Auto-refresh error: {e}")
 
     def show_frame(self, cont):
         """

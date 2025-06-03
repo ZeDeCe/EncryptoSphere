@@ -249,6 +249,7 @@ class GoogleDrive(CloudService):
         """
         Get all files and folders in the given folders where the name contains the filter string.
         Performs a recursive search.
+        Notice: Because of google's architecture, this function is fairly slow. Suggesting to use other clouds before this one.
         """
         try:
             for folder in folders:
@@ -266,16 +267,19 @@ class GoogleDrive(CloudService):
 
                     items = results.get('files', [])
                     for item in items:
-                        if filter.lower() in item['name'].lower():
-                            is_folder = item['mimeType'] == 'application/vnd.google-apps.folder'
-                            if is_folder:
-                                # Yield the folder and recursively search its children
-                                subfolder = CloudService.Folder(id=item['id'], name=item['name'])
-                                yield subfolder
-                                yield from self.get_items_by_name(filter, [subfolder])
+
+                        # If matches, yield the item
+                        if filter.lower() in item['name'].lower() or filter == "":
+                            if item['mimeType'] == 'application/vnd.google-apps.folder':
+                                yield CloudService.Folder(id=item['id'], name=item['name'])
                             else:
                                 yield CloudService.File(id=item['id'], name=item['name'])
 
+                        # If it's a folder, recursively search inside it
+                        if item['mimeType'] == 'application/vnd.google-apps.folder':
+                            subfolder = CloudService.Folder(id=item['id'], name=item['name'])
+                            yield from self.get_items_by_name(filter, [subfolder])
+                            # TODO: We should be passing the page_token on to the recursive call to make sure we don't miss anything
                     page_token = results.get('nextPageToken')
                     if not page_token:
                         break

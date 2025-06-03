@@ -822,10 +822,9 @@ class CloudManager:
         @param path: The folder path to start the search from.
         @return: A tuple containing two lists: one for files and one for folders.
         """
-        files = []
-        folders = []
 
         # Get the starting folder object
+        print("Searching for items by name...")
         start_folder = self.fs.get(path)
         if not start_folder:
             raise FileNotFoundError(f"Start folder '{path}' does not exist!")
