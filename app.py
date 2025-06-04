@@ -1664,9 +1664,10 @@ class OptionMenu(ctk.CTkFrame, Popup):
             return
         if self.context_hidden:
             x_anchor = "w" if x < self.master.winfo_width()/2 else "e"
+            scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
             # this doesn't work because of the scrollable frame
             #y_anchor = "s" if y < self.master.winfo_height()/2 else "n"
-            self.place(x=x, y=y, anchor=f"n{x_anchor}")
+            self.place(x=x/scaling_factor, y=y/scaling_factor, anchor=f"n{x_anchor}")
         Popup.show_popup(self)
 
     def change_options(self, options : list[str]):
