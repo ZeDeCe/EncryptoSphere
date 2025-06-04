@@ -405,6 +405,7 @@ class LocalPasswordPage(FormPage):
         self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
         self.error_label.pack()
         self.entry.configure(show="*")
+        self.entry.bind("<Return>", lambda event: self.submit())
         
         
     def validate_password(self, password):
@@ -610,6 +611,8 @@ class RegistrationPage(ctk.CTkFrame):
         # Password Entry Field
         self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300, height=35, show="*")
         self.entry_pass.pack(padx=20, pady=(0, 20))
+        self.entry_pass.bind("<Return>", lambda event: self.submit())
+
 
         # Encryption Algorithm option menu
         encryption, split = self.controller.get_api().get_algorithms()
