@@ -184,13 +184,19 @@ class App(ctk.CTk):
 
 
     def download_selected(self):
-        
         for butt in self.selected_icons:
             butt.configure(fg_color="#2B2D2F")
             butt.selected = False
             butt.download()
         self.selected_icons = []
         
+    def delete_selected(self):
+        for butt in self.selected_icons:
+            butt.configure(fg_color="#2B2D2F")
+            butt.selected = False
+            butt.delete()
+        self.selected_icons = []
+
     def button_clicked(self, button, append=False):
         """
         When any button is clicked, we need to close all opend context_menu(s)
@@ -209,11 +215,13 @@ class App(ctk.CTk):
                     butt.configure(fg_color="#2B2D2F")
                     butt.selected = False
                 self.selected_icons = []
+
                 self.selected_icons.append(button)
                 button.configure(fg_color="#4e5155")
                
             else:
                 button.configure(fg_color="#4e5155")
+                button.selected = True
                 self.selected_icons.append(button)
 
         if self.current_popup is None:
@@ -1555,27 +1563,28 @@ class FileButton(IconButton):
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
         self.context_menu = OptionMenu(controller.container, self.controller, [
             {
-                "label": "Download File",
+                "label": "Download",
                 "color": "#3A3C41",
                 "image": ctk.CTkImage(Image.open("resources/download.png"), size=(20, 20)),
-                "event": lambda: self.download_file_from_cloud()
+                "event": lambda: self.download()
              },
              {
-                 "label": "Delete File",
+                 "label": "Delete",
                  "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
                  "color": "#3A3C41",
-                 "event": lambda: self.delete_file_from_cloud()
+                 "event": lambda: self.delete()
              }
         ])
 
 
-    def download_file_from_cloud(self):
+    def download(self):
         """
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
+        if self.selected:
+            return self.controller.download_selected()
         label = self.controller.add_message_label(f"Downloading file {self.data['name']}")
-
         self.controller.get_api().download_file(
             lambda f: (
                 self.controller.remove_message(label),
@@ -1584,11 +1593,13 @@ class FileButton(IconButton):
             self.data.get("id", None),
         )
 
-    def delete_file_from_cloud(self):
+    def delete(self):
         """
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
+        if self.selected:
+            return self.controller.delete_selected()
         file_name = self.data['name']
         desc_text = f'"{file_name}" will be permanently deleted.'
         title = "Delete This File?"
@@ -1826,13 +1837,13 @@ class FolderButton(IconButton):
         # Create a context menu using CTkFrame for folder operations (As of now we don't suport these operations)
         self.context_menu = OptionMenu(self.controller.container, self.controller, [
             {
-                "label": "Download Folder",
+                "label": "Download",
                 "image": ctk.CTkImage(Image.open("resources/download.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.download()
              },
              {
-                 "label": "Delete Folder",
+                 "label": "Delete",
                  "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
                  "color": "#3A3C41",
                  "event": lambda: self.delete() 
@@ -1844,6 +1855,8 @@ class FolderButton(IconButton):
         """
         Delete folder from the cloud and refresh the page
         """
+        if self.selected:
+            return self.controller.delete_selected()
         desc_text = f'"{self.folder_name}" will be permanently deleted.'
         title = "Delete This Folder?"
         def on_confirm():
