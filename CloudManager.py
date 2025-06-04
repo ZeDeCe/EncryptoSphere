@@ -646,6 +646,70 @@ class CloudManager:
         print(f"Folder '{folder_path}' and all its contents have been deleted.")
         return True
     
+    def rename_items(self, old_path : str, new_name : str):
+        """
+        Renames an item (file or folder) in the EncryptoSphere file descriptor.
+        @param old_path: The current path of the item to rename.
+        @param new_name: The new name for the item.
+        """
+        item = self.fs.get(old_path)
+        old_name = old_path.split("/")[-1]
+        if not item:
+            raise FileNotFoundError(f"Item with path {old_path} does not exist!")
+        
+        # Check if the new name is valid
+        if not new_name or "/" in new_name or "\\" in new_name or ".." in new_name or "$" in new_name or "#" in new_name:
+            raise ValueError("Invalid new name for the item.")
+        
+        # Create the new path
+        parent_path = "/".join(old_path.split("/")[:-1])
+        new_path = f"{parent_path}/{new_name}"
+        
+        # Check if the new path already exists
+        if self.fs.get(new_path):
+            raise FileExistsError(f"An item with the name '{new_name}' already exists at {parent_path}.")
+        
+        for t in self.get_items_in_folder(parent_path):
+            if t.get("name") == new_name:
+                raise FileExistsError(f"An item with the name '{new_name}' already exists in the folder {parent_path}.")
+
+        
+        # Rename the item in all clouds
+        futures = {}
+        for cloud in self.clouds:
+            if isinstance(item, Directory):
+                futures[self.executor.submit(cloud.rename_item, item.get(cloud.get_name()), new_name)] = cloud
+            elif isinstance(item, CloudFile):
+                # For files, we need to rename each part
+                for index, part in enumerate(item.get(cloud.get_name())):
+                    new_file_name = part.name.replace(old_name, new_name)
+                    if new_name == old_name:
+                        raise ValueError("New name cannot be the same as the old name.")
+                    futures[self.executor.submit(cloud.rename_item, part, new_file_name)] = cloud
+        
+        results, success = self._complete_cloud_threads(futures)
+        if not success:
+            raise Exception("Failed to rename item in some clouds.")
+        
+        appended = None
+        for cloud,result in results:
+            if isinstance(item, Directory):
+                if appended is None:
+                    appended = {cloud.get_name(): result}
+                else:
+                    appended[cloud.get_name()] = result
+            elif isinstance(item, CloudFile):
+                if appended is None:
+                    appended = {cloud.get_name(): [result]}
+                else:
+                    if not appended.get(cloud.get_name()):
+                        appended[cloud.get_name()] = []
+                    appended[cloud.get_name()].append(result)
+
+        self.fs.pop(old_path, None)  # Remove the old path from the file descriptor
+        self.fs[new_path] = Directory(appended, new_path) if isinstance(item, Directory) else CloudFile(appended, new_path)
+        return True
+    
     def get_items_in_folder(self, path):
         folder = self.fs.get(path)
         if not folder:
