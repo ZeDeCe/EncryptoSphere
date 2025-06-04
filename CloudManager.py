@@ -586,8 +586,8 @@ class CloudManager:
 
     def delete_folder(self, folder_path):
         """
-        Deletes all files and subfolders under the specified folder path in EncryptoSphere.
-        If any file or folder cannot be deleted, an error is raised and displayed in a message box.
+        Deletes a folder from all clouds.
+        If any cloud fails, an error is raised.
         @param folder_path: The path to the folder in the file descriptor.
         """
         if folder_path == "/":
@@ -597,54 +597,22 @@ class CloudManager:
         if not folder or not isinstance(folder, Directory):
             raise Exception(f"Folder '{folder_path}' does not exist.")
 
-        files_to_delete = []
-        folders_to_delete = []
+        errors = []
+        for cloud in self.clouds:
+            try:
+                cloud.delete_folder(folder.get(cloud.get_name()))
+            except Exception as e:
+                errors.append(f"{cloud.get_name()}: {e}")
 
-        for path, item in self.fs.items():
-            if path.startswith(folder_path):
-                if isinstance(item, CloudFile):
-                    files_to_delete.append(path)
-                elif isinstance(item, Directory):
-                    folders_to_delete.append(path)
-
-        # Delete files
-        futures = {}
-        with concurrent.futures.ThreadPoolExecutor() as file_executor:
-            for file_path in files_to_delete:
-                print(f"Deleting file: {file_path}")
-                futures[file_executor.submit(self.delete_file, file_path)] = file_path
-
-            results, success = self._complete_cloud_threads(futures)
-            if not success:
-                failed_files = [file_path for file_path, result in results if result is None]
-                error_message = f"Folder Deletion Error: Failed to delete the following files: {', '.join(failed_files)}"
-                print(error_message)
-                raise Exception(error_message)
-
-        # Delete folders
-        futures = {}
-        with concurrent.futures.ThreadPoolExecutor() as folder_executor:
-            for subfolder_path in sorted(folders_to_delete, key=len, reverse=True):
-                print(f"Deleting folder: {subfolder_path}")
-                folder = self.fs[subfolder_path]
-                for cloud in self.clouds:
-                    futures[folder_executor.submit(cloud.delete_folder, folder.get(cloud.get_name()))] = subfolder_path
-
-            results, success = self._complete_cloud_threads(futures)
-            if not success:
-                failed_folders = [folder_path for folder_path, result in results if result is None]
-                error_message = f"Folder Deletion Error: Failed to delete the following folders: {', '.join(failed_folders)}"
-                print(error_message)
-                raise Exception(error_message)
-
-        # Remove files and folders from the file descriptor
-        for file_path in files_to_delete:
-            self.fs.pop(file_path, None)
-        for subfolder_path in sorted(folders_to_delete, key=len, reverse=True):
-            self.fs.pop(subfolder_path, None)
-
-        print(f"Folder '{folder_path}' and all its contents have been deleted.")
-        return True
+        # Remove from local fs if successful in all clouds
+        if not errors:
+            self.fs.pop(folder_path, None)
+            print(f"Folder '{folder_path}' deleted from all clouds and local fs.")
+            return True
+        else:
+            error_message = "Folder Deletion Error: " + "; ".join(errors)
+            print(error_message)
+            raise Exception(error_message)
     
     def rename_items(self, old_path : str, new_name : str):
         """
