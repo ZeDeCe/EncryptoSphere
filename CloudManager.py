@@ -365,11 +365,12 @@ class CloudManager:
         futures = {}
         
         # First upload main folder
-        futures[self.executor.submit(self.create_folder, f"{path}{folder_name}")] = f"{path}{folder_name}"
-        
+        self.create_folder(f"{path}{folder_name}")
+        file_amount = 0
         # Create all subdirectories
         with concurrent.futures.ThreadPoolExecutor() as folder_executor:
-            for root, dirs, _ in os.walk(os_folder):
+            for root, dirs, files in os.walk(os_folder):
+                file_amount += len(files)
                 root_arr = root.split(os.sep)
                 root_arr = root_arr[root_arr.index(folder_name):]
                 encrypto_root = f"{path}{'/'.join(root_arr)}"
@@ -378,13 +379,14 @@ class CloudManager:
                 for dir in dirs:
                     print(f"Doing folder: {encrypto_root}{dir}")
                     futures[folder_executor.submit(self.create_folder, f"{encrypto_root}{dir}")] = f"{encrypto_root}{dir}"
-            results, success = self._complete_cloud_threads(futures)
-            if not success:
-                raise Exception("Failed to upload folders in given folder.")
+                results, success = self._complete_cloud_threads(futures)
+                if not success:
+                    raise Exception("Failed to upload folders in given folder.")
+                futures = {}
         
         # Create all files
         futures = {}
-        with concurrent.futures.ThreadPoolExecutor() as file_executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=file_amount if file_amount < 15 else 15) as file_executor:
             for root, _, files in os.walk(os_folder):
                 root_arr = root.split(os.sep)
                 root_arr = root_arr[root_arr.index(folder_name):]
