@@ -111,7 +111,7 @@ class App(ctk.CTk):
         
         # List of all buttons
         self.buttons = []
-        self.selected_icons = [IconButton]
+        self.selected_icons : list[IconButton] = []
         self.current_popup : Popup = None
         
         self._auto_refresh_running = True
@@ -188,13 +188,16 @@ class App(ctk.CTk):
         @param button: The button that was clicked
         @param ignore_list: List of context menus that should not be closed 
         """
+        print(button)
         if not isinstance(button, IconButton):
+            for butt in self.selected_icons:
+                butt.configure(fg_color="#2B2D2F")
             self.selected_icons = []
         else:
             if not append:
                 for butt in self.selected_icons:
                     butt.configure(fg_color="#2B2D2F")
-                    self.selected_icons.remove(butt)
+                self.selected_icons = []
                 self.selected_icons.append(button)
                 button.configure(fg_color="#4e5155")
                
