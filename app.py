@@ -181,7 +181,16 @@ class App(ctk.CTk):
     def remove_popup(self, popup):
         if self.current_popup == popup:
             self.current_popup = None
-    
+
+
+    def download_selected(self):
+        
+        for butt in self.selected_icons:
+            butt.configure(fg_color="#2B2D2F")
+            butt.selected = False
+            butt.download()
+        self.selected_icons = []
+        
     def button_clicked(self, button, append=False):
         """
         When any button is clicked, we need to close all opend context_menu(s)
@@ -192,11 +201,13 @@ class App(ctk.CTk):
         if not isinstance(button, IconButton):
             for butt in self.selected_icons:
                 butt.configure(fg_color="#2B2D2F")
+                butt.selected = False
             self.selected_icons = []
         else:
             if not append:
                 for butt in self.selected_icons:
                     butt.configure(fg_color="#2B2D2F")
+                    butt.selected = False
                 self.selected_icons = []
                 self.selected_icons.append(button)
                 button.configure(fg_color="#4e5155")
@@ -1517,6 +1528,7 @@ class IconButton(ctk.CTkFrame):
     def on_button1_click(self, event=None):
         append = (event.state & 0x0004) != 0  # 0x0004 is the Control key mask in Tkinter
         self.controller.button_clicked(self, append)
+        self.selected = True
 
     def on_double_click(self, event=None):
         # Deselect this icon on double-click
@@ -1817,18 +1829,18 @@ class FolderButton(IconButton):
                 "label": "Download Folder",
                 "image": ctk.CTkImage(Image.open("resources/download.png"), size=(20, 20)),
                 "color": "#3A3C41",
-                "event": lambda: self.download_folder()
+                "event": lambda: self.download()
              },
              {
                  "label": "Delete Folder",
                  "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
                  "color": "#3A3C41",
-                 "event": lambda: self.delete_folder_from_cloud() 
+                 "event": lambda: self.delete() 
              }
         ])
     
     
-    def delete_folder_from_cloud(self):
+    def delete(self):
         """
         Delete folder from the cloud and refresh the page
         """
@@ -1848,10 +1860,12 @@ class FolderButton(IconButton):
 
         self.controller.show_message_notification(desc_text, title, on_confirm)
     
-    def download_folder(self):
+    def download(self):
         """
         Download folder from the cloud and refresh the page
         """
+        if self.selected:
+            return self.controller.download_selected()
         label = self.controller.add_message_label(f"Downloading folder {self.folder_name}")
         self.controller.get_api().download_folder(
             lambda f: (
