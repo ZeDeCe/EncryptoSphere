@@ -766,7 +766,7 @@ class MainPage(ctk.CTkFrame):
         self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.refresh_button_click(), width=20, height=20, corner_radius=20, fg_color="#2B2D2F", hover_color="gray40")
         self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
 
-        self.main_session : Session  = Session(self.container, controller, "EncryptoSphere")
+        self.main_session : Session  = Session(self.container, controller, "Home")
         self.current_session : Session = self.main_session
         self.main_session.pack(fill=ctk.BOTH, expand=True)
         self.sessions = {"0": self.main_session}
