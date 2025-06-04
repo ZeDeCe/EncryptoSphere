@@ -165,10 +165,12 @@ class App(ctk.CTk):
         Ensure proper cleanup before closing the application
         """    
         self._auto_refresh_running = False
-        self.destroy() 
+        
         if self.api.manager:
             self.api.manager.cleanup_temp_folder() 
             self.api.stop_sync_new_sessions_task()
+
+        self.destroy() 
     
     def set_popup(self, popup):
         if self.current_popup is not None:
