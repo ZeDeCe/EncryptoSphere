@@ -527,7 +527,13 @@ class DropBox(CloudService):
             return members_list
         except dropbox.exceptions.ApiError as e:
             raise Exception(f"Cannot access folder because not a member")
-
+        
+    def rename_file(self, file, new_name):
+        raise NotImplementedError("Must be implemented")
+    
+    def rename_folder(self, folder, new_name):
+        raise NotImplementedError("Must be implemented")
+    
     def get_name(self):
         return "D"
     
