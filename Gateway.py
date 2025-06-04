@@ -145,12 +145,20 @@ class Gateway:
         """
         supported_clouds = CloudService.get_cloud_classes()
         autenticated_clouds = []
-        for cloud_class in supported_clouds:
-            cloud = cloud_class(self.email)
-            if cloud.authenticate_by_token():
-                autenticated_clouds.append(cloud)
-                if not self.metadata_exists:
-                    self.metadata_exists = self.is_metadata_exists(cloud)    
+        futures = {}
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for cloud_class in supported_clouds:
+                cloud = cloud_class(self.email)
+                futures[executor.submit(cloud.authenticate_by_token)] = cloud
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    if future.result():
+                        cloud = futures[future]
+                        autenticated_clouds.append(cloud)
+                        if not self.metadata_exists and self.is_metadata_exists(cloud):
+                            self.metadata_exists = True
+                except Exception as e:
+                    print(f"Failed to authenticate {futures[future].get_name()}: {e}")
         self.authenticated_clouds = autenticated_clouds
         return autenticated_clouds
 
