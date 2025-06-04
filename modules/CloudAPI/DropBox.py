@@ -527,12 +527,6 @@ class DropBox(CloudService):
             return members_list
         except dropbox.exceptions.ApiError as e:
             raise Exception(f"Cannot access folder because not a member")
-        
-    def rename_file(self, file, new_name):
-        raise NotImplementedError("Must be implemented")
-    
-    def rename_folder(self, folder, new_name):
-        raise NotImplementedError("Must be implemented")
     
     def get_name(self):
         return "D"
@@ -570,7 +564,7 @@ class DropBox(CloudService):
             current_path = file._id
             parent_folder = os.path.dirname(current_path)
             new_path = f"{parent_folder}/{new_name}"
-            result = self.dbx.files_move_v2(current_path, new_path, autorename=True)
+            result = self.dbx.files_move_v2(current_path, new_path)
             print(f"DropBox: Renamed file '{file.name}' to '{new_name}'.")
             return CloudService.File(id=result.metadata.path_display, name=new_name)
         except Exception as e:
@@ -588,7 +582,7 @@ class DropBox(CloudService):
             current_path = folder._id
             parent_folder = os.path.dirname(current_path)
             new_path = f"{parent_folder}/{new_name}"
-            result = self.dbx.files_move_v2(current_path, new_path, autorename=True)
+            result = self.dbx.files_move_v2(current_path, new_path)
             print(f"DropBox: Renamed folder '{folder.name}' to '{new_name}'.")
             return CloudService.Folder(id=result.metadata.path_display, name=new_name)
         except Exception as e:
