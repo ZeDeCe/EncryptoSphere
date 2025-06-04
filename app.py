@@ -111,6 +111,7 @@ class App(ctk.CTk):
         
         # List of all buttons
         self.buttons = []
+        self.selected_icons = [IconButton]
         self.current_popup : Popup = None
         
         self._auto_refresh_running = True
@@ -181,12 +182,26 @@ class App(ctk.CTk):
         if self.current_popup == popup:
             self.current_popup = None
     
-    def button_clicked(self, button):
+    def button_clicked(self, button, append=False):
         """
         When any button is clicked, we need to close all opend context_menu(s)
         @param button: The button that was clicked
         @param ignore_list: List of context menus that should not be closed 
         """
+        if not isinstance(button, IconButton):
+            self.selected_icons = []
+        else:
+            if not append:
+                for butt in self.selected_icons:
+                    butt.configure(fg_color="#2B2D2F")
+                    self.selected_icons.remove(butt)
+                self.selected_icons.append(button)
+                button.configure(fg_color="#4e5155")
+               
+            else:
+                button.configure(fg_color="#4e5155")
+                self.selected_icons.append(button)
+
         if self.current_popup is None:
             return
         parent = button
@@ -198,8 +213,10 @@ class App(ctk.CTk):
             except:
                 print("Got to end of parents but did not hit break, flawed code")
                 break
-        
         self.current_popup.hide_popup()
+       
+
+
 
     def change_folder(self, path, uid=None):
         """
@@ -1464,24 +1481,25 @@ class IconButton(ctk.CTkFrame):
         self.controller = controller
         self.master = master
         self.id = id
+        self.selected = False
         self.file_icon = ctk.CTkImage(light_image=Image.open(icon_path), size=(60, 60))
 
-        icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
-        icon_label.pack(pady=(5, 0))
+        self.icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
+        self.icon_label.pack(pady=(5, 0))
 
-        name_label = ctk.CTkLabel(self, text=text, wraplength=90, justify="center")
-        name_label.pack(pady=(0, 5))
+        self.name_label = ctk.CTkLabel(self, text=text, wraplength=90, justify="center")
+        self.name_label.pack(pady=(0, 5))
 
         # Connect all file related content to do the same action when clicked (open the context_menu)
         self.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
-        icon_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
-        name_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
+        self.icon_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
+        self.name_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
         self.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
-        icon_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
-        name_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
+        self.icon_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
+        self.name_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
         self.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
-        icon_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
-        name_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
+        self.icon_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
+        self.name_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
 
     def __eq__(self, other):
         if isinstance(other, IconButton):
@@ -1494,13 +1512,18 @@ class IconButton(ctk.CTkFrame):
         return not self.__eq__(other)
 
     def on_button1_click(self, event=None):
-        self.controller.button_clicked(self)
+        append = (event.state & 0x0004) != 0  # 0x0004 is the Control key mask in Tkinter
+        self.controller.button_clicked(self, append)
 
     def on_double_click(self, event=None):
+        # Deselect this icon on double-click
+        self.selected = False
         self.controller.button_clicked(self)
-    
+        
     def on_button3_click(self, event=None):
         self.controller.button_clicked(self)
+    
+
 
 @clickable
 class FileButton(IconButton):
