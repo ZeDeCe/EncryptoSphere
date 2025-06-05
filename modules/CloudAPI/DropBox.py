@@ -607,12 +607,15 @@ class DropBox(CloudService):
                     result = self.dbx.files_list_folder(folder._id, recursive=True)
                     while True:
                         for entry in result.entries:
+                            # Skip if the entry is not a file or folder
                             # Check if the entry matches the filter
                             if filter.lower() in entry.name.lower():
                                 if isinstance(entry, dropbox.files.FileMetadata):
                                     yield CloudService.File(id=entry.path_display, name=entry.name)
                                 elif isinstance(entry, dropbox.files.FolderMetadata):
-                                    yield CloudService.Folder(id=entry.path_display, name=entry.name)
+                                    if folder._id != entry.path_display:
+                                        yield CloudService.Folder(id=entry.path_display, name=entry.name)
+
                         
                         # Continue if there are more entries
                         if result.has_more:

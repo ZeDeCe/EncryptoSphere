@@ -863,7 +863,7 @@ class CloudManager:
         if not start_folder:
             raise FileNotFoundError(f"Start folder '{path}' does not exist!")
 
-        cloud = self.clouds[0]  # Only Dropbox, drive doesn't find all files for some reason
+        cloud = self.clouds[0]  
         try:
             # Get items matching the filter from the cloud
             items = cloud.get_items_by_name(filter, [start_folder.get(cloud.get_name())])
