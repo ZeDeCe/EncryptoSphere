@@ -435,6 +435,22 @@ class Gateway:
         return self.current_session.delete_folder(path)
     
     @promise
+    @enrichable
+    def rename(self, path: str, new_name: str):
+        """
+        Rename a file or folder in the cloud storage.
+        @param path: The path of the file or folder to rename.
+        @param new_name: The new name for the file or folder.
+        @return: True if the renaming was successful, raises an exception otherwise.
+        """
+        try:
+            print(f"Renaming item at path '{path}' to '{new_name}'")
+            return self.current_session.rename_items(path, new_name)
+        except Exception as e:
+            print(f"Unexpected error during renaming: {e}")
+            raise
+    
+    @promise
     def create_folder(self, folder_path):
         """
         Create folder function
