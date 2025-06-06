@@ -1616,6 +1616,12 @@ class FileButton(IconButton):
                  "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
                  "color": "#3A3C41",
                  "event": lambda: self.delete()
+             },
+             {
+                 "label": "Rename",
+                 "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                 "color": "#3A3C41",
+                 "event": lambda: self.rename()
              }
         ])
 
@@ -1672,6 +1678,51 @@ class FileButton(IconButton):
                 messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             self.data.get("id", None)
+        )
+
+    def rename(self):
+        """
+        If rename option is selected in the upload_context_menu, open a dialog to let the user pick a new name for the object
+        """
+        # Get the position and size of the parent window
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_width = self.winfo_width()
+        parent_height = self.winfo_height()
+
+        # Create the input dialog
+        input_dialog = ctk.CTkInputDialog(text="Enter the new name:", title=f"Rename {self.data['name']}")
+
+        # Calculate the position to center the dialog over the parent window
+        dialog_width = 300  # Approximate width of the dialog
+        dialog_height = 150  # Approximate height of the dialog
+        dialog_x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        dialog_y = parent_y + (parent_height // 2) - (dialog_height // 2)
+
+        # Set the position of the dialog
+        input_dialog.geometry(f"{dialog_width}x{dialog_height}+{dialog_x}+{dialog_y}")
+
+        # Get the folder name from the input dialog
+        new_name = input_dialog.get_input()
+        self.context_menu.hide_popup()
+        if new_name:
+            self.rename_file_in_cloud(new_name)
+
+    def rename_file_in_cloud(self, new_name):
+        """
+        Rename a file in the cloud and refresh the page
+        @param new_name: The new name of the file
+        """
+        label = self.controller.add_message_label(f"Renaming file {self.data['name']} to {new_name}")
+
+        self.controller.get_api().rename_file(
+            lambda f: (
+                self.controller.remove_message(label),
+                self.master.refresh(),
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
+            ),
+            self.data.get("id", None),
+            new_name
         )
 
     def on_button3_click(self, event=None):
@@ -1897,7 +1948,13 @@ class FolderButton(IconButton):
                  "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
                  "color": "#3A3C41",
                  "event": lambda: self.delete() 
-             }
+             },
+            {
+                "label": "Rename",
+                "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.rename()
+            }
         ])
     
     def force_delete(self, label=None):
@@ -1939,6 +1996,51 @@ class FolderButton(IconButton):
             ),
             self.data.get("id", None)
             )
+        
+    def rename(self):
+        """
+        If rename option is selected in the upload_context_menu, open a dialog to let the user pick a new name for the object
+        """
+        # Get the position and size of the parent window
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_width = self.winfo_width()
+        parent_height = self.winfo_height()
+
+        # Create the input dialog
+        input_dialog = ctk.CTkInputDialog(text="Enter the new name:", title=f"Rename {self.folder_name}")
+
+        # Calculate the position to center the dialog over the parent window
+        dialog_width = 300  # Approximate width of the dialog
+        dialog_height = 150  # Approximate height of the dialog
+        dialog_x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        dialog_y = parent_y + (parent_height // 2) - (dialog_height // 2)
+
+        # Set the position of the dialog
+        input_dialog.geometry(f"{dialog_width}x{dialog_height}+{dialog_x}+{dialog_y}")
+
+        # Get the folder name from the input dialog
+        new_name = input_dialog.get_input()
+        self.context_menu.hide_popup()
+        if new_name:
+            self.rename_folder_in_cloud(new_name)
+
+    def rename_folder_in_cloud(self, new_name):
+        """
+        Rename a folder in the cloud and refresh the page
+        @param new_name: The new name of the folder
+        """
+        label = self.controller.add_message_label(f"Renaming folder {self.folder_name} to {new_name}")
+
+        self.controller.get_api().rename_folder(
+            lambda f: (
+                self.controller.remove_message(label),
+                self.master.refresh(),
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
+            ),
+            self.data.get("id", None),
+            new_name
+        )
 
     def on_double_click(self, event=None):
         """
