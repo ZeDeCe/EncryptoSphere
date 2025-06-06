@@ -472,6 +472,7 @@ class LocalPasswordPage(FormPage):
         self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
         self.error_label.pack()
         self.entry.configure(show="*")
+        self.entry.bind("<Return>", lambda event: self.submit())
         
         
     def validate_password(self, password):
@@ -677,6 +678,8 @@ class RegistrationPage(ctk.CTkFrame):
         # Password Entry Field
         self.entry_pass = ctk.CTkEntry(self, placeholder_text="Your Password", width=300, height=35, show="*")
         self.entry_pass.pack(padx=20, pady=(0, 20))
+        self.entry_pass.bind("<Return>", lambda event: self.submit())
+
 
         # Encryption Algorithm option menu
         encryption, split = self.controller.get_api().get_algorithms()
@@ -1755,9 +1758,10 @@ class OptionMenu(ctk.CTkFrame, Popup):
             return
         if self.context_hidden:
             x_anchor = "w" if x < self.master.winfo_width()/2 else "e"
+            scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
             # this doesn't work because of the scrollable frame
             #y_anchor = "s" if y < self.master.winfo_height()/2 else "n"
-            self.place(x=x, y=y, anchor=f"n{x_anchor}")
+            self.place(x=x/scaling_factor, y=y/scaling_factor, anchor=f"n{x_anchor}")
         Popup.show_popup(self)
 
     def change_options(self, options : list[str]):

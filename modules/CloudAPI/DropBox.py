@@ -527,7 +527,7 @@ class DropBox(CloudService):
             return members_list
         except dropbox.exceptions.ApiError as e:
             raise Exception(f"Cannot access folder because not a member")
-
+    
     def get_name(self):
         return "D"
     
@@ -553,6 +553,43 @@ class DropBox(CloudService):
             print(f"Unexpected error while deleting folder '{folder.name}': {e}")
             raise
         
+    def rename_file(self, file: CloudService.File, new_name: str) -> CloudService.File:
+        """
+        Rename a file in Dropbox.
+        @param file: the file object to rename
+        @param new_name: the new name of the file
+        @return: the renamed file object
+        """
+        try:
+            current_path = file._id
+            parent_folder = os.path.dirname(current_path)
+            new_path = f"{parent_folder}/{new_name}"
+            result = self.dbx.files_move_v2(current_path, new_path)
+            print(f"DropBox: Renamed file '{file.name}' to '{new_name}'.")
+            return CloudService.File(id=result.metadata.path_display, name=new_name)
+        except Exception as e:
+            print(f"DropBox: Error renaming file '{file.name}' to '{new_name}': {e}")
+            raise Exception(f"DropBox-Error renaming file: {e}")
+
+    def rename_folder(self, folder: CloudService.Folder, new_name: str) -> CloudService.Folder:
+        """
+        Rename a folder in Dropbox.
+        @param folder: the folder object to rename
+        @param new_name: the new name of the folder
+        @return: the renamed folder object
+        """
+        try:
+            current_path = folder._id
+            parent_folder = os.path.dirname(current_path)
+            new_path = f"{parent_folder}/{new_name}"
+            result = self.dbx.files_move_v2(current_path, new_path)
+            print(f"DropBox: Renamed folder '{folder.name}' to '{new_name}'.")
+            return CloudService.Folder(id=result.metadata.path_display, name=new_name)
+        except Exception as e:
+            print(f"DropBox: Error renaming folder '{folder.name}' to '{new_name}': {e}")
+            raise Exception(f"DropBox-Error renaming folder: {e}")
+        
+
     def get_items_by_name(self, filter: str, folders: list[CloudService.Folder]):
         """
         Get all files and folders with the specified filter in the specified folders.
@@ -694,9 +731,9 @@ class DropBox(CloudService):
     #         print(f"Error retrieving metadata for item '{item.name}': {e}")
     #         raise
 
-'''
-# Unit Test, make sure to enter email!
 
+# Unit Test, make sure to enter email!
+'''
 import customtkinter as ctk
 def input_dialog(title, text):
     # Create the input dialog
@@ -768,9 +805,25 @@ def test2():
         print(dbx.get_owner(folder))
         leave = dbx.leave_shared_folder(folder)
         print(f"Left shared folder: {leave}")
+
+def test3():
+    """
+    Test function for DropBox
+    """
+    dbx = DropBox("hadas.shalev10@cs.colman.ac.il")
+    dbx.authenticate_cloud()
+    folder = dbx.get_session_folder("test2")
+    #dbx.rename_folder(folder, "test2")
+    print("renamed")    
+    files = dbx.list_files(folder)
+    for file in files:
+        print(file.name)
+        if file.name == "test1":
+            renamed_file = dbx.rename_file(file, "RenamedTest1")
+            print(f"Renamed file: {renamed_file.name}")
+    
     
 if __name__ == "__main__":
-    test2()
+    test3()
 
 '''
-    

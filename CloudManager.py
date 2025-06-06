@@ -365,11 +365,12 @@ class CloudManager:
         futures = {}
         
         # First upload main folder
-        futures[self.executor.submit(self.create_folder, f"{path}{folder_name}")] = f"{path}{folder_name}"
-        
+        self.create_folder(f"{path}{folder_name}")
+        file_amount = 0
         # Create all subdirectories
         with concurrent.futures.ThreadPoolExecutor() as folder_executor:
-            for root, dirs, _ in os.walk(os_folder):
+            for root, dirs, files in os.walk(os_folder):
+                file_amount += len(files)
                 root_arr = root.split(os.sep)
                 root_arr = root_arr[root_arr.index(folder_name):]
                 encrypto_root = f"{path}{'/'.join(root_arr)}"
@@ -378,13 +379,14 @@ class CloudManager:
                 for dir in dirs:
                     print(f"Doing folder: {encrypto_root}{dir}")
                     futures[folder_executor.submit(self.create_folder, f"{encrypto_root}{dir}")] = f"{encrypto_root}{dir}"
-            results, success = self._complete_cloud_threads(futures)
-            if not success:
-                raise Exception("Failed to upload folders in given folder.")
+                results, success = self._complete_cloud_threads(futures)
+                if not success:
+                    raise Exception("Failed to upload folders in given folder.")
+                futures = {}
         
         # Create all files
         futures = {}
-        with concurrent.futures.ThreadPoolExecutor() as file_executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=file_amount if file_amount < 15 else 15) as file_executor:
             for root, _, files in os.walk(os_folder):
                 root_arr = root.split(os.sep)
                 root_arr = root_arr[root_arr.index(folder_name):]
@@ -584,8 +586,8 @@ class CloudManager:
 
     def delete_folder(self, folder_path):
         """
-        Deletes all files and subfolders under the specified folder path in EncryptoSphere.
-        If any file or folder cannot be deleted, an error is raised and displayed in a message box.
+        Deletes a folder from all clouds.
+        If any cloud fails, an error is raised.
         @param folder_path: The path to the folder in the file descriptor.
         """
         if folder_path == "/":
@@ -595,53 +597,85 @@ class CloudManager:
         if not folder or not isinstance(folder, Directory):
             raise Exception(f"Folder '{folder_path}' does not exist.")
 
-        files_to_delete = []
-        folders_to_delete = []
+        errors = []
+        for cloud in self.clouds:
+            try:
+                cloud.delete_folder(folder.get(cloud.get_name()))
+            except Exception as e:
+                errors.append(f"{cloud.get_name()}: {e}")
 
-        for path, item in self.fs.items():
-            if path.startswith(folder_path):
-                if isinstance(item, CloudFile):
-                    files_to_delete.append(path)
-                elif isinstance(item, Directory):
-                    folders_to_delete.append(path)
+        # Remove from local fs if successful in all clouds
+        if not errors:
+            self.fs.pop(folder_path, None)
+            print(f"Folder '{folder_path}' deleted from all clouds and local fs.")
+            return True
+        else:
+            error_message = "Folder Deletion Error: " + "; ".join(errors)
+            print(error_message)
+            raise Exception(error_message)
+    
+    def rename_items(self, old_path : str, new_name : str):
+        """
+        Renames an item (file or folder) in the EncryptoSphere file descriptor.
+        @param old_path: The current path of the item to rename.
+        @param new_name: The new name for the item.
+        """
+        item = self.fs.get(old_path)
+        old_name = old_path.split("/")[-1]
+        if not item:
+            raise FileNotFoundError(f"Item with path {old_path} does not exist!")
+        
+        # Check if the new name is valid
+        if not new_name or "/" in new_name or "\\" in new_name or ".." in new_name or "$" in new_name or "#" in new_name:
+            raise ValueError("Invalid new name for the item.")
+        
+        # Create the new path
+        parent_path = "/".join(old_path.split("/")[:-1])
+        new_path = f"{parent_path}/{new_name}"
+        
+        # Check if the new path already exists
+        if self.fs.get(new_path):
+            raise FileExistsError(f"An item with the name '{new_name}' already exists at {parent_path}.")
+        
+        for t in self.get_items_in_folder(parent_path):
+            if t.get("name") == new_name:
+                raise FileExistsError(f"An item with the name '{new_name}' already exists in the folder {parent_path}.")
 
-        # Delete files
+        
+        # Rename the item in all clouds
         futures = {}
-        with concurrent.futures.ThreadPoolExecutor() as file_executor:
-            for file_path in files_to_delete:
-                print(f"Deleting file: {file_path}")
-                futures[file_executor.submit(self.delete_file, file_path)] = file_path
+        for cloud in self.clouds:
+            if isinstance(item, Directory):
+                futures[self.executor.submit(cloud.rename_item, item.get(cloud.get_name()), new_name)] = cloud
+            elif isinstance(item, CloudFile):
+                # For files, we need to rename each part
+                for index, part in enumerate(item.get(cloud.get_name())):
+                    new_file_name = part.name.replace(old_name, new_name)
+                    if new_name == old_name:
+                        raise ValueError("New name cannot be the same as the old name.")
+                    futures[self.executor.submit(cloud.rename_item, part, new_file_name)] = cloud
+        
+        results, success = self._complete_cloud_threads(futures)
+        if not success:
+            raise Exception("Failed to rename item in some clouds.")
+        
+        appended = None
+        for cloud,result in results:
+            if isinstance(item, Directory):
+                if appended is None:
+                    appended = {cloud.get_name(): result}
+                else:
+                    appended[cloud.get_name()] = result
+            elif isinstance(item, CloudFile):
+                if appended is None:
+                    appended = {cloud.get_name(): [result]}
+                else:
+                    if not appended.get(cloud.get_name()):
+                        appended[cloud.get_name()] = []
+                    appended[cloud.get_name()].append(result)
 
-            results, success = self._complete_cloud_threads(futures)
-            if not success:
-                failed_files = [file_path for file_path, result in results if result is None]
-                error_message = f"Folder Deletion Error: Failed to delete the following files: {', '.join(failed_files)}"
-                print(error_message)
-                raise Exception(error_message)
-
-        # Delete folders
-        futures = {}
-        with concurrent.futures.ThreadPoolExecutor() as folder_executor:
-            for subfolder_path in sorted(folders_to_delete, key=len, reverse=True):
-                print(f"Deleting folder: {subfolder_path}")
-                folder = self.fs[subfolder_path]
-                for cloud in self.clouds:
-                    futures[folder_executor.submit(cloud.delete_folder, folder.get(cloud.get_name()))] = subfolder_path
-
-            results, success = self._complete_cloud_threads(futures)
-            if not success:
-                failed_folders = [folder_path for folder_path, result in results if result is None]
-                error_message = f"Folder Deletion Error: Failed to delete the following folders: {', '.join(failed_folders)}"
-                print(error_message)
-                raise Exception(error_message)
-
-        # Remove files and folders from the file descriptor
-        for file_path in files_to_delete:
-            self.fs.pop(file_path, None)
-        for subfolder_path in sorted(folders_to_delete, key=len, reverse=True):
-            self.fs.pop(subfolder_path, None)
-
-        print(f"Folder '{folder_path}' and all its contents have been deleted.")
+        self.fs.pop(old_path, None)  # Remove the old path from the file descriptor
+        self.fs[new_path] = Directory(appended, new_path) if isinstance(item, Directory) else CloudFile(appended, new_path)
         return True
     
     def get_items_in_folder(self, path):

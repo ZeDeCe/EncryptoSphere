@@ -268,6 +268,26 @@ class CloudService(ABC):
         """
         pass
 
+    @abstractmethod
+    def rename_file(self, file : File, new_name : str) -> File:
+        """
+        Rename a file in the cloud storage
+        @param file the file object to rename
+        @param new_name the new name of the file
+        @return the renamed file object
+        """
+        pass
+
+    @abstractmethod
+    def rename_folder(self, folder : Folder, new_name : str) -> Folder:
+        """
+        Rename a folder in the cloud storage
+        @param folder the folder object to rename
+        @param new_name the new name of the folder
+        @return the renamed folder object
+        """
+        pass
+
 
     @abstractmethod
     def get_name(self) -> str:
