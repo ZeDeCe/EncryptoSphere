@@ -250,7 +250,6 @@ class App(ctk.CTk):
         @param button: The button that was clicked
         @param ignore_list: List of context menus that should not be closed 
         """
-        print(button)
         if not isinstance(button, IconButton):
             for butt in self.selected_icons:
                 butt.deselect()
@@ -333,6 +332,22 @@ class App(ctk.CTk):
         Get the main page frame
         """
         return self.frames[MainPage]
+
+class EmptyPage(ctk.CTkFrame):
+    def __init__(self, parent, controller, text=""):
+        ctk.CTkFrame.__init__(self, parent)
+        self.controller = controller
+        
+        # Empty label
+        self.label = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(family="Segoe UI", size=20), anchor="center")
+        self.label.pack(expand=True, fill=ctk.BOTH)
+    
+    def change_text(self, text):
+        """
+        Change the text of the empty page
+        @param text: The text to be displayed
+        """
+        self.label.configure(text=text)
 
 @clickable
 class LoadingPage(ctk.CTkFrame):
@@ -599,7 +614,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         self.remove_loading()
         for widget in self.clouds_container.winfo_children():
             widget.destroy()
-        self.backbutton.configure(state="normal", width=40, height=40)
+        self.backbutton.configure(state="normal")
         self.authenticated_clouds = self.controller.get_api().get_authenticated_clouds()
         for i, cloud in enumerate(self.cloud_list):
             icon_path = cloud.get_icon_static()
@@ -620,6 +635,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         if self.controller.get_api().get_metadata_exists():
             self.submit_button.configure(text="Continue to Login")
         self.notice_message()
+        self.backbutton.configure(width=40, height=40)
     
     
     def cloud_button_clicked(self, cloud, cloud_button):
@@ -1223,6 +1239,7 @@ class MainPage(ctk.CTkFrame):
         self.current_session = page
         page.pack(fill=ctk.BOTH, expand=True)
         page.lift()
+        self.messages_pannel.lift()
         page.refresh()
 
     def change_session(self, uid):
@@ -1412,6 +1429,11 @@ class Folder(ctk.CTkScrollableFrame):
         # Make the scrollbar thinner
         self._scrollbar.configure(width=16)
 
+        for col in range(6):
+            self.grid_columnconfigure(col, weight=1, uniform="file_grid")
+
+        self.empty_page = EmptyPage(self, self.controller, "No items found")
+
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
         self.controller.get_api().get_items_in_folder_async(lambda f: self.update_button_lists(f.result()), self.path)
@@ -1439,7 +1461,7 @@ class Folder(ctk.CTkScrollableFrame):
                     item_list.remove(item)
                     item.grid_forget()
                     # item.destroy()
-
+    
         self._refresh()
 
     def _refresh(self):
@@ -1451,9 +1473,18 @@ class Folder(ctk.CTkScrollableFrame):
         # Forget all existing files and folders
         for widget in self.winfo_children():
             widget.grid_forget()
-
-        for col in range(columns):
-            self.grid_columnconfigure(col, weight=1, uniform="file_grid")
+        self.empty_page.grid_forget()
+        empty = True
+        for itemlist in self.item_lists:
+            if len(itemlist) != 0:
+                empty = False
+                break
+        
+        if empty:
+            self.empty_page.grid(row=0, column=0, columnspan=columns, padx=5, pady=5, sticky="nsew")
+            self.empty_page.lift()
+            return
+        
         index = 0
 
         for item_list in self.item_lists:
