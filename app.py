@@ -128,6 +128,7 @@ class App(ctk.CTk):
         self.show_frame(EmailPage)
 
         self.bind("<Delete>", lambda event: self.delete_selected())
+        self.bind("<F2>", lambda event: self.rename_selected())
         
     def _start_auto_refresh_task(self):
         def auto_refresh_loop():
@@ -184,7 +185,6 @@ class App(ctk.CTk):
         if self.current_popup == popup:
             self.current_popup = None
 
-
     def download_selected(self):
         for butt in self.selected_icons:
             butt.configure(fg_color="#2B2D2F")
@@ -216,6 +216,18 @@ class App(ctk.CTk):
                     self.remove_message(label)
             future.add_done_callback(callback)
         self.selected_icons = []
+
+    def rename_selected(self):
+        """
+        Rename the selected items from the main page
+        """
+        if len(self.selected_icons) == 0:
+            return
+        icon = self.selected_icons[0]
+        if not hasattr(icon, "rename"):
+            print("Renaming something that doesn't have a rename function")
+            return
+        icon.rename()
 
     def delete_selected(self):
         if len(self.selected_icons) == 0:
