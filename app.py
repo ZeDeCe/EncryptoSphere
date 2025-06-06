@@ -821,7 +821,7 @@ class MainPage(ctk.CTkFrame):
         self.homepage_button.pack(anchor="w", padx=10, pady=5, expand=False)
 
         users_icon = ctk.CTkImage(light_image=Image.open("resources/users_icon.png"), size=(20, 20))
-        self.shared_files_button = ctk.CTkButton(self.side_bar, image=users_icon, text="Shared Files",compound="left",
+        self.shared_files_button = ctk.CTkButton(self.side_bar, image=users_icon, text="Shared",compound="left",
                                                  command=lambda: self.display_page(self.sessions_folder, options=["New Share"]),
                                                  width=120, height=30, hover=False, fg_color="#3A3C41", anchor="w")
         self.shared_files_button.pack(anchor="w", padx=10, pady=0, expand=False)
@@ -944,7 +944,7 @@ class MainPage(ctk.CTkFrame):
         """
         print("Upload button clicked")
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup(self.upload_button.winfo_x(), self.upload_button.winfo_y()+5)
+            self.context_menu.show_popup(self.upload_button.winfo_x(), self.upload_button.winfo_y()-5)
         else:
             self.context_menu.hide_popup()
 
