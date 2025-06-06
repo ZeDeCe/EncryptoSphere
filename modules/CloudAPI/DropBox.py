@@ -4,6 +4,7 @@ import dropbox
 import webbrowser
 import os
 import re
+import time
 
 import dropbox.exceptions 
 from modules.CloudAPI.CloudService import CloudService
@@ -455,7 +456,21 @@ class DropBox(CloudService):
         except Exception as e:
             print(f"Error: {e}")
     '''
-        
+    def check_job_status(self, job_id, interval=0.1, timeout=60):
+        start = time.time()
+        while True:
+            status = self.dbx.sharing_check_job_status(job_id)
+            if status.is_complete():
+                print("Success")
+                return True
+            elif status.is_failed():
+                print("Failed: ", status.get_failed())
+                return False
+            elif time.time() - start > timeout:
+                print("Timeout: Job did not complete in time.")
+                return False
+            time.sleep(interval)
+
     def unshare_by_email(self, folder : CloudService.Folder, emails):
         """
         Unshare a folder by given email address
@@ -469,7 +484,17 @@ class DropBox(CloudService):
                 member = dropbox.sharing.MemberSelector.email(email) 
 
                 # Remove the member from the shared folder
-                result = self.dbx.sharing_remove_folder_member(folder.shared, member, False)  
+                result = self.dbx.sharing_remove_folder_member(folder.shared, member, False)
+                result_job_id = result.get_async_job_id() if result.is_async_job_id() else None
+                if result_job_id is None:
+                    success = False
+                    print(f"Failed to remove member '{email}' from folder '{folder.name}'. No job ID returned.")
+                    continue
+                status = self.check_job_status(result_job_id)
+                if status is False:
+                    print(f"Failed to remove member '{email}' from folder '{folder.name}'.")
+                    success = False
+                    continue
                 print(f"Member {email} removed from folder '{folder}' successfully.")
             except dropbox.exceptions.ApiError as e:
                 print(f"Error removing member '{email}' from folder '{folder}': {e}")

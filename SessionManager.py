@@ -140,6 +140,10 @@ class SessionManager():
         Goes through all sessions in self.sessions and calls share_keys
         """
         for folder,session in self.sessions.items():
+            if not session.test_access():
+                print(f"Session {session.get_uid()} is inactive, ending it.")
+                self.end_session(session)
+                continue
             session.share_keys()
 
 
