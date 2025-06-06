@@ -398,6 +398,7 @@ class FormPage(ctk.CTkFrame):
         # Email Entry Field
         self.entry = ctk.CTkEntry(self.right_panel, placeholder_text=input_placeholder_text, width=300, height=35)
         self.entry.pack(padx=20)
+        self.entry.bind("<Return>", lambda event: self.submit())
 
         # Submit Button
         self.submit_button = ctk.CTkButton(self.right_panel, text=button_text, command=self.submit, width=300, height=35, corner_radius=10)
@@ -428,6 +429,7 @@ class FormPage(ctk.CTkFrame):
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
+        self.controller.focus_set()
         self.submit_button.configure(state="disabled")
         if hasattr(self, 'backbutton'):
             self.backbutton.configure(state="disabled")
@@ -488,7 +490,7 @@ class LocalPasswordPage(FormPage):
         self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
         self.error_label.pack()
         self.entry.configure(show="*")
-        self.entry.bind("<Return>", lambda event: self.submit())
+        
         
         
     def validate_password(self, password):
