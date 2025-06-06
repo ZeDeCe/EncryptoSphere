@@ -126,6 +126,8 @@ class App(ctk.CTk):
         
         # Show the start page (as of this POC, login to the clouds)
         self.show_frame(EmailPage)
+
+        self.bind("<Delete>", lambda event: self.delete_selected())
         
     def _start_auto_refresh_task(self):
         def auto_refresh_loop():
@@ -216,6 +218,8 @@ class App(ctk.CTk):
         self.selected_icons = []
 
     def delete_selected(self):
+        if len(self.selected_icons) == 0:
+            return
         if len(self.selected_icons) == 1:
             icon = self.selected_icons[0]
             self.selected_icons = []
