@@ -189,13 +189,44 @@ class App(ctk.CTk):
             butt.selected = False
             butt.download()
         self.selected_icons = []
-        
-    def delete_selected(self):
-        for butt in self.selected_icons:
+
+    def _delete_selected_items(self):
+        """
+        Delete the selected items from the main page
+        """
+        if not self.selected_for_deletion:
+            return
+        label = self.add_message_label(f"Deleting {len(self.selected_for_deletion)} items")
+        counter = 0
+        iconcount = len(self.selected_for_deletion)
+        for butt in self.selected_for_deletion:
             butt.configure(fg_color="#2B2D2F")
             butt.selected = False
-            butt.delete()
+            if not hasattr(butt, "force_delete"):
+                print("Deleting something that doesn't have a delete function")
+                continue
+            future = butt.force_delete()
+            def callback(f):
+                nonlocal counter
+                nonlocal iconcount
+                counter += 1
+                if counter == iconcount:
+                    self.remove_message(label)
+            future.add_done_callback(callback)
         self.selected_icons = []
+
+    def delete_selected(self):
+        if len(self.selected_icons) == 1:
+            icon = self.selected_icons[0]
+            self.selected_icons = []
+            icon.deselect()
+            if not hasattr(icon, "delete"):
+                print("Deleting something that doesn't have a delete function")
+                return
+            icon.delete()
+            return
+        self.selected_for_deletion = self.selected_icons.copy()
+        self.show_message_notification(f"Are you sure you want to delete the {len(self.selected_icons)} selected items?", "Confirm", self._delete_selected_items)
 
     def button_clicked(self, button, append=False):
         """
@@ -206,22 +237,19 @@ class App(ctk.CTk):
         print(button)
         if not isinstance(button, IconButton):
             for butt in self.selected_icons:
-                butt.configure(fg_color="#2B2D2F")
-                butt.selected = False
+                butt.deselect()
             self.selected_icons = []
         else:
             if not append:
                 for butt in self.selected_icons:
-                    butt.configure(fg_color="#2B2D2F")
-                    butt.selected = False
+                    butt.deselect()
                 self.selected_icons = []
 
                 self.selected_icons.append(button)
-                button.configure(fg_color="#4e5155")
-               
+                button.select()
+
             else:
-                button.configure(fg_color="#4e5155")
-                button.selected = True
+                button.select()
                 self.selected_icons.append(button)
 
         if self.current_popup is None:
@@ -1545,6 +1573,14 @@ class IconButton(ctk.CTkFrame):
         
     def on_button3_click(self, event=None):
         self.controller.button_clicked(self)
+
+    def select(self):
+        self.configure(fg_color="#4e5155")
+        self.selected = True
+
+    def deselect(self):
+        self.configure(fg_color="#2B2D2F")
+        self.selected = False
     
 
 
@@ -1593,6 +1629,16 @@ class FileButton(IconButton):
             self.data.get("id", None),
         )
 
+    def force_delete(self, label=None):
+        return self.controller.get_api().delete_file(
+            lambda f: (
+                self.controller.remove_message(label) if label else None,
+                self.master.refresh(),
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
+            ),
+            self.data.get("id", None)
+            )
+        
     def delete(self):
         """
         Delete file from the cloud and refresh the page
@@ -1606,15 +1652,7 @@ class FileButton(IconButton):
         
         def on_confirm():
             label = self.controller.add_message_label(f"Deleting file {file_name}")
-            self.controller.get_api().delete_file(
-            lambda f: (
-                self.controller.remove_message(label),
-                self.master.refresh(),
-                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
-            ),
-            self.data.get("id", None)
-            )
-            # Immediately pop the file from the list
+            self.force_delete(label)
 
         self.controller.show_message_notification(desc_text, title, on_confirm)
 
@@ -1674,6 +1712,9 @@ class Popup:
     def lift():
         pass
     
+class OptionButton(ctk.CTkButton):
+    def clicked(self, event):
+        pass
 class OptionMenu(ctk.CTkFrame, Popup):
     """
     Class to create the context menu option bar
@@ -1688,13 +1729,14 @@ class OptionMenu(ctk.CTkFrame, Popup):
         self.context_hidden = True
         self.enabled = True
         for button in buttons:
-            butt = ctk.CTkButton(self, image=button["image"] ,text=button["label"],
+            butt = OptionButton(self, image=button["image"] ,text=button["label"],
                                       command=button["event"], compound="left",
                                       width=130, height=30, fg_color=button["color"], anchor="w")
             butt.pack(pady=5, padx=10, fill="x")
             butt.bind("<Button-1>", lambda event: self.hide_popup(), add="+")
             self.buttons.append(butt)
 
+    
 
     def hide_popup(self):
         """
@@ -1786,7 +1828,7 @@ class MessageNotification(ctk.CTkFrame, Popup):
         confirm_button.pack(side="right", padx=(5, 10), anchor="se")
 
         Popup.show_popup(self)
-
+    
     def _handle_confirm(self, on_confirm):
         """
         Handle the confirm button click
@@ -1850,26 +1892,28 @@ class FolderButton(IconButton):
              }
         ])
     
-    
+    def force_delete(self, label=None):
+        return self.controller.get_api().delete_folder(
+            lambda f: (
+                self.controller.remove_message(label) if label else None,
+                self.master.refresh(),
+                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.controller.refresh()
+            ),
+            self.data.get("id", None)
+            )
+        
     def delete(self):
         """
         Delete folder from the cloud and refresh the page
         """
         if self.selected:
             return self.controller.delete_selected()
+        
         desc_text = f'"{self.folder_name}" will be permanently deleted.'
         title = "Delete This Folder?"
         def on_confirm():
             label = self.controller.add_message_label(f"Deleting folder {self.folder_name}")
-            self.controller.get_api().delete_folder(
-            lambda f: (
-                self.controller.remove_message(label),
-                self.master.refresh(),
-                messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.controller.refresh()
-            ),
-            self.data.get("id", None)
-            )
-            # Immediately pop the folder from the list
+            self.force_delete(label)
 
         self.controller.show_message_notification(desc_text, title, on_confirm)
     
