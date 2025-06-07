@@ -612,7 +612,9 @@ class DropBox(CloudService):
                                 if isinstance(entry, dropbox.files.FileMetadata):
                                     yield CloudService.File(id=entry.path_display, name=entry.name)
                                 elif isinstance(entry, dropbox.files.FolderMetadata):
-                                    yield CloudService.Folder(id=entry.path_display, name=entry.name)
+                                    if folder._id != entry.path_display:
+                                        yield CloudService.Folder(id=entry.path_display, name=entry.name)
+
                         
                         # Continue if there are more entries
                         if result.has_more:

@@ -115,8 +115,7 @@ class App(ctk.CTk):
         self.current_popup : Popup = None
         
         self._auto_refresh_running = True
-        self._start_auto_refresh_task()
-
+        #self._start_auto_refresh_task()
 
         # Creating the frames
         for F in (EmailPage, LoginCloudsPage, LocalPasswordPage, RegistrationPage, MainPage):
@@ -139,14 +138,13 @@ class App(ctk.CTk):
         threading.Thread(target=auto_refresh_loop, daemon=True).start()
 
     def _trigger_mainpage_refresh(self):
-        pass
-        # try:
-        #     # Only refresh if authenticated/session is ready
-        #     if self.api and hasattr(self.api, "current_session") and self.api.current_session:
-        #         print("Auto-refreshing")
-        #         self.frames[MainPage].refresh_button_click()
-        # except Exception as e:
-        #     print(f"Auto-refresh error: {e}")
+        try:
+            # Only refresh if authenticated/session is ready
+            if self.api and hasattr(self.api, "current_session") and self.api.current_session:
+                print("Auto-refreshing")
+                self.frames[MainPage].refresh_button_click()
+        except Exception as e:
+            print(f"Auto-refresh error: {e}")
 
     def show_frame(self, cont):
         """
@@ -168,7 +166,7 @@ class App(ctk.CTk):
         """
         Ensure proper cleanup before closing the application
         """    
-        self._auto_refresh_running = False
+        self._auto_refresh_running = False  # Signal the thread to stop
         
         if self.api.manager:
             self.api.manager.cleanup_temp_folder() 
