@@ -113,8 +113,9 @@ class App(ctk.CTk):
         self.buttons = []
         self.current_popup : Popup = None
         
-        self._auto_refresh_running = True
-        self._start_auto_refresh_task()
+        self._auto_refresh_stop_event = threading.Event()  # Event to signal the thread to stop
+        self._auto_refresh_thread = threading.Thread(target=self._auto_refresh_task, daemon=True)
+        self._auto_refresh_thread.start()
 
 
         # Creating the frames
@@ -126,23 +127,19 @@ class App(ctk.CTk):
         # Show the start page (as of this POC, login to the clouds)
         self.show_frame(EmailPage)
         
-    def _start_auto_refresh_task(self):
-        def auto_refresh_loop():
-            while self._auto_refresh_running:
-                time.sleep(AUTO_REFRESH_TIME)
-                # Schedule the refresh on the main thread
-                self.after(0, self._trigger_mainpage_refresh)
-        threading.Thread(target=auto_refresh_loop, daemon=True).start()
+    def _auto_refresh_task(self):
+        while not self._auto_refresh_stop_event.is_set():
+            time.sleep(AUTO_REFRESH_TIME)
+            self.after(0, self._trigger_mainpage_refresh)
 
     def _trigger_mainpage_refresh(self):
-        pass
-        # try:
-        #     # Only refresh if authenticated/session is ready
-        #     if self.api and hasattr(self.api, "current_session") and self.api.current_session:
-        #         print("Auto-refreshing")
-        #         self.frames[MainPage].refresh_button_click()
-        # except Exception as e:
-        #     print(f"Auto-refresh error: {e}")
+        try:
+            # Only refresh if authenticated/session is ready
+            if self.api and hasattr(self.api, "current_session") and self.api.current_session:
+                print("Auto-refreshing")
+                self.frames[MainPage].refresh_button_click()
+        except Exception as e:
+            print(f"Auto-refresh error: {e}")
 
     def show_frame(self, cont):
         """
@@ -164,7 +161,7 @@ class App(ctk.CTk):
         """
         Ensure proper cleanup before closing the application
         """    
-        self._auto_refresh_running = False
+        self._auto_refresh_stop_event.set()  # Signal the thread to stop
         
         if self.api.manager:
             self.api.manager.cleanup_temp_folder() 
