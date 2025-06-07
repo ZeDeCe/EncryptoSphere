@@ -53,13 +53,20 @@ class SessionManager():
         """
         assert isinstance(session, str) or isinstance(session, SharedCloudManager)
         try:
+            pending = False
             if isinstance(session, str):
-                session = self.sessions.get(session)
-                if not session:
-                    raise KeyError(f"No such session '{session}' exists.")
-            session.delete_session()  # Call delete_session in SharedCloudManager
-            self.sessions.pop(session.get_uid(), None)
-            print(f"Session '{session.get_uid()}' ended successfully.")
+                sess = self.sessions.get(session)
+                if not sess:
+                    sess = self.pending_folders.get(session)
+                    pending = True
+                    if not sess:
+                        raise KeyError(f"No such session '{session}' exists.")
+            sess.delete_session()  # Call delete_session in SharedCloudManager
+            if not pending:
+                self.sessions.pop(sess.get_uid(), None)
+            else:
+                self.pending_folders.pop(sess.get_uid(), None)
+            print(f"Session '{sess.get_uid()}' ended successfully.")
         except KeyError as e:
             print(f"No such session exists: {e}")
         except Exception as e:
