@@ -461,6 +461,27 @@ class Gateway:
         print(f"Create folder selected {folder_path}")
         return self.current_session.create_folder(folder_path)
     
+    @promise
+    def rename_file(self, file_path, new_name):
+        """
+        Rename file function
+        @param file_path: the path of the file to rename
+        @param new_name: the new name of the file
+        @return: True if the file was renamed successfully, False otherwise
+        """
+        print(f"Rename file selected {file_path} to {new_name}")
+
+
+    @promise
+    def rename_folder(self, folder_name, new_name):
+        """
+        Rename folder function
+        @param folder: the folder to rename
+        @param new_name: the new name of the folder
+        @return: True if the folder was renamed successfully, False otherwise
+        """
+        print(f"Rename folder selected {folder_name} to {new_name}")
+
     def get_path_from_searchindex(self, search_index):
         return self.current_session.object_to_cloudobject(self.search_results[search_index])
     

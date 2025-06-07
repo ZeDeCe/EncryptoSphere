@@ -111,6 +111,7 @@ class App(ctk.CTk):
         
         # List of all buttons
         self.buttons = []
+        self.selected_icons : list[IconButton] = []
         self.current_popup : Popup = None
         
         self._auto_refresh_running = True
@@ -124,6 +125,9 @@ class App(ctk.CTk):
         
         # Show the start page (as of this POC, login to the clouds)
         self.show_frame(EmailPage)
+
+        self.bind("<Delete>", lambda event: self.delete_selected())
+        self.bind("<F2>", lambda event: self.rename_selected())
         
     def _start_auto_refresh_task(self):
         def auto_refresh_loop():
@@ -178,13 +182,89 @@ class App(ctk.CTk):
     def remove_popup(self, popup):
         if self.current_popup == popup:
             self.current_popup = None
-    
-    def button_clicked(self, button):
+
+    def download_selected(self):
+        for butt in self.selected_icons:
+            butt.configure(fg_color="#2B2D2F")
+            butt.selected = False
+            butt.download()
+        self.selected_icons = []
+
+    def _delete_selected_items(self):
+        """
+        Delete the selected items from the main page
+        """
+        if not self.selected_for_deletion:
+            return
+        label = self.add_message_label(f"Deleting {len(self.selected_for_deletion)} items")
+        counter = 0
+        iconcount = len(self.selected_for_deletion)
+        for butt in self.selected_for_deletion:
+            butt.configure(fg_color="#2B2D2F")
+            butt.selected = False
+            if not hasattr(butt, "force_delete"):
+                print("Deleting something that doesn't have a delete function")
+                continue
+            future = butt.force_delete()
+            def callback(f):
+                nonlocal counter
+                nonlocal iconcount
+                counter += 1
+                if counter == iconcount:
+                    self.remove_message(label)
+            future.add_done_callback(callback)
+        self.selected_icons = []
+
+    def rename_selected(self):
+        """
+        Rename the selected items from the main page
+        """
+        if len(self.selected_icons) == 0:
+            return
+        icon = self.selected_icons[0]
+        if not hasattr(icon, "rename"):
+            print("Renaming something that doesn't have a rename function")
+            return
+        icon.rename()
+
+    def delete_selected(self):
+        if len(self.selected_icons) == 0:
+            return
+        if len(self.selected_icons) == 1:
+            icon = self.selected_icons[0]
+            self.selected_icons = []
+            icon.deselect()
+            if not hasattr(icon, "delete"):
+                print("Deleting something that doesn't have a delete function")
+                return
+            icon.delete()
+            return
+        self.selected_for_deletion = self.selected_icons.copy()
+        self.show_message_notification(f"Are you sure you want to delete the {len(self.selected_icons)} selected items?", "Confirm", self._delete_selected_items)
+
+    def button_clicked(self, button, append=False):
         """
         When any button is clicked, we need to close all opend context_menu(s)
         @param button: The button that was clicked
         @param ignore_list: List of context menus that should not be closed 
         """
+        if not isinstance(button, IconButton):
+            for butt in self.selected_icons:
+                butt.deselect()
+            self.selected_icons = []
+        else:
+            if not append:
+                for butt in self.selected_icons:
+                    butt.deselect()
+                self.selected_icons = []
+
+                self.selected_icons.append(button)
+                button.select()
+
+            else:
+                button.select()
+                self.selected_icons.append(button)
+
         if self.current_popup is None:
             return
         parent = button
@@ -196,8 +276,10 @@ class App(ctk.CTk):
             except:
                 print("Got to end of parents but did not hit break, flawed code")
                 break
-        
         self.current_popup.hide_popup()
+       
+
+
 
     def change_folder(self, path, uid=None):
         """
@@ -248,6 +330,22 @@ class App(ctk.CTk):
         Get the main page frame
         """
         return self.frames[MainPage]
+
+class EmptyPage(ctk.CTkFrame):
+    def __init__(self, parent, controller, text=""):
+        ctk.CTkFrame.__init__(self, parent)
+        self.controller = controller
+        
+        # Empty label
+        self.label = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(family="Segoe UI", size=20), anchor="center")
+        self.label.pack(expand=True, fill=ctk.BOTH)
+    
+    def change_text(self, text):
+        """
+        Change the text of the empty page
+        @param text: The text to be displayed
+        """
+        self.label.configure(text=text)
 
 @clickable
 class LoadingPage(ctk.CTkFrame):
@@ -313,6 +411,7 @@ class FormPage(ctk.CTkFrame):
         # Email Entry Field
         self.entry = ctk.CTkEntry(self.right_panel, placeholder_text=input_placeholder_text, width=300, height=35)
         self.entry.pack(padx=20)
+        self.entry.bind("<Return>", lambda event: self.submit())
 
         # Submit Button
         self.submit_button = ctk.CTkButton(self.right_panel, text=button_text, command=self.submit, width=300, height=35, corner_radius=10)
@@ -343,6 +442,7 @@ class FormPage(ctk.CTkFrame):
         This function is called when a user hits the submit button after typing the email address.
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
+        self.controller.focus_set()
         self.submit_button.configure(state="disabled")
         if hasattr(self, 'backbutton'):
             self.backbutton.configure(state="disabled")
@@ -403,7 +503,7 @@ class LocalPasswordPage(FormPage):
         self.error_label = ctk.CTkLabel(self.right_panel, text="", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="red")
         self.error_label.pack()
         self.entry.configure(show="*")
-        self.entry.bind("<Return>", lambda event: self.submit())
+        
         
         
     def validate_password(self, password):
@@ -512,7 +612,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         self.remove_loading()
         for widget in self.clouds_container.winfo_children():
             widget.destroy()
-        self.backbutton.configure(state="normal", width=40, height=40)
+        self.backbutton.configure(state="normal")
         self.authenticated_clouds = self.controller.get_api().get_authenticated_clouds()
         for i, cloud in enumerate(self.cloud_list):
             icon_path = cloud.get_icon_static()
@@ -533,6 +633,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         if self.controller.get_api().get_metadata_exists():
             self.submit_button.configure(text="Continue to Login")
         self.notice_message()
+        self.backbutton.configure(width=40, height=40)
     
     
     def cloud_button_clicked(self, cloud, cloud_button):
@@ -734,7 +835,7 @@ class MainPage(ctk.CTkFrame):
         self.homepage_button.pack(anchor="w", padx=10, pady=5, expand=False)
 
         users_icon = ctk.CTkImage(light_image=Image.open("resources/users_icon.png"), size=(20, 20))
-        self.shared_files_button = ctk.CTkButton(self.side_bar, image=users_icon, text="Shared Files",compound="left",
+        self.shared_files_button = ctk.CTkButton(self.side_bar, image=users_icon, text="Shared",compound="left",
                                                  command=lambda: self.display_page(self.sessions_folder, options=["New Share"]),
                                                  width=120, height=30, hover=False, fg_color="#3A3C41", anchor="w")
         self.shared_files_button.pack(anchor="w", padx=10, pady=0, expand=False)
@@ -857,7 +958,7 @@ class MainPage(ctk.CTkFrame):
         """
         print("Upload button clicked")
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup(self.upload_button.winfo_x(), self.upload_button.winfo_y()+5)
+            self.context_menu.show_popup(self.upload_button.winfo_x(), self.upload_button.winfo_y()-5)
         else:
             self.context_menu.hide_popup()
 
@@ -1136,6 +1237,7 @@ class MainPage(ctk.CTkFrame):
         self.current_session = page
         page.pack(fill=ctk.BOTH, expand=True)
         page.lift()
+        self.messages_pannel.lift()
         page.refresh()
 
     def change_session(self, uid):
@@ -1325,6 +1427,11 @@ class Folder(ctk.CTkScrollableFrame):
         # Make the scrollbar thinner
         self._scrollbar.configure(width=16)
 
+        for col in range(6):
+            self.grid_columnconfigure(col, weight=1, uniform="file_grid")
+
+        self.empty_page = EmptyPage(self, self.controller, "No items found")
+
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
         self.controller.get_api().get_items_in_folder_async(lambda f: self.update_button_lists(f.result()), self.path)
@@ -1352,7 +1459,7 @@ class Folder(ctk.CTkScrollableFrame):
                     item_list.remove(item)
                     item.grid_forget()
                     # item.destroy()
-
+    
         self._refresh()
 
     def _refresh(self):
@@ -1364,9 +1471,18 @@ class Folder(ctk.CTkScrollableFrame):
         # Forget all existing files and folders
         for widget in self.winfo_children():
             widget.grid_forget()
-
-        for col in range(columns):
-            self.grid_columnconfigure(col, weight=1, uniform="file_grid")
+        self.empty_page.grid_forget()
+        empty = True
+        for itemlist in self.item_lists:
+            if len(itemlist) != 0:
+                empty = False
+                break
+        
+        if empty:
+            self.empty_page.grid(row=0, column=0, columnspan=columns, padx=5, pady=5, sticky="nsew")
+            self.empty_page.lift()
+            return
+        
         index = 0
 
         for item_list in self.item_lists:
@@ -1465,24 +1581,25 @@ class IconButton(ctk.CTkFrame):
         self.controller = controller
         self.master = master
         self.id = id
+        self.selected = False
         self.file_icon = ctk.CTkImage(light_image=Image.open(icon_path), size=(60, 60))
 
-        icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
-        icon_label.pack(pady=(5, 0))
+        self.icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
+        self.icon_label.pack(pady=(5, 0))
 
-        name_label = ctk.CTkLabel(self, text=text, wraplength=90, justify="center")
-        name_label.pack(pady=(0, 5))
+        self.name_label = ctk.CTkLabel(self, text=text, wraplength=90, justify="center")
+        self.name_label.pack(pady=(0, 5))
 
         # Connect all file related content to do the same action when clicked (open the context_menu)
         self.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
-        icon_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
-        name_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
+        self.icon_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
+        self.name_label.bind("<Button-1>", lambda e: self.on_button1_click(e), add="+")
         self.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
-        icon_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
-        name_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
+        self.icon_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
+        self.name_label.bind("<Button-3>", lambda e: self.on_button3_click(e), add="+")
         self.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
-        icon_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
-        name_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
+        self.icon_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
+        self.name_label.bind("<Double-Button-1>", lambda e: self.on_double_click(e), add="+")
 
     def __eq__(self, other):
         if isinstance(other, IconButton):
@@ -1495,13 +1612,27 @@ class IconButton(ctk.CTkFrame):
         return not self.__eq__(other)
 
     def on_button1_click(self, event=None):
-        self.controller.button_clicked(self)
+        append = (event.state & 0x0004) != 0  # 0x0004 is the Control key mask in Tkinter
+        self.controller.button_clicked(self, append)
+        self.selected = True
 
     def on_double_click(self, event=None):
+        # Deselect this icon on double-click
+        self.selected = False
         self.controller.button_clicked(self)
-    
+        
     def on_button3_click(self, event=None):
         self.controller.button_clicked(self)
+
+    def select(self):
+        self.configure(fg_color="#4e5155")
+        self.selected = True
+
+    def deselect(self):
+        self.configure(fg_color="#2B2D2F")
+        self.selected = False
+    
+
 
 @clickable
 class FileButton(IconButton):
@@ -1518,27 +1649,34 @@ class FileButton(IconButton):
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
         self.context_menu = OptionMenu(controller.container, self.controller, [
             {
-                "label": "Download File",
+                "label": "Download",
                 "color": "#3A3C41",
                 "image": ctk.CTkImage(Image.open("resources/download.png"), size=(20, 20)),
-                "event": lambda: self.download_file_from_cloud()
+                "event": lambda: self.download()
              },
              {
-                 "label": "Delete File",
+                 "label": "Delete",
                  "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
                  "color": "#3A3C41",
-                 "event": lambda: self.delete_file_from_cloud()
+                 "event": lambda: self.delete()
+             },
+             {
+                 "label": "Rename",
+                 "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                 "color": "#3A3C41",
+                 "event": lambda: self.rename()
              }
         ])
 
 
-    def download_file_from_cloud(self):
+    def download(self):
         """
         Download file from the cloud and refresh the page
         @param file_id: The id of the file to be downloaded
         """
+        if self.selected:
+            return self.controller.download_selected()
         label = self.controller.add_message_label(f"Downloading file {self.data['name']}")
-
         self.controller.get_api().download_file(
             lambda f: (
                 self.controller.remove_message(label),
@@ -1547,26 +1685,30 @@ class FileButton(IconButton):
             self.data.get("id", None),
         )
 
-    def delete_file_from_cloud(self):
+    def force_delete(self, label=None):
+        return self.controller.get_api().delete_file(
+            lambda f: (
+                self.controller.remove_message(label) if label else None,
+                self.master.refresh(),
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
+            ),
+            self.data.get("id", None)
+            )
+        
+    def delete(self):
         """
         Delete file from the cloud and refresh the page
         @param file_id: The id of the file to be deleted
         """
+        if self.selected:
+            return self.controller.delete_selected()
         file_name = self.data['name']
         desc_text = f'"{file_name}" will be permanently deleted.'
         title = "Delete This File?"
         
         def on_confirm():
             label = self.controller.add_message_label(f"Deleting file {file_name}")
-            self.controller.get_api().delete_file(
-            lambda f: (
-                self.controller.remove_message(label),
-                self.master.refresh(),
-                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
-            ),
-            self.data.get("id", None)
-            )
-            # Immediately pop the file from the list
+            self.force_delete(label)
 
         self.controller.show_message_notification(desc_text, title, on_confirm)
 
@@ -1579,6 +1721,51 @@ class FileButton(IconButton):
                 messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
             ),
             self.data.get("id", None)
+        )
+
+    def rename(self):
+        """
+        If rename option is selected in the upload_context_menu, open a dialog to let the user pick a new name for the object
+        """
+        # Get the position and size of the parent window
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_width = self.winfo_width()
+        parent_height = self.winfo_height()
+
+        # Create the input dialog
+        input_dialog = ctk.CTkInputDialog(text="Enter the new name:", title=f"Rename {self.data['name']}")
+
+        # Calculate the position to center the dialog over the parent window
+        dialog_width = 300  # Approximate width of the dialog
+        dialog_height = 150  # Approximate height of the dialog
+        dialog_x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        dialog_y = parent_y + (parent_height // 2) - (dialog_height // 2)
+
+        # Set the position of the dialog
+        input_dialog.geometry(f"{dialog_width}x{dialog_height}+{dialog_x}+{dialog_y}")
+
+        # Get the folder name from the input dialog
+        new_name = input_dialog.get_input()
+        self.context_menu.hide_popup()
+        if new_name:
+            self.rename_file_in_cloud(new_name)
+
+    def rename_file_in_cloud(self, new_name):
+        """
+        Rename a file in the cloud and refresh the page
+        @param new_name: The new name of the file
+        """
+        label = self.controller.add_message_label(f"Renaming file {self.data['name']} to {new_name}")
+
+        self.controller.get_api().rename_file(
+            lambda f: (
+                self.controller.remove_message(label),
+                self.master.refresh(),
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
+            ),
+            self.data.get("id", None),
+            new_name
         )
 
     def on_button3_click(self, event=None):
@@ -1626,6 +1813,9 @@ class Popup:
     def lift():
         pass
     
+class OptionButton(ctk.CTkButton):
+    def clicked(self, event):
+        pass
 class OptionMenu(ctk.CTkFrame, Popup):
     """
     Class to create the context menu option bar
@@ -1640,13 +1830,14 @@ class OptionMenu(ctk.CTkFrame, Popup):
         self.context_hidden = True
         self.enabled = True
         for button in buttons:
-            butt = ctk.CTkButton(self, image=button["image"] ,text=button["label"],
+            butt = OptionButton(self, image=button["image"] ,text=button["label"],
                                       command=button["event"], compound="left",
                                       width=130, height=30, fg_color=button["color"], anchor="w")
             butt.pack(pady=5, padx=10, fill="x")
             butt.bind("<Button-1>", lambda event: self.hide_popup(), add="+")
             self.buttons.append(butt)
 
+    
 
     def hide_popup(self):
         """
@@ -1739,7 +1930,7 @@ class MessageNotification(ctk.CTkFrame, Popup):
         confirm_button.pack(side="right", padx=(5, 10), anchor="se")
 
         Popup.show_popup(self)
-
+    
     def _handle_confirm(self, on_confirm):
         """
         Handle the confirm button click
@@ -1790,44 +1981,56 @@ class FolderButton(IconButton):
         # Create a context menu using CTkFrame for folder operations (As of now we don't suport these operations)
         self.context_menu = OptionMenu(self.controller.container, self.controller, [
             {
-                "label": "Download Folder",
+                "label": "Download",
                 "image": ctk.CTkImage(Image.open("resources/download.png"), size=(20, 20)),
                 "color": "#3A3C41",
-                "event": lambda: self.download_folder()
+                "event": lambda: self.download()
              },
              {
-                 "label": "Delete Folder",
+                 "label": "Delete",
                  "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
                  "color": "#3A3C41",
-                 "event": lambda: self.delete_folder_from_cloud() 
-             }
+                 "event": lambda: self.delete() 
+             },
+            {
+                "label": "Rename",
+                "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.rename()
+            }
         ])
     
-    
-    def delete_folder_from_cloud(self):
-        """
-        Delete folder from the cloud and refresh the page
-        """
-        desc_text = f'"{self.folder_name}" will be permanently deleted.'
-        title = "Delete This Folder?"
-        def on_confirm():
-            label = self.controller.add_message_label(f"Deleting folder {self.folder_name}")
-            self.controller.get_api().delete_folder(
+    def force_delete(self, label=None):
+        return self.controller.get_api().delete_folder(
             lambda f: (
-                self.controller.remove_message(label),
+                self.controller.remove_message(label) if label else None,
                 self.master.refresh(),
                 messagebox.showerror("Application Error", str(f.exception())) if f.exception() else self.controller.refresh()
             ),
             self.data.get("id", None)
             )
-            # Immediately pop the folder from the list
+        
+    def delete(self):
+        """
+        Delete folder from the cloud and refresh the page
+        """
+        if self.selected:
+            return self.controller.delete_selected()
+        
+        desc_text = f'"{self.folder_name}" will be permanently deleted.'
+        title = "Delete This Folder?"
+        def on_confirm():
+            label = self.controller.add_message_label(f"Deleting folder {self.folder_name}")
+            self.force_delete(label)
 
         self.controller.show_message_notification(desc_text, title, on_confirm)
     
-    def download_folder(self):
+    def download(self):
         """
         Download folder from the cloud and refresh the page
         """
+        if self.selected:
+            return self.controller.download_selected()
         label = self.controller.add_message_label(f"Downloading folder {self.folder_name}")
         self.controller.get_api().download_folder(
             lambda f: (
@@ -1836,6 +2039,51 @@ class FolderButton(IconButton):
             ),
             self.data.get("id", None)
             )
+        
+    def rename(self):
+        """
+        If rename option is selected in the upload_context_menu, open a dialog to let the user pick a new name for the object
+        """
+        # Get the position and size of the parent window
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_width = self.winfo_width()
+        parent_height = self.winfo_height()
+
+        # Create the input dialog
+        input_dialog = ctk.CTkInputDialog(text="Enter the new name:", title=f"Rename {self.folder_name}")
+
+        # Calculate the position to center the dialog over the parent window
+        dialog_width = 300  # Approximate width of the dialog
+        dialog_height = 150  # Approximate height of the dialog
+        dialog_x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        dialog_y = parent_y + (parent_height // 2) - (dialog_height // 2)
+
+        # Set the position of the dialog
+        input_dialog.geometry(f"{dialog_width}x{dialog_height}+{dialog_x}+{dialog_y}")
+
+        # Get the folder name from the input dialog
+        new_name = input_dialog.get_input()
+        self.context_menu.hide_popup()
+        if new_name:
+            self.rename_folder_in_cloud(new_name)
+
+    def rename_folder_in_cloud(self, new_name):
+        """
+        Rename a folder in the cloud and refresh the page
+        @param new_name: The new name of the folder
+        """
+        label = self.controller.add_message_label(f"Renaming folder {self.folder_name} to {new_name}")
+
+        self.controller.get_api().rename_folder(
+            lambda f: (
+                self.controller.remove_message(label),
+                self.master.refresh(),
+                messagebox.showerror("Application Error",str(f.exception())) if f.exception() else None
+            ),
+            self.data.get("id", None),
+            new_name
+        )
 
     def on_double_click(self, event=None):
         """
