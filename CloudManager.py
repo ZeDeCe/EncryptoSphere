@@ -202,7 +202,7 @@ class CloudManager:
             print(f"Error during authentication, loading of file descriptor: {e}")
             return False
         
-    def upload_file(self, os_filepath, path="/"):
+    def upload_file(self, os_filepath, path="/", name=None):
         """
         Uploads a single file to the cloud.
         
@@ -212,9 +212,11 @@ class CloudManager:
         """
 
         if not os.path.isfile(os_filepath):
-            raise OSError()
-        
-        filebasename = os.path.basename(os_filepath)
+            raise Exception(f"File not found")
+        if name:
+            filebasename = name
+        else:
+            filebasename = os.path.basename(os_filepath)
         filepath = f"{path if path != '/' else ''}/{filebasename}"
         if filepath in self.fs:
             raise Exception(f"File or folder already exists with given path {path}")
@@ -399,7 +401,7 @@ class CloudManager:
                 raise Exception("Failed to upload files in folders.")
         return True
 
-    def download_file(self, path, isopen=False):
+    def download_file(self, path, isopen=False, iscopy=False):
         """
         Downloads a file from the various clouds
         file_id is a FileDescriptor ID of the file.
@@ -439,7 +441,7 @@ class CloudManager:
             except Exception as e:
                 raise Exception(f"Error merging or decrypting data for file {path}: {e}")
 
-            if not isopen:
+            if not isopen and not iscopy:
                 # Set the destination path to the Downloads folder
                 downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
                 dest_path = os.path.join(downloads_folder, file.data.get("name"))
@@ -448,10 +450,13 @@ class CloudManager:
                 while os.path.exists(dest_path):
                     dest_path = f"{file_name} ({counter}){ext}"
                     counter += 1
-            else:
+            if isopen and not iscopy:
                 # Set the destination path to the temporary folder
                 dest_path = self.get_temp_file_path(file.data.get("name"))
-            
+            if iscopy and not isopen:  
+                tmp = self.get_temp_file_path("copy")
+                dest_path = os.path.join(tmp, file.data.get("name"))
+
             # Write the reconstructed file to the destination path
             try:
                 with open(dest_path, 'wb') as output:
@@ -478,7 +483,7 @@ class CloudManager:
         try:
             # Download the file
             print(f"Downloading file from path: {path}")
-            success = self.download_file(path, True)
+            success = self.download_file(path, isopen=True)
             if not success:
                 raise Exception(f"Failed to download file from path: {path}")
 
@@ -742,8 +747,57 @@ class CloudManager:
         
         for item_path in to_remove:
             self.fs.pop(item_path)
-    
+
+    def copy_paste(self, files: list[str], destination_path: str):
+        """
+        Copy and paste files to a destination path.
+        Downloads the files, checks for name conflicts, and uploads them to the destination path.
+        If a name conflict exists, renames the file to 'Copy of <original_name>'.
+        @param files: List of file paths to copy.
+        @param destination_path: The destination folder path.
+        """
+        if not self.fs.get(destination_path) or not isinstance(self.fs.get(destination_path), Directory):
+            raise FileNotFoundError(f"Destination path '{destination_path}' does not exist or is not a folder.")
+
+        destination_folder = self.fs.get(destination_path)
+
+        copied_files = []
+        tmp_dir = self.get_temp_file_path("copy")
+        os.makedirs(tmp_dir, exist_ok=True)  # Create the directory if it doesn't exist
+        existing_files = {item["name"] for item in self.get_items_in_folder(destination_path)}
         
+        for file_path in files:
+            file = self.fs.get(file_path)
+            if not file or not isinstance(file, CloudFile):
+                raise FileNotFoundError(f"File '{file_path}' does not exist.")
+
+            # Download the file
+            print(f"Downloading file: {file_path}")
+            file_data = self.download_file(file_path, iscopy=True)
+            
+            # Check for name conflicts
+            original_name = file_path.split("/")[-1]
+            new_name = original_name
+            counter = 1
+            while new_name in existing_files:
+                new_name = f"Copy_of_{original_name}" if counter == 1 else f"Copy_({counter})_of_{original_name}"
+                counter += 1
+
+            # Upload the file to the destination
+            dest_path = os.path.join(tmp_dir, original_name)
+            print(f"Temporary file path: {dest_path}")
+            print(f'uploading to: {destination_path}/{new_name}')
+            self.upload_file(dest_path, destination_path, new_name)
+            copied_files.append(f"{destination_path}/{new_name}")
+            existing_files.add(new_name)
+
+        # Clean up the temporary directory
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
+            print(f"Temporary directory '{tmp_dir}' cleaned up.")
+
+        return copied_files
+            
     @staticmethod
     def is_metadata_exists(cloud : CloudService, root : str, file_name : str) -> bool:
         """

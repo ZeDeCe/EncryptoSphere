@@ -377,7 +377,27 @@ class Gateway:
         @param file_id: the id of the file to download
         @return: True if the file was downloaded successfully, False otherwise
         """
+        print(f"Download file selected: {path}")
         return self.current_session.download_file(path)
+    
+    @promise
+    @enrichable
+    def copy_paste(self, files_paths: list[str], destination_path: str):
+        """
+        Copy and paste files to a destination path.
+        Delegates the logic to the CloudManager.
+        @param files: List of file paths to copy.
+        @param destination_path: The destination folder path.
+        @return: List of new file paths in the destination folder.
+        """
+        try:
+            print(f"Copying files: {files_paths} to destination: {destination_path}")
+            copied_files = self.current_session.copy_paste(files_paths, destination_path)
+            print(f"Copied files: {copied_files}")
+            return copied_files
+        except Exception as e:
+            print(f"Error during copy-paste operation: {e}")
+            raise
 
     @promise
     @enrichable
