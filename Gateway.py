@@ -117,6 +117,12 @@ class Gateway:
         """
         return Encrypt.get_classes(), Split.get_classes()
     
+    def get_current_session(self):
+        """
+        Returns the current session
+        """
+        return "0" if self.current_session == self.manager else self.current_session.get_uid()
+    
     @promise
     def cloud_authenticate(self, cloud_name: str):
         """
@@ -382,34 +388,36 @@ class Gateway:
     
     @promise
     @enrichable
-    def copy_file(self, file_path: str, destination_path: str):
+    def copy_file(self, path: str, destination_path: str, source_session: str):
         """
         Copy and paste files to a destination path.
         Delegates the logic to the CloudManager.
         @param files: List of file paths to copy.
         @param destination_path: The destination folder path.
+        @param source_session: The session UID from which the files are copied, 0 if main session
         @return: List of new file paths in the destination folder.
         """
         try:
-            print(f"Copying file: {file_path} to destination: {destination_path}")
-            return self.current_session.copy_file(file_path, destination_path)
+            print(f"Copying file: {path} to destination: {destination_path}")
+            return self.current_session.copy_file(path, destination_path)
         except Exception as e:
             print(f"Error during copy-paste operation: {e}")
             raise
 
     @promise
     @enrichable
-    def copy_folder(self, folder_path: str, destination_path: str):
+    def copy_folder(self, path: str, destination_path: str, source_session: str):
         """
         Copy and paste folders to a destination path.
         Delegates the logic to the CloudManager.
         @param folder_path: The path of the folder to copy.
         @param destination_path: The destination folder path.
+        @param source_session: The session UID from which the files are copied, 0 if main session
         @return: List of new folder paths in the destination folder.
         """
         try:
-            print(f"Copying folder: {folder_path} to destination: {destination_path}")
-            return self.current_session.copy_folder(folder_path, destination_path)
+            print(f"Copying folder: {path} to destination: {destination_path}")
+            return self.current_session.copy_folder(path, destination_path)
         except Exception as e:
             print(f"Error during copy-paste operation: {e}")
             raise

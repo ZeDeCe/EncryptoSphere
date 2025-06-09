@@ -112,6 +112,8 @@ class App(ctk.CTk):
         # List of all buttons
         self.buttons = []
         self.selected_icons : list[IconButton] = []
+        self.copypaste : list[IconButton] = []
+        self.copypaste_session = None
         self.current_popup : Popup = None
         
         self._auto_refresh_running = True
@@ -128,6 +130,8 @@ class App(ctk.CTk):
 
         self.bind("<Delete>", lambda event: self.delete_selected())
         self.bind("<F2>", lambda event: self.rename_selected())
+        self.bind("<Control-c>", lambda event: self.copy())
+        self.bind("<Control-v>", lambda event: self.paste(self.frames[MainPage].current_session.curr_path))
         
     def _start_auto_refresh_task(self):
         def auto_refresh_loop():
@@ -330,6 +334,35 @@ class App(ctk.CTk):
         Get the main page frame
         """
         return self.frames[MainPage]
+
+    def paste(self, path):
+        if self.copypaste == [] or self.copypaste_session is None:
+            return
+        copypastecopy = self.copypaste.copy()
+        sess = self.copypaste_session
+        self.copypaste = []
+        count = len(copypastecopy)
+        label = self.add_message_label(f"Copying {count} file(s)")
+        
+        def callback(f):
+            nonlocal count
+            nonlocal label
+            if f.result():
+                count -= 1
+            if count == 0:
+                self.get_main_page().refresh()
+                self.remove_message(label)
+
+        for icon in copypastecopy:
+            if isinstance(icon, FolderButton):
+                self.api.copy_folder(callback, icon.id, path, sess)
+            elif isinstance(icon, FileButton):
+                self.api.copy_file(callback, icon.id, path, sess)
+
+    def copy(self):
+        self.copypaste = self.selected_icons.copy()
+        self.copypaste_session = self.api.get_current_session()
+
 
 class EmptyPage(ctk.CTkFrame):
     def __init__(self, parent, controller, text=""):
