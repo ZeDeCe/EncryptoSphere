@@ -524,16 +524,22 @@ class SharedCloudManager(CloudManager):
                     try:
                         # Get the email of the current user
                         user_email = cloud.get_email()
+                        print(f"Leaving shared folder '{folder.name}' on cloud '{cloud.get_name()}' for user {user_email}.")
                         if user_email:
-                            # Delete the user's specific FEK file
-                            fek_file_name = f"$FEK_{user_email}"
-                            fek_files = cloud.list_files(folder, fek_file_name)
-                            for fek in fek_files:
+                            # Delete all files that end with the user's email
+                            user_email_suffix = f"_{user_email}"
+                            all_files = cloud.list_files(folder, "$")  # List all files with a prefix of "$"
+                            matching_files = [f for f in all_files if f.get_name().endswith(user_email_suffix)]
+
+                            print(f"Found matching files for user {user_email}: {[f.get_name() for f in matching_files]}")
+
+                            for file in matching_files:
                                 try:
-                                    cloud.delete_file(fek)
-                                    print(f"Deleted FEK file '{fek_file_name}' for user {user_email} on {cloud.get_name()}.")
+                                    print(f"Deleting file '{file.get_name()}' for user {user_email} on {cloud.get_name()}.")
+                                    cloud.delete_file(file)
+                                    print(f"Deleted file '{file.get_name()}' for user {user_email} on {cloud.get_name()}.")
                                 except Exception as e:
-                                    print(f"Failed to delete FEK file '{fek_file_name}' for user {user_email} on {cloud.get_name()}: {e}")
+                                    print(f"Failed to delete file '{file.get_name()}' for user {user_email} on {cloud.get_name()}: {e}")
 
                         # Leave the shared folder
                         cloud.leave_shared_folder(folder)
