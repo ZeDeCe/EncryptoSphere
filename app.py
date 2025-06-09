@@ -336,30 +336,33 @@ class App(ctk.CTk):
         return self.frames[MainPage]
 
     def paste(self, path):
-        if self.copypaste == []:
+        if self.copypaste == [] or self.copypaste_session is None:
             return
         copypastecopy = self.copypaste.copy()
+        sess = self.copypaste_session
         self.copypaste = []
         count = len(copypastecopy)
+        label = self.add_message_label(f"Copying {count} file(s)")
         
         def callback(f):
             nonlocal count
+            nonlocal label
             if f.result():
                 count -= 1
             if count == 0:
                 self.get_main_page().refresh()
+                self.remove_message(label)
 
         for icon in copypastecopy:
             if isinstance(icon, FolderButton):
-                self.api.copy_folder(callback, icon.id, path) # We want to add session here?
+                self.api.copy_folder(callback, icon.id, path, sess)
             elif isinstance(icon, FileButton):
-                self.api.copy_file(callback, icon.id, path)
+                self.api.copy_file(callback, icon.id, path, sess)
 
     def copy(self):
         self.copypaste = self.selected_icons.copy()
-        self.copypaste_session = self.get_main_page().current_session
+        self.copypaste_session = self.api.get_current_session()
 
-    
 
 class EmptyPage(ctk.CTkFrame):
     def __init__(self, parent, controller, text=""):
