@@ -113,6 +113,7 @@ class App(ctk.CTk):
         self.buttons = []
         self.selected_icons : list[IconButton] = []
         self.copypaste : list[IconButton] = []
+        self.copypaste_session = None
         self.current_popup : Popup = None
         
         self._auto_refresh_running = True
@@ -129,6 +130,8 @@ class App(ctk.CTk):
 
         self.bind("<Delete>", lambda event: self.delete_selected())
         self.bind("<F2>", lambda event: self.rename_selected())
+        self.bind("<Control-c>", lambda event: self.copy())
+        self.bind("<Control-v>", lambda event: self.paste(self.frames[MainPage].current_session.curr_path))
         
     def _start_auto_refresh_task(self):
         def auto_refresh_loop():
@@ -333,7 +336,24 @@ class App(ctk.CTk):
         return self.frames[MainPage]
 
     def paste(self, path):
-        self.api.copy_paste()
+        if self.copypaste == []:
+            return
+        copypastecopy = self.copypaste.copy()
+        self.copypaste = []
+        count = len(copypastecopy)
+        
+        def callback(f):
+            nonlocal count
+            if f.result():
+                count -= 1
+            if count == 0:
+                self.get_main_page().refresh()
+
+        for icon in copypastecopy:
+            if isinstance(icon, FolderButton):
+                self.api.copy_folder(callback, icon.id, path) # We want to add session here?
+            elif isinstance(icon, FileButton):
+                self.api.copy_file(callback, icon.id, path)
 
     def copy(self):
         self.copypaste = self.selected_icons.copy()
