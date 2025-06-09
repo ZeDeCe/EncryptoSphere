@@ -620,7 +620,7 @@ class CloudManager:
             print(error_message)
             raise Exception(error_message)
     
-    def rename_items(self, old_path : str, new_name : str):
+    def rename_item(self, old_path : str, new_name : str):
         """
         Renames an item (file or folder) in the EncryptoSphere file descriptor.
         @param old_path: The current path of the item to rename.
@@ -638,7 +638,7 @@ class CloudManager:
         # Create the new path
         parent_path = "/".join(old_path.split("/")[:-1])
         new_path = f"{parent_path}/{new_name}"
-        
+        parent_path = parent_path if parent_path != "" else "/"
         # Check if the new path already exists
         if self.fs.get(new_path):
             raise FileExistsError(f"An item with the name '{new_name}' already exists at {parent_path}.")
@@ -647,19 +647,22 @@ class CloudManager:
             if t.get("name") == new_name:
                 raise FileExistsError(f"An item with the name '{new_name}' already exists in the folder {parent_path}.")
 
-        
         # Rename the item in all clouds
         futures = {}
         for cloud in self.clouds:
             if isinstance(item, Directory):
-                futures[self.executor.submit(cloud.rename_item, item.get(cloud.get_name()), new_name)] = cloud
+                futures[self.executor.submit(cloud.rename_folder, item.get(cloud.get_name()), new_name)] = cloud
             elif isinstance(item, CloudFile):
                 # For files, we need to rename each part
                 for index, part in enumerate(item.get(cloud.get_name())):
-                    new_file_name = part.name.replace(old_name, new_name)
+                    split_name = part.name.split(FILE_INDEX_SEPERATOR, 1)
+                    if len(split_name) == 2:
+                        new_file_name = f"{split_name[0]}{FILE_INDEX_SEPERATOR}{new_name}"
+                    else:
+                        new_file_name = new_name
                     if new_name == old_name:
                         raise ValueError("New name cannot be the same as the old name.")
-                    futures[self.executor.submit(cloud.rename_item, part, new_file_name)] = cloud
+                    futures[self.executor.submit(cloud.rename_file, part, new_file_name)] = cloud
         
         results, success = self._complete_cloud_threads(futures)
         if not success:

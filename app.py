@@ -360,6 +360,9 @@ class App(ctk.CTk):
                 self.api.copy_file(callback, icon.id, path, sess)
 
     def copy(self):
+        if self.selected_icons == []:
+            return
+        
         self.copypaste = self.selected_icons.copy()
         self.copypaste_session = self.api.get_current_session()
 
@@ -1791,7 +1794,7 @@ class FileButton(IconButton):
         """
         label = self.controller.add_message_label(f"Renaming file {self.data['name']} to {new_name}")
 
-        self.controller.get_api().rename_file(
+        self.controller.get_api().rename(
             lambda f: (
                 self.controller.remove_message(label),
                 self.master.refresh(),
@@ -2108,7 +2111,7 @@ class FolderButton(IconButton):
         """
         label = self.controller.add_message_label(f"Renaming folder {self.folder_name} to {new_name}")
 
-        self.controller.get_api().rename_folder(
+        self.controller.get_api().rename(
             lambda f: (
                 self.controller.remove_message(label),
                 self.master.refresh(),
