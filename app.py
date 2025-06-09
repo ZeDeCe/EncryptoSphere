@@ -112,6 +112,7 @@ class App(ctk.CTk):
         # List of all buttons
         self.buttons = []
         self.selected_icons : list[IconButton] = []
+        self.copypaste : list[IconButton] = []
         self.current_popup : Popup = None
         
         self._auto_refresh_running = True
@@ -330,6 +331,13 @@ class App(ctk.CTk):
         Get the main page frame
         """
         return self.frames[MainPage]
+
+    def paste(self, path):
+        pass
+
+    def copy(self):
+        self.copypaste = self.selected_icons.copy()
+        
 
 class EmptyPage(ctk.CTkFrame):
     def __init__(self, parent, controller, text=""):
