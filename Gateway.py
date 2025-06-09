@@ -399,17 +399,17 @@ class Gateway:
 
     @promise
     @enrichable
-    def copy_file(self, folder_path: str, destination_path: str):
+    def copy_folder(self, folder_path: str, destination_path: str):
         """
-        Copy and paste files to a destination path.
+        Copy and paste folders to a destination path.
         Delegates the logic to the CloudManager.
-        @param files: List of file paths to copy.
+        @param folder_path: The path of the folder to copy.
         @param destination_path: The destination folder path.
-        @return: List of new file paths in the destination folder.
+        @return: List of new folder paths in the destination folder.
         """
         try:
             print(f"Copying folder: {folder_path} to destination: {destination_path}")
-            return self.current_session.copy_file(folder_path, destination_path)
+            return self.current_session.copy_folder(folder_path, destination_path)
         except Exception as e:
             print(f"Error during copy-paste operation: {e}")
             raise
