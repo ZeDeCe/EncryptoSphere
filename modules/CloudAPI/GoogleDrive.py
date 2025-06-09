@@ -455,6 +455,42 @@ class GoogleDrive(CloudService):
         return self._delete_item(folder._id)
 
 
+    def rename_folder(self, folder: CloudService.Folder, new_name: str) -> CloudService.Folder:
+        """
+        Rename a folder in Google Drive.
+        @param folder: the folder object to rename
+        @param new_name: the new name of the folder
+        @return: the renamed folder object
+        """
+        try:
+            folder_id = folder._id
+            body = {'name': new_name}
+            updated_folder = self.drive_service.files().update(fileId=folder_id, body=body).execute()
+            print(f"Google Drive: Renamed folder '{folder.name}' to '{new_name}'.")
+            return CloudService.Folder(id=updated_folder['id'], name=new_name)
+        except Exception as e:
+            print(f"Google Drive: Error renaming folder '{folder.name}' to '{new_name}': {e}")
+            raise Exception(f"Google Drive - Error renaming folder: {e}")
+
+
+    def rename_file(self, file: CloudService.File, new_name: str) -> CloudService.File:
+        """
+        Rename a file in Google Drive.
+        @param file: the file object to rename
+        @param new_name: the new name of the file
+        @return: the renamed file object
+        """
+        try:
+            file_id = file._id
+            body = {'name': new_name}
+            updated_file = self.drive_service.files().update(fileId=file_id, body=body).execute()
+            print(f"Google Drive: Renamed file '{file.name}' to '{new_name}'.")
+            return CloudService.File(id=updated_file['id'], name=new_name)
+        except Exception as e:
+            print(f"Google Drive: Error renaming file '{file.name}' to '{new_name}': {e}")
+            raise Exception(f"Google Drive - Error renaming file: {e}")
+
+
     def get_session_folder(self, name: str) -> CloudService.Folder:
         """
         Get the session folder from Google Drive, create it if it doesn't exist.
@@ -889,5 +925,3 @@ class GoogleDrive(CloudService):
     #     except HttpError as e:
     #         print(f"Error retrieving metadata for item '{item.name}': {e}")
     #         raise
-
-    
