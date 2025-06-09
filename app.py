@@ -1461,7 +1461,15 @@ class Folder(ctk.CTkScrollableFrame):
         self.folder_list : list[IconButton] = []
         self.session_list : list[IconButton] = []
         self.item_lists = [self.folder_list, self.file_list]
-
+        self.context_menu = OptionMenu(controller.container, self.controller, [
+            {
+                "label": "Paste",
+                "image": ctk.CTkImage(Image.open("resources/paste.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.paste()
+            }
+        ])
+        
         # Make the scrollbar thinner
         self._scrollbar.configure(width=16)
 
@@ -1469,6 +1477,11 @@ class Folder(ctk.CTkScrollableFrame):
             self.grid_columnconfigure(col, weight=1, uniform="file_grid")
 
         self.empty_page = EmptyPage(self, self.controller, "No items found")
+
+        self._parent_canvas.bind("<Button-3>", self.on_button3_click, add="+")
+    
+    def paste(self):
+        self.controller.paste(self.path)
 
     def refresh(self):
         self.pack(fill=ctk.BOTH, expand=True)
@@ -1531,6 +1544,15 @@ class Folder(ctk.CTkScrollableFrame):
 
                 item.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
                 index += 1
+    
+    def on_button3_click(self, event):
+        self.controller.button_clicked(self)
+        scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
+        if self.context_menu.context_hidden:
+            self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor, adjust=False)
+        else:
+           self.context_menu.hide_popup()
+
 
 @clickable
 class SessionsFolder(Folder):
@@ -1706,7 +1728,7 @@ class FileButton(IconButton):
              },
              {
                 "label": "Copy",
-                "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.copy()
              }
@@ -1820,7 +1842,8 @@ class FileButton(IconButton):
         Click on a file close any other open context menus
         @param event: The event that triggered this function
         """
-        super().on_button3_click(event)
+        if not self.selected:
+            super().on_button3_click(event)
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
@@ -1895,14 +1918,17 @@ class OptionMenu(ctk.CTkFrame, Popup):
         Popup.hide_popup(self)
             
     
-    def show_popup(self, x, y):
+    def show_popup(self, x, y, adjust=True):
         """
         Display the current context menu on the selected location
         """ 
         if not self.enabled:
             return
         if self.context_hidden:
-            x_anchor = "w" if x < self.master.winfo_width()/2 else "e"
+            if adjust:
+                x_anchor = "w" if x < self.master.winfo_width()/2 else "e"
+            else:
+                x_anchor = "w"
             scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
             # this doesn't work because of the scrollable frame
             #y_anchor = "s" if y < self.master.winfo_height()/2 else "n"
@@ -2047,7 +2073,7 @@ class FolderButton(IconButton):
             },
             {
                 "label": "Copy",
-                "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.copy()
              }
@@ -2150,7 +2176,8 @@ class FolderButton(IconButton):
         self.controller.change_folder(self.id, self.session_uid)
     
     def on_button3_click(self, event=None):
-        super().on_button3_click(event)
+        if not self.selected:
+            super().on_button3_click(event)
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
@@ -2408,7 +2435,8 @@ class SharedFolderButton(IconButton):
         #new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
     def on_button3_click(self, event=None):
-        super().on_button3_click(event)
+        if not self.selected:
+            super().on_button3_click(event)
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
@@ -2448,7 +2476,8 @@ class PendingSharedFolderButton(IconButton):
         self.controller.get_api().leave_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
 
     def on_button3_click(self, event=None):
-        super().on_button3_click(event)
+        if not self.selected:
+            super().on_button3_click(event)
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
