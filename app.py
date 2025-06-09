@@ -359,11 +359,13 @@ class App(ctk.CTk):
             elif isinstance(icon, FileButton):
                 self.api.copy_file(callback, icon.id, path, sess)
 
-    def copy(self):
-        if self.selected_icons == []:
+    def copy(self, item=None):
+        if item is None and self.selected_icons == []:
             return
-        
-        self.copypaste = self.selected_icons.copy()
+        if item:
+            self.copypaste = [item]
+        else:
+            self.copypaste = self.selected_icons.copy()
         self.copypaste_session = self.api.get_current_session()
 
 
@@ -1659,7 +1661,7 @@ class IconButton(ctk.CTkFrame):
         
     def on_button3_click(self, event=None):
         self.controller.button_clicked(self)
-
+        
     def select(self):
         self.configure(fg_color="#4e5155")
         self.selected = True
@@ -1691,19 +1693,27 @@ class FileButton(IconButton):
                 "event": lambda: self.download()
              },
              {
-                 "label": "Delete",
-                 "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
-                 "color": "#3A3C41",
-                 "event": lambda: self.delete()
+                "label": "Delete",
+                "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.delete()
              },
              {
-                 "label": "Rename",
-                 "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
-                 "color": "#3A3C41",
-                 "event": lambda: self.rename()
+                "label": "Rename",
+                "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.rename()
+             },
+             {
+                "label": "Copy",
+                "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.copy()
              }
         ])
 
+    def copy(self):
+        self.controller.copy(None if self.selected else self)
 
     def download(self):
         """
@@ -1810,6 +1820,7 @@ class FileButton(IconButton):
         Click on a file close any other open context menus
         @param event: The event that triggered this function
         """
+        super().on_button3_click(event)
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
@@ -2033,8 +2044,17 @@ class FolderButton(IconButton):
                 "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.rename()
-            }
+            },
+            {
+                "label": "Copy",
+                "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.copy()
+             }
         ])
+
+    def copy(self):
+        self.controller.copy(None if self.selected else self)
     
     def force_delete(self, label=None):
         return self.controller.get_api().delete_folder(
@@ -2130,6 +2150,7 @@ class FolderButton(IconButton):
         self.controller.change_folder(self.id, self.session_uid)
     
     def on_button3_click(self, event=None):
+        super().on_button3_click(event)
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
@@ -2387,6 +2408,7 @@ class SharedFolderButton(IconButton):
         #new_window.after(100, lambda: scrollable_frame._scrollbar.configure(width=8))  # Adjust the width of the scrollbar
 
     def on_button3_click(self, event=None):
+        super().on_button3_click(event)
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
@@ -2426,6 +2448,7 @@ class PendingSharedFolderButton(IconButton):
         self.controller.get_api().leave_shared_folder(lambda f: (self.controller.refresh(), self.controller.remove_message(label)), self.uid)
 
     def on_button3_click(self, event=None):
+        super().on_button3_click(event)
         scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
