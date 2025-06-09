@@ -333,11 +333,13 @@ class App(ctk.CTk):
         return self.frames[MainPage]
 
     def paste(self, path):
-        pass
+        self.api.copy_paste()
 
     def copy(self):
         self.copypaste = self.selected_icons.copy()
-        
+        self.copypaste_session = self.get_main_page().current_session
+
+    
 
 class EmptyPage(ctk.CTkFrame):
     def __init__(self, parent, controller, text=""):
