@@ -848,12 +848,6 @@ class GoogleDrive(CloudService):
         except HttpError as error:
             raise Exception(f"Error getting shared members: {error}")
          
-    def rename_file(self, file, new_name):
-        raise NotImplementedError("Must be implemented")
-    
-    def rename_folder(self, folder, new_name):
-        raise NotImplementedError("Must be implemented")
-    
     def get_name(self):
         """
         Return the name of the cloud service

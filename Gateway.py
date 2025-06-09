@@ -64,6 +64,10 @@ class Gateway:
             future : concurrent.futures.Future = self.executor.submit(func, self, *args, **kwargs)
             if not callback is None:
                 future.add_done_callback(callback)
+                def exception_caller(f):
+                    if f.exception():
+                        print(f"Error occurred in a promise: {f.exception()}")
+                future.add_done_callback(exception_caller)
             return future
         return wrapper
     
@@ -488,7 +492,7 @@ class Gateway:
         """
         try:
             print(f"Renaming item at path '{path}' to '{new_name}'")
-            return self.current_session.rename_items(path, new_name)
+            return self.current_session.rename_item(path, new_name)
         except Exception as e:
             print(f"Unexpected error during renaming: {e}")
             raise
