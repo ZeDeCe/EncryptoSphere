@@ -10,6 +10,7 @@ class ShamirSplit(Split):
         super().__init__()
         self.copies_per_cloud = 2
         self.min_parts = 3
+        self.min_clouds = 2
 
 
     @staticmethod
