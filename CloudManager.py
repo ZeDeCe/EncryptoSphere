@@ -870,7 +870,11 @@ class CloudManager:
         
         except FileNotFoundError as fnfe:
             print(f"File not found: {fnfe}. Skipping folder '{folder_path}'.")
+            if os.path.exists(renamed_tmp_dir_folder):
+                shutil.rmtree(renamed_tmp_dir_folder)
         except Exception as e:
+            if os.path.exists(renamed_tmp_dir_folder):
+                shutil.rmtree(renamed_tmp_dir_folder)
             print(f"Unexpected error while copying folder '{folder_path}': {e}. Skipping folder.")
 
         return False

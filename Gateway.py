@@ -497,6 +497,8 @@ class Gateway:
                 
         except Exception as e:
             print(f"Error during copy-paste operation: {e}")
+            if os.path.exists(renamed_tmp_dir_folder):
+                shutil.rmtree(renamed_tmp_dir_folder)
             raise
 
     @promise
