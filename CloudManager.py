@@ -383,7 +383,7 @@ class CloudManager:
                 if encrypto_root[-1] != "/":
                     encrypto_root = f"{encrypto_root}/"
                 for dir in dirs:
-                    print(f"Doing folder: {encrypto_root}\{dir}")
+                    print(f"Doing folder: {encrypto_root} {dir}")
                     futures[folder_executor.submit(self.create_folder, f"{encrypto_root}{dir}")] = f"{encrypto_root}{dir}"
                 results, success = self._complete_cloud_threads(futures)
                 if not success:
