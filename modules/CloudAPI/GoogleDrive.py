@@ -754,70 +754,111 @@ class GoogleDrive(CloudService):
 
     def list_shared_folders(self, filter=""):
         """
-        List all shared folders that are either shared with me or that I've shared with others.
+        List all shared folders that are either shared with me or that I've shared with others,
+        plus all folders under /EncryptoSphere (excluding the main_session folder).
         @param filter - Optional suffix to match folder names (like Dropbox).
         @return a list of folder objects that represent the shared folders.
         """
         try:
             shared_folders = []
             page_token = None
-            
+                        
             # Get the authenticated user's email
             about_info = self.drive_service.about().get(fields="user(emailAddress)").execute()
             my_email = about_info["user"]["emailAddress"]
-            
+                        
             # Query to find all shared folders - both shared with me and ones I shared
             query = "mimeType='application/vnd.google-apps.folder' and (sharedWithMe=true or visibility='limited')"
-            
+                        
             while True:
                 results = self.drive_service.files().list(
                     q=query,
                     fields="nextPageToken, files(id, name, owners, permissions(emailAddress), parents)",
                     pageToken=page_token
                 ).execute()
-                
+                                
                 items = results.get('files', [])
                 if items:
                     for item in items:
                         folder_id = item["id"]
                         folder_name = item["name"]
-
+                        
                         # Check filter match (like Dropbox)
                         if filter and not folder_name.endswith(filter):
                             continue
-                        
+                                                
                         # Check if the folder is actually shared (has members other than myself)
                         permissions = item.get("permissions", [])
                         shared_with_others = False
                         members_shared = []
-                        
+                                                
                         for perm in permissions:
                             if "emailAddress" in perm and perm["emailAddress"] != my_email:
                                 shared_with_others = True
                                 members_shared.append(perm["emailAddress"])
-                        
+                                                
                         if shared_with_others:
                             # Get owners
                             owners = [owner.get("emailAddress") for owner in item.get("owners", [])]
                             for owner_email in owners:
                                 if owner_email and owner_email not in members_shared:
                                     members_shared.append(owner_email)
-                            
+                                                
                             full_path = "/" + folder_name
-
+                            
                             folder_obj = CloudService.Folder(
                                 id=folder_id,
                                 name=folder_name,
                                 shared=True
                             )
                             shared_folders.append(folder_obj)
-                
+                                
                 page_token = results.get('nextPageToken')
                 if not page_token:
                     break
             
+            # Add folders from /EncryptoSphere (excluding main_session)
+            page_token = None
+            root_folder_id = self.root_folder._id
+            encryptosphere_query = f"""
+                mimeType='application/vnd.google-apps.folder'
+                and '{root_folder_id}' in parents
+                and trashed=false
+            """
+            
+            while True:
+                results = self.drive_service.files().list(
+                    q=encryptosphere_query,
+                    fields="nextPageToken, files(id, name)",
+                    pageToken=page_token
+                ).execute()
+                
+                items = results.get("files", [])
+                for item in items:
+                    folder_id = item["id"]
+                    folder_name = item["name"]
+                    
+                    # Skip main_session folder
+                    if folder_name == "main_session":
+                        continue
+                        
+                    # Check filter match
+                    if filter and not folder_name.endswith(filter):
+                        continue
+                    
+                    folder_obj = CloudService.Folder(
+                        id=folder_id,
+                        name=folder_name,
+                        shared=True  
+                    )
+                    shared_folders.append(folder_obj)
+                
+                page_token = results.get("nextPageToken")
+                if not page_token:
+                    break
+                        
             return shared_folders
-        
+                    
         except Exception as e:
             print(f"Error while fetching shared folders: {e}")
             raise
