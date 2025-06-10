@@ -160,13 +160,26 @@ class DropBox(CloudService):
         except dropbox.exceptions.ApiError as e:
             raise Exception(f"Error {e}")
 
+    def folder_exists(self, folder : CloudService.Folder):
+        """
+        Check if a folder exists in Dropbox by its path
+        @param folder: The folder object to check
+        @return: True if the folder exists, False otherwise
+        """
+        try:
+            metadata = self.dbx.files_get_metadata(folder._id)
+            return isinstance(metadata, dropbox.files.FolderMetadata)
+        except dropbox.exceptions.ApiError as e:
+            if e.error.is_path() and e.error.get_path().is_not_found():
+                return False
+            raise Exception(f"Error checking folder existence: {e}")
+
     def list_files(self, folder : CloudService.Folder, filter=""):
         """
         Function to list files in the root directory of Dropbox
         """
         try:
             result = self.dbx.files_list_folder(folder._id)
-            files = []
             while True:
                 # Check if the result has more entries
                 for entry in result.entries:
@@ -177,11 +190,10 @@ class DropBox(CloudService):
                     result = self.dbx.files_list_folder_continue(result.cursor)
                 else:
                     break
-            return files
 
         except dropbox.exceptions.ApiError as e:
             print(f"Dropbox: API error: {e}")
-            raise Exception(f"Error {e}")
+            raise Exception(f"Dropbox Error: {e}")
 
     def upload_file(self, data, file_name: str, parent : CloudService.Folder):
         """
