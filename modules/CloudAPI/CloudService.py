@@ -108,6 +108,15 @@ class CloudService(ABC):
         @return an iterable of file and folder objects
         """
         pass
+    
+
+    def folder_exists(self, folder : Folder):
+        """
+        Check if a folder exists in Dropbox by its path
+        @param folder: The folder object to check
+        @return: True if the folder exists, False otherwise
+        """
+        pass
 
     @abstractmethod
     def list_files(self, folder : Folder, filter="") -> Iterable[File]:
