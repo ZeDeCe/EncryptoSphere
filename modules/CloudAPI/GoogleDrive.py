@@ -755,7 +755,7 @@ class GoogleDrive(CloudService):
     def list_shared_folders(self, filter=""):
         """
         Generator that yields shared folders (either shared with me or by me),
-        and folders under /EncryptoSphere (excluding 'main_session' and 'DELETED').
+        and folders under /EncryptoSphere ending with '_ENCRSH'.
 
         @param filter: Optional suffix to match folder names.
         @yield: Folder objects representing shared folders.
@@ -802,7 +802,7 @@ class GoogleDrive(CloudService):
                 if not page_token:
                     break
 
-            # Folders under /EncryptoSphere (excluding main_session and DELETED)
+            # Folders under /EncryptoSphere ending with '_ENCRSH'
             root_folder_id = self.root_folder._id
             encryptosphere_query = f"""
                 mimeType='application/vnd.google-apps.folder'
@@ -822,8 +822,8 @@ class GoogleDrive(CloudService):
                     folder_id = item["id"]
                     folder_name = item["name"]
 
-                    # Skip 'main_session' and 'DELETED'
-                    if folder_name in ("main_session", "DELETED"):
+                    # Only include folders ending with '_ENCRSH'
+                    if not folder_name.endswith("_ENCRSH"):
                         continue
 
                     if filter and not folder_name.endswith(filter):
