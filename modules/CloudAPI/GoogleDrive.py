@@ -210,6 +210,22 @@ class GoogleDrive(CloudService):
         except Exception as e:
             raise Exception(f"Error {e}")
 
+    def folder_exists(self, folder: CloudService.Folder) -> bool:
+        """
+        Check if a folder exists in Google Drive.
+        Returns True if the folder exists, False otherwise.
+        """
+        try:
+            # Use 'get' to directly fetch folder metadata by ID
+            metadata = self.drive_service.files().get(
+                fileId=folder._id,
+                fields="id, name, mimeType"
+                ).execute()
+            return metadata['mimeType'] == 'application/vnd.google-apps.folder'
+        except Exception as e:
+            print(f"Google Drive: Folder does not exist {folder.name}: {e}")
+            return False
+        
 
     def list_files(self, folder: CloudService.Folder, filter=""):
         """
@@ -242,7 +258,7 @@ class GoogleDrive(CloudService):
 
         except Exception as e:
             print(f"Google Drive: API error: {e}")
-            raise
+            raise Exception(f"Google Drive: Error listing files in folder {folder.name}: {e}") from e
 
 
     def get_items_by_name(self, filter: str, folders: list[CloudService.Folder]) -> Iterable[CloudService.CloudObject]:

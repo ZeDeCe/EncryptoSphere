@@ -13,6 +13,7 @@ class Split(ABC):
         """
         self.copies_per_cloud = 1
         self.min_parts = 1
+        self.min_clouds = 1
 
     @abstractmethod
     def split(self, data : bytes, clouds_num : int) -> str:

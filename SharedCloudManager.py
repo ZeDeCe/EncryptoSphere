@@ -332,11 +332,19 @@ class SharedCloudManager(CloudManager):
         futures = {}
         for cloud in self.clouds:
             # Try downloading a file that shouldn't exist to see if we don't raise exception
-            futures[self.executor.submit(cloud.list_files, self.root_folder.get(cloud.get_name()), "$META")] = cloud
-        
+            root_folder_cloud = self.root_folder.get(cloud.get_name())
+            if root_folder_cloud is None:
+                print(f"Cannot find the root folder in cloud {cloud.get_name()}, access is false")
+                return False
+            futures[self.executor.submit(cloud.folder_exists, root_folder_cloud)] = cloud
         results, success = self._complete_cloud_threads(futures)
-        if not success:
-            print("No access to one of the folders in the clouds")
+        clouds_available = len(self.clouds)
+        for cloud, res in results:
+            if not res:
+                print(f"No access to cloud {cloud.get_name()}'s root folder in shared session {self.root}")
+                clouds_available -= 1
+        if clouds_available < self.split.min_clouds:
+            print(f"Not enough clouds available to access shared session {self.root}, only {clouds_available} available, minimum is {self.split.min_parts}")
             self.loaded = False
             return False
         return True

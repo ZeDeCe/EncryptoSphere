@@ -352,7 +352,6 @@ class CloudManager:
         self.fs[path] = Directory(folders, path)
         return True
 
-    # TODO: error handling
     def upload_folder(self, os_folder, path):
         """
         This function uploads an entire folder to the cloud.
@@ -383,13 +382,18 @@ class CloudManager:
                 if encrypto_root[-1] != "/":
                     encrypto_root = f"{encrypto_root}/"
                 for dir in dirs:
-                    print(f"Doing folder: {encrypto_root}\{dir}")
+                    print(f"Creating folder: {encrypto_root}{dir}")
                     futures[folder_executor.submit(self.create_folder, f"{encrypto_root}{dir}")] = f"{encrypto_root}{dir}"
                 results, success = self._complete_cloud_threads(futures)
                 if not success:
                     raise Exception("Failed to upload folders in given folder.")
                 futures = {}
-        
+
+        # Skip file upload if there are no files
+        if file_amount == 0:
+            print(f"No files to upload in folder: {os_folder}")
+            return True
+
         # Create all files
         futures = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=file_amount if file_amount < 15 else 15) as file_executor:
@@ -398,13 +402,13 @@ class CloudManager:
                 root_arr = root_arr[root_arr.index(folder_name):]
                 encrypto_root = f"{path}{'/'.join(root_arr)}"
                 for file in files:
-                    print(f"Doing file: {encrypto_root}/{file}")
+                    print(f"Uploading file: {encrypto_root}/{file}")
                     futures[file_executor.submit(self.upload_file, os.path.join(root, file), encrypto_root)] = f"{encrypto_root}-{file}"
             results, success = self._complete_cloud_threads(futures)
             if not success:
                 raise Exception("Failed to upload files in folders.")
         return True
-
+    
     def download_file(self, path, isopen=False):
         """
         Downloads a file from the various clouds
@@ -866,7 +870,11 @@ class CloudManager:
         
         except FileNotFoundError as fnfe:
             print(f"File not found: {fnfe}. Skipping folder '{folder_path}'.")
+            if os.path.exists(renamed_tmp_dir_folder):
+                shutil.rmtree(renamed_tmp_dir_folder)
         except Exception as e:
+            if os.path.exists(renamed_tmp_dir_folder):
+                shutil.rmtree(renamed_tmp_dir_folder)
             print(f"Unexpected error while copying folder '{folder_path}': {e}. Skipping folder.")
 
         return False

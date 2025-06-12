@@ -31,7 +31,7 @@ class Directory:
         }
     
     def get(self, cloud_name : str) -> CloudService.Folder:
-        return self.folders[cloud_name]
+        return self.folders.get(cloud_name, None)
     
     def get_data(self):
         return self.data
