@@ -305,18 +305,23 @@ class Gateway:
         Change the current session to the one specified by path
         @param path: the path to the session to change to
         """
-        if uid:
-           self.current_session = self.session_manager.get_session(uid)
-        else:
-            self.current_session = self.session_manager.main_session
-    
-    
+        try:
+            if uid:
+                self.current_session = self.session_manager.get_session(uid)
+            else:
+                self.current_session = self.session_manager.main_session
+        except Exception as e:
+            print(f"Error in change_session: {e}")
+
     @promise
     @enrichable
     def get_items_in_folder_async(self, path="/"):
-        return self.current_session.get_items_in_folder(path)
-    
-    
+        try:
+            return self.current_session.get_items_in_folder(path)
+        except Exception as e:
+            print(f"Error in get_items_in_folder_async: {e}")
+            return []
+
     @promise
     def get_search_results_sharedsessions(self, search_string):
         """
@@ -325,10 +330,12 @@ class Gateway:
         @param path: The folder path to start the search from.
         @return: A list of dictionaries with item details.
         """
-        
-        for folder in self.get_shared_folders():
-            if folder["uid"].startswith(search_string):
-                yield folder
+        try:
+            for folder in self.get_shared_folders():
+                if folder["uid"].startswith(search_string):
+                    yield folder
+        except Exception as e:
+            print(f"Error in get_search_results_sharedsessions: {e}")
 
     @promise
     def get_search_results_async(self, search_string, path):
@@ -338,36 +345,41 @@ class Gateway:
         @param path: The folder path to start the search from.
         @return: A generator yielding dictionaries with item details.
         """
-        print(f"Searching for items matching: {search_string}")
-        item_iter = self.current_session.search_items_by_name(search_string, path)
-        self.search_results = []
-        for index, item in enumerate(item_iter):
-            self.search_results.append(item)
-            if isinstance(item, CloudService.File):
-                split = item.name.split(FILE_INDEX_SEPERATOR) # Maybe just take care of this in CloudManager?
-            yield {
-                "name": split[1] if isinstance(item, CloudService.File) else item.name,
-                "id": index,
-                "type": "file" if isinstance(item, CloudService.File) else "folder",
-                "path": None, 
-                "uid": "0" if self.current_session == self.manager else self.current_session.get_uid(),
-                "search_index": index,
-            }
+        try:
+            print(f"Searching for items matching: {search_string}")
+            item_iter = self.current_session.search_items_by_name(search_string, path)
+            self.search_results = []
+            for index, item in enumerate(item_iter):
+                self.search_results.append(item)
+                if isinstance(item, CloudService.File):
+                    split = item.name.split(FILE_INDEX_SEPERATOR)  # Maybe just take care of this in CloudManager?
+                yield {
+                    "name": split[1] if isinstance(item, CloudService.File) else item.name,
+                    "id": index,
+                    "type": "file" if isinstance(item, CloudService.File) else "folder",
+                    "path": None,
+                    "uid": "0" if self.current_session == self.manager else self.current_session.get_uid(),
+                    "search_index": index,
+                }
+        except Exception as e:
+            print(f"Error in get_search_results_async: {e}")
 
     @promise
     def sync_session(self):
-        print("Refresh button clicked")
-        ret = self.session_manager.sync_new_sessions()
-        print(f"Finished refreshing")
-        return ret
-    
+        try:
+            print("Refresh button clicked")
+            ret = self.session_manager.sync_new_sessions()
+            print(f"Finished refreshing")
+            return ret
+        except Exception as e:
+            print(f"Error in sync_session: {e}")
+            return False
 
     @promise
     def refresh_shared_folder(self):
         # We don't actually need to do anything, just call get_items_in_folder for that shared folder
         pass
 
-        
     @promise
     @enrichable
     def open_file(self, path):
@@ -376,9 +388,12 @@ class Gateway:
         @param file_id: the id of the file to open
         @return: True if the file was opened successfully, False otherwise
         """
-        print(f"Open file selected: {path}")
-        return self.current_session.open_file(path)
-    
+        try:
+            print(f"Open file selected: {path}")
+            return self.current_session.open_file(path)
+        except Exception as e:
+            print(f"Error in open_file: {e}")
+            return False
 
     @promise
     @enrichable
@@ -388,8 +403,12 @@ class Gateway:
         @param file_id: the id of the file to download
         @return: True if the file was downloaded successfully, False otherwise
         """
-        print(f"Download file selected: {path}")
-        return self.current_session.download_file(path)
+        try:
+            print(f"Download file selected: {path}")
+            return self.current_session.download_file(path)
+        except Exception as e:
+            print(f"Error in download_file: {e}")
+            return False
     
     @promise
     @enrichable
@@ -509,9 +528,13 @@ class Gateway:
         @param folder_name: The name of the folder to download.
         @return: The path to the ZIP file if successful, False otherwise.
         """
-        print(f"Download folder selected: {path}")
-        return self.current_session.download_folder(path)
-    
+        try:
+            print(f"Download folder selected: {path}")
+            return self.current_session.download_folder(path)
+        except Exception as e:
+            print(f"Error in download_folder: {e}")
+            return False
+
     @promise
     def upload_file(self, file_path, path):
         """
@@ -520,8 +543,12 @@ class Gateway:
         @param path: the path in the cloud to upload the file to
         @return: True if the file was uploaded successfully, False otherwise
         """
-        print(f"Upload file selected: {file_path}")
-        return self.current_session.upload_file(file_path, path)
+        try:
+            print(f"Upload file selected: {file_path}")
+            return self.current_session.upload_file(file_path, path)
+        except Exception as e:
+            print(f"Error in upload_file: {e}")
+            return False
 
     @promise
     def upload_folder(self, folder_path, path):
@@ -531,8 +558,12 @@ class Gateway:
         @param path: the path in the cloud to upload the folder to
         @return: True if the folder was uploaded successfully, False otherwise
         """
-        print(f"Upload folder selected {folder_path}")
-        return self.current_session.upload_folder(folder_path, path)
+        try:
+            print(f"Upload folder selected {folder_path}")
+            return self.current_session.upload_folder(folder_path, path)
+        except Exception as e:
+            print(f"Error in upload_folder: {e}")
+            return False
 
     @promise
     @enrichable
@@ -542,8 +573,12 @@ class Gateway:
         @param file_id: the id of the file to delete
         @return: True if the file was deleted successfully, False otherwise
         """
-        print(f"Delete file selected {path}")
-        return self.current_session.delete_file(path)
+        try:
+            print(f"Delete file selected {path}")
+            return self.current_session.delete_file(path)
+        except Exception as e:
+            print(f"Error in delete_file: {e}")
+            return False
 
     @promise
     @enrichable
@@ -553,8 +588,12 @@ class Gateway:
         @param path: the path of the folder to delete
         @return: True if the folder was deleted successfully, False otherwise
         """
-        print(f"Delete folder selected {path}")
-        return self.current_session.delete_folder(path)
+        try:
+            print(f"Delete folder selected {path}")
+            return self.current_session.delete_folder(path)
+        except Exception as e:
+            print(f"Error in delete_folder: {e}")
+            return False
     
     @promise
     @enrichable
@@ -574,89 +613,82 @@ class Gateway:
     
     @promise
     def create_folder(self, folder_path):
-        """
-        Create folder function
-        @param folder_name: the name of the folder to create
-        @param path: the path in the cloud to create the folder in
-        @return: True if the folder was created successfully, False otherwise
-        """
-        print(f"Create folder selected {folder_path}")
-        return self.current_session.create_folder(folder_path)
+        try:
+            print(f"Create folder selected {folder_path}")
+            return self.current_session.create_folder(folder_path)
+        except Exception as e:
+            print(f"Error in create_folder: {e}")
 
     def get_path_from_searchindex(self, search_index):
-        return self.current_session.object_to_cloudobject(self.search_results[search_index])
-    
+        try:
+            return self.current_session.object_to_cloudobject(self.search_results[search_index])
+        except Exception as e:
+            print(f"Error in get_path_from_searchindex: {e}")
+            return None
+
     @promise
     def create_shared_session(self, folder_name : str, emails : list[str], encryption_algo : str, split_algo : str):
-        """
-        Create new shared session
-        @param folder name
-        @param emails list of the share members
-        TODO: At the next stage we want to let the user pick on which clouds he want to do the share
-        also, we need to support the option of multiple emails account for the same email.
+        try:
+            emails = [email for email in emails if email.strip()]
 
-        As of this POC we are given only one email and support only dropbox and google drive using the same email address!
+            shared_with = []
+            for email in emails:
+                user_dict = {}
+                for cloud in self.manager.clouds:
+                    user_dict[cloud.get_name()] = email
+                shared_with.append(user_dict)
+            
+            new_session = SharedCloudManager(
+                shared_with,
+                None,
+                list(self.manager.clouds),
+                folder_name,
+                Split.get_class(split_algo)(),
+                self.manager.encrypt.copy(),
+                Encrypt.get_class(encryption_algo)()
+            )
 
-        """
-
-        emails = [email for email in emails if email.strip()]
-
-        shared_with = []
-        for email in emails:
-            user_dict = {}
-            for cloud in self.manager.clouds:
-                user_dict[cloud.get_name()] = email
-            shared_with.append(user_dict)
-        
-        new_session = SharedCloudManager(
-            shared_with,
-            None,
-            list(self.manager.clouds),
-            folder_name,
-            Split.get_class(split_algo)(),
-            self.manager.encrypt.copy(),
-            Encrypt.get_class(encryption_algo)()
-        )
-
-        self.session_manager.add_session(new_session)
-        print(f"New shared session created: {folder_name}")
-        return True
-
+            self.session_manager.add_session(new_session)
+            print(f"New shared session created: {folder_name}")
+            return True
+        except Exception as e:
+            print(f"Error in create_shared_session: {e}")
+            return False
 
     def get_shared_folders(self):
-        """
-        Returns the list of shared folders
-        @return: list of shared folders names
-        """
-        # Get the list of pending folders from the session manager
-        pending_uids = self.session_manager.pending_folders.keys()
+        try:
+            # Get the list of pending folders from the session manager
+            pending_uids = self.session_manager.pending_folders.keys()
 
-        # Get the list of ready folders (authenticated sessions)
-        ready_uids = self.session_manager.sessions.keys()
-        
-        result = []
+            # Get the list of ready folders (authenticated sessions)
+            ready_uids = self.session_manager.sessions.keys()
+            
+            result = []
 
-        # Add pending folders to the result
-        for uid in pending_uids:
-            yield {
-                "name": uid,
-                "type": "pending",  # Indicate this is a pending session
-                "uid": uid,
-                "id": uid,
-                "isowner": False  # Pending folders are not owned yet
-            }
+            # Add pending folders to the result
+            for uid in pending_uids:
+                yield {
+                    "name": uid,
+                    "type": "pending",  # Indicate this is a pending session
+                    "uid": uid,
+                    "id": uid,
+                    "isowner": False  # Pending folders are not owned yet
+                }
 
-        # Add ready folders to the result
-        for uid in ready_uids:
-            yield {
-                "name": uid,
-                "type": "session",  # Indicate this is a shared session
-                "uid": uid,
-                "id": uid,
-                "isowner": self.session_manager.sessions[uid].user_is_owner()
-            }
+            # Add ready folders to the result
+            for uid in ready_uids:
+                yield {
+                    "name": uid,
+                    "type": "session",  # Indicate this is a shared session
+                    "uid": uid,
+                    "id": uid,
+                    "isowner": self.session_manager.sessions[uid].user_is_owner()
+                }
 
-        return result
+            return result
+        except Exception as e:
+            print(f"Error in get_shared_folders: {e}")
+            return []
     
 
     #TODO: Advanced sharing options
@@ -681,23 +713,24 @@ class Gateway:
 
     @promise
     def delete_shared_folder(self, shared_session_name):
-        self.session_manager.end_session(shared_session_name)
-    
+        try:
+            self.session_manager.end_session(shared_session_name)
+        except Exception as e:
+            print(f"Error in delete_shared_folder: {e}")
 
     def get_shared_emails(self, shared_session_name):
-        """
-        Returns the list of emails that are shared with the given folder
-        @param folder_path: the path of the folder to get the shared emails from
-        @return: list of emails that are shared with the folder
-        """
-        share = self.session_manager.sessions.get(shared_session_name)
-        if share is None:
-            print(f"Error: No such session {shared_session_name} exists")
+        try:
+            share = self.session_manager.sessions.get(shared_session_name)
+            if share is None:
+                print(f"Error: No such session {shared_session_name} exists")
+                return None
+            return share.get_shared_emails()
+        except Exception as e:
+            print(f"Error in get_shared_emails: {e}")
             return None
-        return share.get_shared_emails()
     
     @promise
-    def revoke_user_from_share(self, shared_session_name ,email_dict):
+    def revoke_user_from_share(self, shared_session_name, email_dict):
         """
         unshare emails from given shared folder
         @param folder name (will be convertet to session)
@@ -705,11 +738,13 @@ class Gateway:
         TODO: We need to support the option of multiple emails account for the same email.
 
         As of this POC we are given only one email and support only dropbox and google drive using the same email address!
-
         """
-        share = self.session_manager.sessions.get(shared_session_name)
-        if share.user_is_owner():
-            share.revoke_user_from_share(email_dict)
+        try:
+            share = self.session_manager.sessions.get(shared_session_name)
+            if share.user_is_owner():
+                share.revoke_user_from_share(email_dict)
+        except Exception as e:
+            print(f"Error in revoke_user_from_share: {e}")
     
     def check_if_user_is_owner(self, shared_session_name):
         """
@@ -717,32 +752,37 @@ class Gateway:
         @param folder name (will be convertet to session)
         @return: True if the user is the owner, False otherwise
         """
-        share = self.session_manager.sessions.get(shared_session_name)
-        if share is None:
-            print(f"Error: No such session {shared_session_name} exists")
+        try:
+            share = self.session_manager.sessions.get(shared_session_name)
+            if share is None:
+                print(f"Error: No such session {shared_session_name} exists")
+                return False
+            return share.user_is_owner()
+        except Exception as e:
+            print(f"Error in check_if_user_is_owner: {e}")
             return False
-        return share.user_is_owner()
     
     @promise
-    def add_users_to_share(self, shared_session_name ,emails):
+    def add_users_to_share(self, shared_session_name, emails):
         """
-        share email with given folder
-        @param folder name ==> session
-        @param emails list to add to share 
-        TODO: We need to support the option of multiple emails account for the same email.
-        
-        As of this POC we are given only one email and support only dropbox and google drive using the same email address!
+        Share folder with given emails.
+        @param shared_session_name: session (folder) name
+        @param emails: list of emails to add to share
 
+        TODO: We need to support the option of multiple email accounts for the same email.
         """
-        share = self.session_manager.sessions.get(shared_session_name)
-        if share.user_is_owner():
-            share_with = []
-            for email in emails:
-                user_dict = {}
-                for cloud in self.manager.clouds:
-                    user_dict[cloud.get_name()] = email
-                share_with.append(user_dict)
-            share.add_users_to_share(share_with)
+        try:
+            share = self.session_manager.sessions.get(shared_session_name)
+            if share.user_is_owner():
+                share_with = []
+                for email in emails:
+                    user_dict = {}
+                    for cloud in self.manager.clouds:
+                        user_dict[cloud.get_name()] = email
+                    share_with.append(user_dict)
+                share.add_users_to_share(share_with)
+        except Exception as e:
+            print(f"Error in add_users_to_share: {e}")
 
     def start_sync_new_sessions_task(self):
         """
@@ -778,19 +818,25 @@ class Gateway:
         """
         Adds a callback to the sync_new_sessions task.
         """
-        if callable(callback):
-            self.sync_future_callbacks.append(callback)
-            print("Callback added to sync_new_sessions task.")
-        else:
-            print("Invalid callback provided. Must be callable.")
+        try:
+            if callable(callback):
+                self.sync_future_callbacks.append(callback)
+                print("Callback added to sync_new_sessions task.")
+            else:
+                print("Invalid callback provided. Must be callable.")
+        except Exception as e:
+            print(f"Error in add_callback_to_sync_task: {e}")
 
     def stop_sync_new_sessions_task(self):
         """
         Stops the sync_new_sessions task.
         """
-        if hasattr(self, 'stop_event'):
-            self.stop_event.set()  # Signal the task to stop
-            print("sync_new_sessions task stopped.")
+        try:
+            if hasattr(self, 'stop_event'):
+                self.stop_event.set()  # Signal the task to stop
+                print("sync_new_sessions task stopped.")
+        except Exception as e:
+            print(f"Error in stop_sync_new_sessions_task: {e}")
 
 def main():
     """
