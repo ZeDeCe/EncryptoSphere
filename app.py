@@ -1204,11 +1204,12 @@ class MainPage(ctk.CTkFrame):
         """
         If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file
         """
-        file_path = filedialog.askopenfilename()
+        files_path = filedialog.askopenfilenames()
         self.context_menu.hide_popup()
-        print(file_path)
-        if file_path:
-            self.upload_file_to_cloud(file_path)
+        for file in files_path:
+            print(file)
+            if file:
+                self.upload_file_to_cloud(file)
 
     def upload_file_to_cloud(self, file_path):
         """
@@ -1522,7 +1523,7 @@ class Folder(ctk.CTkScrollableFrame):
             },
             {
                 "label": "Select All",
-                "image": ctk.CTkImage(Image.open("resources/paste.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open("resources/select.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.controller.select_all()
             }
@@ -1811,7 +1812,7 @@ class FileButton(IconButton):
              },
              {
                 "label": "Cut",
-                "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open("resources/cut.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.cut()
              }
