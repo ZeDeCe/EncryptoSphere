@@ -109,16 +109,16 @@ class CloudManager:
         
         # Go through all folders in cache that match path and try to find one of them
         parent = '/'.join(path.rstrip('/').split('/')[:-1]) or '/'
-        while True:
-            if parent in self.fs and isinstance(self.fs.get(parent), Directory):
-                parent = self.fs.get(parent)
-                break
-            path = '/'.join(path.rstrip('/').split('/')[:-1]) or '/'
-
+        while not (parent in self.fs and isinstance(self.fs.get(parent), Directory)):
+            if parent == '/':
+                print("We somehow do not have the root folder loaded (/). Running authenticate")
+                self.authenticate()
+            parent = '/'.join(parent.rstrip('/').split('/')[:-1]) or '/'
+        parent = self.fs.get(parent)
         # Create each folder
         futures = {}
         current_path = parent.path if parent.path != "/" else ""
-        for name in path.split("/")[len(parent.path.split("/"))-1:]:
+        for name in path.split("/")[len(parent.path.split("/")):]:
             current_path = f"{current_path}/{name}"
             for cloud in self.clouds:
                 futures[self.executor.submit(cloud.create_folder, name, parent.get(cloud.get_name()))] = cloud.get_name()
