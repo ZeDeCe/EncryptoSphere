@@ -516,9 +516,9 @@ class Gateway:
                 
         except Exception as e:
             print(f"Error during copy-paste operation: {e}")
-            if os.path.exists(renamed_tmp_dir_folder):
+            if renamed_tmp_dir_folder and os.path.exists(renamed_tmp_dir_folder):
                 shutil.rmtree(renamed_tmp_dir_folder)
-            raise
+            raise e
 
     @promise
     @enrichable
@@ -620,11 +620,9 @@ class Gateway:
             print(f"Error in create_folder: {e}")
 
     def get_path_from_searchindex(self, search_index):
-        try:
-            return self.current_session.object_to_cloudobject(self.search_results[search_index])
-        except Exception as e:
-            print(f"Error in get_path_from_searchindex: {e}")
-            return None
+        if not isinstance(search_index, int):
+            return search_index
+        return self.current_session.object_to_cloudobject(self.search_results[search_index])
 
     @promise
     def create_shared_session(self, folder_name : str, emails : list[str], encryption_algo : str, split_algo : str):

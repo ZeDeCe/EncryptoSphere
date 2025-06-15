@@ -265,12 +265,16 @@ class App(ctk.CTk):
                 for butt in self.selected_icons:
                     butt.deselect()
                 self.selected_icons = []
-
+                
+                if hasattr(button, "enrich"):
+                    button.enrich()
                 self.selected_icons.append(button)
                 button.select()
 
             else:
                 if button.toggle_select():
+                    if hasattr(button, "enrich"):
+                        button.enrich()
                     self.selected_icons.append(button)
                 else:
                     try:
@@ -381,13 +385,13 @@ class App(ctk.CTk):
         self.copypaste_session = self.api.get_current_session()
 
     def copy(self, item=None):
-        if type(self.get_main_page().current_session) != Session:
+        if type(self.get_main_page().current_session) == SessionsFolder:
             return
         self._copy(item)
         self.cut_selected = False
 
     def cut(self, item=None):
-        if type(self.get_main_page().current_session) != Session:
+        if type(self.get_main_page().current_session) == SessionsFolder:
             return
         self._copy(item)
         self.cut_selected = True
@@ -1785,6 +1789,7 @@ class FileButton(IconButton):
         IconButton.__init__(self, master, width, height, "resources/file_icon.png", data["name"], data["id"], controller)
         self.data = data
         self.data["id"] = data.get("id", self.data.get("search_index", None)) 
+        self.id = self.data.get("id")
 
         # Create a context menu using CTkFrame for file operations (As of now we have only download and delete)
         self.context_menu = OptionMenu(controller.container, self.controller, [
@@ -1922,6 +1927,10 @@ class FileButton(IconButton):
             self.data.get("id", None),
             new_name
         )
+
+    def enrich(self):
+        self.data["id"] = self.controller.get_api().get_path_from_searchindex(self.data.get("id", None))
+        self.id = self.data.get("id")
 
     def on_button3_click(self, event=None):
         """
@@ -2128,12 +2137,11 @@ class FolderButton(IconButton):
     """
     classid = "folder"
     def __init__(self, master, width, height, data, controller):
-        self.folder_path = data.get("path")
-        self.id = data.get("id", data.get("search_index", None))
         self.data = data
-        self.session_uid = data.get("uid")
+        self.data["id"] = data.get("id", self.data.get("search_index", None))
+        self.id =  self.data.get("id")
         self.folder_name = data.get("name")
-        IconButton.__init__(self, master, width, height, "resources/folder_icon.png", self.folder_name, self.id, controller)
+        IconButton.__init__(self, master, width, height, "resources/folder_icon.png", data.get("name"), self.data.get("id", None), controller)
         self.controller = controller
         self.master = master
 
@@ -2260,6 +2268,9 @@ class FolderButton(IconButton):
             new_name
         )
     
+    def enrich(self):
+        self.data["id"] = self.controller.get_api().get_path_from_searchindex(self.data.get("id", None))
+        self.id = self.data.get("id")
 
     def on_double_click(self, event=None):
         """
@@ -2267,7 +2278,7 @@ class FolderButton(IconButton):
         @param event: The event that triggered this function
         """
         super().on_double_click(event)
-        self.controller.change_folder(self.id, self.session_uid)
+        self.controller.change_folder(self.data.get("id", None), self.data.get("uid", None))
     
     def on_button3_click(self, event=None):
         if not self.selected:
