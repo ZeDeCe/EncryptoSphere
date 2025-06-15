@@ -1167,11 +1167,12 @@ class MainPage(ctk.CTkFrame):
         """
         If upload file option is selected in the upload_context_menu, open file explorer and let the user pick a file
         """
-        file_path = filedialog.askopenfilename()
+        files_path = filedialog.askopenfilenames()
         self.context_menu.hide_popup()
-        print(file_path)
-        if file_path:
-            self.upload_file_to_cloud(file_path)
+        for file in files_path:
+            print(file)
+            if file:
+                self.upload_file_to_cloud(file)
 
     def upload_file_to_cloud(self, file_path):
         """
