@@ -2474,7 +2474,7 @@ class SharedFolderButton(IconButton):
             # Call the API with the final array
             self.controller.get_api().add_users_to_share(
                     lambda f: (
-                            self.controller.remove_message(label)
+                            self.controller.remove_message(label) if not f.exception() else messagebox.showerror("Error", f"Failed to add users: {f.exception()}")
                         ),
                         self.uid,
                         emails

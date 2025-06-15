@@ -388,12 +388,10 @@ class Gateway:
         @param file_id: the id of the file to open
         @return: True if the file was opened successfully, False otherwise
         """
-        try:
-            print(f"Open file selected: {path}")
-            return self.current_session.open_file(path)
-        except Exception as e:
-            print(f"Error in open_file: {e}")
-            return False
+
+        print(f"Open file selected: {path}")
+        return self.current_session.open_file(path)
+
 
     @promise
     @enrichable
@@ -403,13 +401,11 @@ class Gateway:
         @param file_id: the id of the file to download
         @return: True if the file was downloaded successfully, False otherwise
         """
-        try:
-            print(f"Download file selected: {path}")
-            return self.current_session.download_file(path)
-        except Exception as e:
-            print(f"Error in download_file: {e}")
-            return False
 
+        print(f"Download file selected: {path}")
+        return self.current_session.download_file(path)
+
+    
     @promise
     def copy_file(self, path: str, destination_path: str, source_session: str):
         """
@@ -444,12 +440,10 @@ class Gateway:
         @param folder_name: The name of the folder to download.
         @return: The path to the ZIP file if successful, False otherwise.
         """
-        try:
-            print(f"Download folder selected: {path}")
-            return self.current_session.download_folder(path)
-        except Exception as e:
-            print(f"Error in download_folder: {e}")
-            return False
+
+        print(f"Download folder selected: {path}")
+        return self.current_session.download_folder(path)
+
 
     @promise
     def upload_file(self, file_path, path):
@@ -459,12 +453,9 @@ class Gateway:
         @param path: the path in the cloud to upload the file to
         @return: True if the file was uploaded successfully, False otherwise
         """
-        try:
-            print(f"Upload file selected: {file_path}")
-            return self.current_session.upload_file(file_path, path)
-        except Exception as e:
-            print(f"Error in upload_file: {e}")
-            return False
+        print(f"Upload file selected: {file_path}")
+        return self.current_session.upload_file(file_path, path)
+
 
     @promise
     def upload_folder(self, folder_path, path):
@@ -474,12 +465,9 @@ class Gateway:
         @param path: the path in the cloud to upload the folder to
         @return: True if the folder was uploaded successfully, False otherwise
         """
-        try:
-            print(f"Upload folder selected {folder_path}")
-            return self.current_session.upload_folder(folder_path, path)
-        except Exception as e:
-            print(f"Error in upload_folder: {e}")
-            return False
+        print(f"Upload folder selected {folder_path}")
+        return self.current_session.upload_folder(folder_path, path)
+
 
     @promise
     @enrichable
@@ -489,12 +477,8 @@ class Gateway:
         @param file_id: the id of the file to delete
         @return: True if the file was deleted successfully, False otherwise
         """
-        try:
-            print(f"Delete file selected {path}")
-            return self.current_session.delete_file(path)
-        except Exception as e:
-            print(f"Error in delete_file: {e}")
-            return False
+        print(f"Delete file selected {path}")
+        return self.current_session.delete_file(path)
 
     @promise
     @enrichable
@@ -504,12 +488,9 @@ class Gateway:
         @param path: the path of the folder to delete
         @return: True if the folder was deleted successfully, False otherwise
         """
-        try:
-            print(f"Delete folder selected {path}")
-            return self.current_session.delete_folder(path)
-        except Exception as e:
-            print(f"Error in delete_folder: {e}")
-            return False
+        print(f"Delete folder selected {path}")
+        return self.current_session.delete_folder(path)
+
     
     @promise
     @enrichable
@@ -520,20 +501,14 @@ class Gateway:
         @param new_name: The new name for the file or folder.
         @return: True if the renaming was successful, raises an exception otherwise.
         """
-        try:
-            print(f"Renaming item at path '{path}' to '{new_name}'")
-            return self.current_session.rename_item(path, new_name)
-        except Exception as e:
-            print(f"Unexpected error during renaming: {e}")
-            raise
+        print(f"Renaming item at path '{path}' to '{new_name}'")
+        return self.current_session.rename_item(path, new_name)
+
     
     @promise
     def create_folder(self, folder_path):
-        try:
-            print(f"Create folder selected {folder_path}")
-            return self.current_session.create_folder(folder_path)
-        except Exception as e:
-            print(f"Error in create_folder: {e}")
+        print(f"Create folder selected {folder_path}")
+        return self.current_session.create_folder(folder_path)
 
     def get_path_from_searchindex(self, search_index):
         if not isinstance(search_index, int):
@@ -621,20 +596,14 @@ class Gateway:
         Leave a shared folder for the given session name.
         Delegates the logic to SessionManager.
         """
-        try:
-            self.session_manager.end_session(shared_session_uid)
-            print(f"Successfully left shared folder for session '{shared_session_uid}'.")
-            return True
-        except Exception as e:
-            print(f"Error leaving shared folder for session '{shared_session_uid}': {e}")
-            return False
+        return self.session_manager.end_session(shared_session_uid)
+
+
 
     @promise
     def delete_shared_folder(self, shared_session_name):
-        try:
-            self.session_manager.end_session(shared_session_name)
-        except Exception as e:
-            print(f"Error in delete_shared_folder: {e}")
+        return self.session_manager.end_session(shared_session_name)
+
 
     def get_shared_emails(self, shared_session_name):
         try:
@@ -657,12 +626,11 @@ class Gateway:
 
         As of this POC we are given only one email and support only dropbox and google drive using the same email address!
         """
-        try:
-            share = self.session_manager.sessions.get(shared_session_name)
-            if share.user_is_owner():
-                share.revoke_user_from_share(email_dict)
-        except Exception as e:
-            print(f"Error in revoke_user_from_share: {e}")
+
+        share = self.session_manager.sessions.get(shared_session_name)
+        if share.user_is_owner():
+            return share.revoke_user_from_share(email_dict)
+
     
     def check_if_user_is_owner(self, shared_session_name):
         """
@@ -700,7 +668,7 @@ class Gateway:
                     share_with.append(user_dict)
                 share.add_users_to_share(share_with)
         except Exception as e:
-            print(f"Error in add_users_to_share: {e}")
+            raise Exception(f"Error in add_users_to_share: {e}")
 
     def start_sync_new_sessions_task(self):
         """
