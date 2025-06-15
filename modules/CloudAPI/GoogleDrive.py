@@ -21,6 +21,7 @@ from google_auth_oauthlib.flow import Flow
 load_dotenv()
 # Set up Google Drive API
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = "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"
 API_KEY = os.getenv("GOOGLE_API_KEY")
 SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
 GOOGLE_TOKEN_PATH = "cloud_tokens.json"
@@ -69,7 +70,8 @@ class GoogleDrive(CloudService):
                     refresh_token=token_data.get('refresh_token'),
                     token_uri=token_data.get('token_uri'),
                     client_id=GOOGLE_CLIENT_ID,
-                    scopes=token_data.get('scopes')
+                    scopes=token_data.get('scopes'),
+                    
                 )
 
             if creds and creds.valid:
@@ -101,6 +103,7 @@ class GoogleDrive(CloudService):
             {
                 "installed": {
                     "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token"
                 }
