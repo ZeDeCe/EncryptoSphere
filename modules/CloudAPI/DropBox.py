@@ -101,8 +101,7 @@ class DropBox(CloudService):
             
             return True
         except Exception as e:
-            error_mag = f"DropBox : Unexpected error during authentication: {e}"
-            raise error_mag
+            raise Exception(f"DropBox : Unexpected error during authentication: {e}")
 
     def _save_dropbox_token_to_json(self, access_token):
         """
