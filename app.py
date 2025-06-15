@@ -132,7 +132,9 @@ class App(ctk.CTk):
         self.bind("<F2>", lambda event: self.rename_selected())
         self.bind("<Control-c>", lambda event: self.copy())
         self.bind("<Control-v>", lambda event: self.paste(self.frames[MainPage].current_session.curr_path))
-        
+        self.bind("<Control-a>", lambda event: self.select_all())
+        self.bind("<Control-x>", lambda event: self.cut())
+
     def _start_auto_refresh_task(self):
         def auto_refresh_loop():
             while self._auto_refresh_running:
@@ -252,7 +254,7 @@ class App(ctk.CTk):
         @param button: The button that was clicked
         @param ignore_list: List of context menus that should not be closed 
         """
-        if not isinstance(button, IconButton):
+        if not isinstance(button, IconButton) or button.selectable == False:
             for butt in self.selected_icons:
                 butt.deselect()
             self.selected_icons = []
@@ -336,30 +338,33 @@ class App(ctk.CTk):
         return self.frames[MainPage]
 
     def paste(self, path):
-        if self.copypaste == [] or self.copypaste_session is None:
+        # Cannot copy paste from something that is not a normal session
+        if self.copypaste == [] or self.copypaste_session is None or type(self.get_main_page().current_session) != Session:
             return
         copypastecopy = self.copypaste.copy()
         sess = self.copypaste_session
         self.copypaste = []
         count = len(copypastecopy)
-        label = self.add_message_label(f"Copying {count} file(s)")
+        label = self.add_message_label(f"Copying {count} item(s)")
         
-        def callback(f):
+        def callback(f, icon : FolderButton|FileButton):
             nonlocal count
             nonlocal label
-            if f.result():
-                count -= 1
+            count -= 1
             if count == 0:
                 self.get_main_page().refresh()
                 self.remove_message(label)
 
+            if f.result() and icon is not None and self.cut_selected:
+                    self.after(0, icon.force_delete)
+           
         for icon in copypastecopy:
             if isinstance(icon, FolderButton):
-                self.api.copy_folder(callback, icon.id, path, sess)
+                self.api.copy_folder(lambda f, icon=icon: callback(f, icon), icon.id, path, sess)
             elif isinstance(icon, FileButton):
-                self.api.copy_file(callback, icon.id, path, sess)
+                self.api.copy_file(lambda f, icon=icon: callback(f, icon), icon.id, path, sess)
 
-    def copy(self, item=None):
+    def _copy(self, item=None):
         if item is None and self.selected_icons == []:
             return
         if item:
@@ -368,6 +373,30 @@ class App(ctk.CTk):
             self.copypaste = self.selected_icons.copy()
         self.copypaste_session = self.api.get_current_session()
 
+    def copy(self, item=None):
+        if type(self.get_main_page().current_session) != Session:
+            return
+        self._copy(item)
+        self.cut_selected = False
+
+    def cut(self, item=None):
+        if type(self.get_main_page().current_session) != Session:
+            return
+        self._copy(item)
+        self.cut_selected = True
+
+    def select_all(self):
+        """
+        Select all the items in the main page
+        """
+        for icon in self.selected_icons:
+            icon.deselect()
+        
+        self.selected_icons = []
+        for icon in self.frames[MainPage].get_icons_in_folder():
+            if isinstance(icon, IconButton):
+                icon.select()
+                self.selected_icons.append(icon)
 
 class EmptyPage(ctk.CTkFrame):
     def __init__(self, parent, controller, text=""):
@@ -911,6 +940,7 @@ class MainPage(ctk.CTkFrame):
         self.main_session : Session  = Session(self.container, controller, "Home")
         self.current_session : Session = self.main_session
         self.main_session.pack(fill=ctk.BOTH, expand=True)
+        self.main_session.change_folder("/")
         self.sessions = {"0": self.main_session}
 
         # Create messages pannel
@@ -1336,6 +1366,13 @@ class MainPage(ctk.CTkFrame):
         # Otherwise, return the first part which is the path without the last segment
         print(parts[0])
         return parts[0]
+    
+    def get_icons_in_folder(self):
+        """
+        Get the icons in the current folder
+        @return: A list of icons in the current folder
+        """
+        return self.current_session.get_icons_in_folder()
 
 @clickable
 class Breadcrums(ctk.CTkFrame):
@@ -1407,6 +1444,7 @@ class Session(ctk.CTkFrame):
         root_folder = Folder(self, controller, "/")
         self.folders = {"/": root_folder}
         self.curr_path = "/"
+        root_folder.pack(fill=ctk.BOTH, expand=True)
 
         
     def change_folder(self, path, uid=None):
@@ -1441,6 +1479,13 @@ class Session(ctk.CTkFrame):
         """
         folder = self.folders[self.curr_path] if folder is None else self.folders[folder]
         folder.refresh()
+
+    def get_icons_in_folder(self):
+        """
+        Get the icons in the current folder
+        @return: A list of icons in the current folder
+        """
+        return self.folders[self.curr_path].get_icons_in_folder()
         
 
 @clickable
@@ -1455,7 +1500,7 @@ class Folder(ctk.CTkScrollableFrame):
         self.session = self.master.master.master if session is None else session
         self.controller = controller
         self.path = path
-        self.pack(fill = ctk.BOTH, expand = True)
+
         
         self.file_list : list[IconButton] = []
         self.folder_list : list[IconButton] = []
@@ -1467,6 +1512,12 @@ class Folder(ctk.CTkScrollableFrame):
                 "image": ctk.CTkImage(Image.open("resources/paste.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.paste()
+            },
+            {
+                "label": "Select All",
+                "image": ctk.CTkImage(Image.open("resources/paste.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.controller.select_all()
             }
         ])
         
@@ -1484,7 +1535,6 @@ class Folder(ctk.CTkScrollableFrame):
         self.controller.paste(self.path)
 
     def refresh(self):
-        self.pack(fill=ctk.BOTH, expand=True)
         self.controller.get_api().get_items_in_folder_async(lambda f: self.update_button_lists(f.result()), self.path)
         
     def update_button_lists(self, item_generator):
@@ -1552,12 +1602,17 @@ class Folder(ctk.CTkScrollableFrame):
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor, adjust=False)
         else:
            self.context_menu.hide_popup()
+    
+    def get_icons_in_folder(self):
+        return self.file_list + self.folder_list
 
 
 @clickable
 class SessionsFolder(Folder):
     def __init__(self, parent, controller : App, path=None):
         Folder.__init__(self, parent, controller, path)
+        self.context_menu.destroy()
+        self.context_menu = None
         self.loadingpage = LoadingPage(self, controller)
         self.loaded = False
         self.path = "/"
@@ -1579,6 +1634,9 @@ class SessionsFolder(Folder):
         self.pack(fill=ctk.BOTH, expand=True)
         if self.loaded:
             self.update_button_lists(self.controller.get_api().get_shared_folders())
+    
+    def on_button3_click(self, event):
+        pass
 
 @clickable
 class SearchResultsSession(Folder):
@@ -1590,6 +1648,8 @@ class SearchResultsSession(Folder):
         path is unused in this class, but we need to pass it to the parent class constructor
         """
         Folder.__init__(self, parent, controller, None)
+        self.context_menu.destroy()
+        self.context_menu = None
         self.session = self
         self.controller = controller
         self.path = None
@@ -1629,6 +1689,9 @@ class SearchResultsSession(Folder):
         self.controller.change_session(session_uid)
         self.controller.change_folder(self.controller.get_api().get_path_from_searchindex(path))
         # TODO: clear search bar
+    
+    def on_button3_click(self, event):
+        pass
 
 @clickable
 class IconButton(ctk.CTkFrame):
@@ -1638,6 +1701,7 @@ class IconButton(ctk.CTkFrame):
     classid = "icon"
     def __init__(self, master, width, height, icon_path, text, id, controller):
         ctk.CTkFrame.__init__(self, master, width=width, height=height)
+        self.selectable = True
         self.controller = controller
         self.master = master
         self.id = id
@@ -1731,12 +1795,19 @@ class FileButton(IconButton):
                 "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.copy()
+             },
+             {
+                "label": "Cut",
+                "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.cut()
              }
         ])
 
     def copy(self):
         self.controller.copy(None if self.selected else self)
-
+    def cut(self):
+        self.controller.cut(None if self.selected else self)
     def download(self):
         """
         Download file from the cloud and refresh the page
@@ -2076,12 +2147,19 @@ class FolderButton(IconButton):
                 "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.copy()
+             },
+             {
+                "label": "Cut",
+                "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
+                "color": "#3A3C41",
+                "event": lambda: self.cut()
              }
         ])
 
     def copy(self):
         self.controller.copy(None if self.selected else self)
-    
+    def cut(self):
+        self.controller.cut(None if self.selected else self)
     def force_delete(self, label=None):
         return self.controller.get_api().delete_folder(
             lambda f: (
@@ -2207,6 +2285,7 @@ class SharedFolderButton(IconButton):
             super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, self.uid, controller)
         self.controller = controller
         self.master = master
+        self.selectable = False
 
         
         
@@ -2443,6 +2522,12 @@ class SharedFolderButton(IconButton):
         else:
            self.context_menu.hide_popup()
 
+    def select(self):
+        pass
+
+    def deselect(self):
+        pass
+
 @clickable
 class PendingSharedFolderButton(IconButton):
     """
@@ -2468,6 +2553,7 @@ class PendingSharedFolderButton(IconButton):
             }
         ]
         self.context_menu = OptionMenu(self.controller.container, self.controller, menu_options)
+        self.selectable = False
 
     def leave_shared_folder(self):
         print("leave_share_clicked")
@@ -2483,3 +2569,9 @@ class PendingSharedFolderButton(IconButton):
             self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
         else:
            self.context_menu.hide_popup()
+
+    def select(self):
+        pass
+
+    def deselect(self):
+        pass
