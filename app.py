@@ -1521,7 +1521,7 @@ class Folder(ctk.CTkScrollableFrame):
             },
             {
                 "label": "Select All",
-                "image": ctk.CTkImage(Image.open("resources/paste.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open("resources/select.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.controller.select_all()
             }
@@ -1810,7 +1810,7 @@ class FileButton(IconButton):
              },
              {
                 "label": "Cut",
-                "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open("resources/cut.png"), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.cut()
              }
