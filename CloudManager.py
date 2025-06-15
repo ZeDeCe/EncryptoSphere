@@ -617,6 +617,12 @@ class CloudManager:
         # Remove from local fs if successful in all clouds
         if not errors:
             self.fs.pop(folder_path, None)
+            topop = []
+            for path in self.fs.keys():
+                if path.startswith(folder_path):
+                    topop.append(path)
+            for path in topop:
+                self.fs.pop(path)
             print(f"Folder '{folder_path}' deleted from all clouds and local fs.")
             return True
         else:
