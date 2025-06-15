@@ -370,6 +370,8 @@ class App(ctk.CTk):
                     self.after(0, icon.force_delete)
            
         for icon in copypastecopy:
+            if hasattr(icon, "enriching") and icon.enriching is not None:
+                icon.enriching.result()
             if isinstance(icon, FolderButton):
                 self.api.copy_folder(lambda f, icon=icon: callback(f, icon), icon.id, path, sess)
             elif isinstance(icon, FileButton):
@@ -1929,8 +1931,13 @@ class FileButton(IconButton):
         )
 
     def enrich(self):
-        self.data["id"] = self.controller.get_api().get_path_from_searchindex(self.data.get("id", None))
-        self.id = self.data.get("id")
+        
+        def callback(f):
+            self.data["id"] = f.result()
+            self.id = self.data.get("id")
+            self.enriching = None
+
+        self.enriching = self.controller.get_api().get_path_from_searchindex_async(callback, self.data.get("id", None))
 
     def on_button3_click(self, event=None):
         """
@@ -2269,8 +2276,15 @@ class FolderButton(IconButton):
         )
     
     def enrich(self):
-        self.data["id"] = self.controller.get_api().get_path_from_searchindex(self.data.get("id", None))
-        self.id = self.data.get("id")
+        
+        def callback(f):
+            self.data["id"] = f.result()
+            self.id = self.data.get("id")
+            self.enriching = None
+
+        self.enriching = self.controller.get_api().get_path_from_searchindex_async(callback, self.data.get("id", None))
+        
+        
 
     def on_double_click(self, event=None):
         """

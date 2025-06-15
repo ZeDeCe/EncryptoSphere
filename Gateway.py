@@ -541,6 +541,10 @@ class Gateway:
         return self.current_session.object_to_cloudobject(self.search_results[search_index])
 
     @promise
+    def get_path_from_searchindex_async(self, search_index):
+        return self.get_path_from_searchindex(search_index)
+
+    @promise
     def create_shared_session(self, folder_name : str, emails : list[str], encryption_algo : str, split_algo : str):
         try:
             emails = [email for email in emails if email.strip()]
