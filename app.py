@@ -268,8 +268,13 @@ class App(ctk.CTk):
                 button.select()
 
             else:
-                button.select()
-                self.selected_icons.append(button)
+                if button.toggle_select():
+                    self.selected_icons.append(button)
+                else:
+                    try:
+                        self.selected_icons.remove(button)
+                    except ValueError as e:
+                        print("Button supposedly deselected but was never in list")
 
         if self.current_popup is None:
             return
@@ -1530,6 +1535,7 @@ class Folder(ctk.CTkScrollableFrame):
         self.empty_page = EmptyPage(self, self.controller, "No items found")
 
         self._parent_canvas.bind("<Button-3>", self.on_button3_click, add="+")
+        self.bind("<Button-3>", self.on_button3_click, add="+")
     
     def paste(self):
         self.controller.paste(self.path)
@@ -1597,9 +1603,8 @@ class Folder(ctk.CTkScrollableFrame):
     
     def on_button3_click(self, event):
         self.controller.button_clicked(self)
-        scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor, adjust=False)
+            self.context_menu.show_popup(event.x_root - self.context_menu.master.winfo_rootx(), event.y_root - self.context_menu.master.winfo_rooty(), adjust=False)
         else:
            self.context_menu.hide_popup()
     
@@ -1738,11 +1743,9 @@ class IconButton(ctk.CTkFrame):
     def on_button1_click(self, event=None):
         append = (event.state & 0x0004) != 0  # 0x0004 is the Control key mask in Tkinter
         self.controller.button_clicked(self, append)
-        self.selected = True
 
     def on_double_click(self, event=None):
         # Deselect this icon on double-click
-        self.selected = False
         self.controller.button_clicked(self)
         
     def on_button3_click(self, event=None):
@@ -1751,10 +1754,18 @@ class IconButton(ctk.CTkFrame):
     def select(self):
         self.configure(fg_color="#4e5155")
         self.selected = True
+        return True
 
     def deselect(self):
         self.configure(fg_color="#2B2D2F")
         self.selected = False
+        return False
+
+    def toggle_select(self):
+        if self.selected:
+            return self.deselect()
+        else:
+            return self.select()
     
 
 
@@ -1915,9 +1926,8 @@ class FileButton(IconButton):
         """
         if not self.selected:
             super().on_button3_click(event)
-        scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
+            self.context_menu.show_popup(event.x_root - self.context_menu.master.winfo_rootx(), event.y_root - self.context_menu.master.winfo_rooty())
         else:
            self.context_menu.hide_popup()
 
@@ -2256,9 +2266,8 @@ class FolderButton(IconButton):
     def on_button3_click(self, event=None):
         if not self.selected:
             super().on_button3_click(event)
-        scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
+            self.context_menu.show_popup(event.x_root - self.context_menu.master.winfo_rootx(), event.y_root - self.context_menu.master.winfo_rooty())
         else:
            self.context_menu.hide_popup()
     
@@ -2516,9 +2525,8 @@ class SharedFolderButton(IconButton):
     def on_button3_click(self, event=None):
         if not self.selected:
             super().on_button3_click(event)
-        scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
+            self.context_menu.show_popup(event.x_root - self.context_menu.master.winfo_rootx(), event.y_root - self.context_menu.master.winfo_rooty())
         else:
            self.context_menu.hide_popup()
 
@@ -2564,9 +2572,8 @@ class PendingSharedFolderButton(IconButton):
     def on_button3_click(self, event=None):
         if not self.selected:
             super().on_button3_click(event)
-        scaling_factor = ctk.ScalingTracker.get_window_scaling(self.controller)
         if self.context_menu.context_hidden:
-            self.context_menu.show_popup((event.x_root - self.context_menu.master.winfo_rootx())/scaling_factor, (event.y_root - self.context_menu.master.winfo_rooty())/scaling_factor)
+            self.context_menu.show_popup(event.x_root - self.context_menu.master.winfo_rootx(), event.y_root - self.context_menu.master.winfo_rooty())
         else:
            self.context_menu.hide_popup()
 
