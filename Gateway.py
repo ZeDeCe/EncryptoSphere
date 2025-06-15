@@ -409,9 +409,8 @@ class Gateway:
         except Exception as e:
             print(f"Error in download_file: {e}")
             return False
-    
+
     @promise
-    @enrichable
     def copy_file(self, path: str, destination_path: str, source_session: str):
         """
         Copy and paste files to a destination path.
@@ -421,44 +420,10 @@ class Gateway:
         @param source_session: The session UID from which the files are copied, 0 if main session
         @return: List of new file paths in the destination folder.
         """
-        try:
-            print(f"Copying file: session: {source_session}, current: {self.current_session}, path: {path}, destination: {destination_path}")
-            if self.get_current_session() == source_session:
-                print(f"Copying file (same session): {path} to destination: {destination_path}")
-                return self.current_session.copy_file(path, destination_path)
-            else:
-                # If the source session is different, we need to handle it accordingly
-                print(f"Copying file from different session: {source_session} to {self.get_current_session()}")
-                
-                source_sess = self.session_manager.get_session(source_session)
-                if source_sess is None:
-                    source_sess = self.session_manager.main_session
-
-                existing_files = {item["name"] for item in self.current_session.get_items_in_folder(destination_path)}
-                # Check for name conflicts
-                original_name = path.split("/")[-1]
-                new_name = original_name
-                counter = 1
-                while new_name in existing_files:
-                    new_name = f"Copy_of_{original_name}" if counter == 1 else f"Copy_({counter})_of_{original_name}"
-                    counter += 1
-
-                source_sess.download_file(path, True) 
-                            # Get the temporary file path
-                os_path = source_sess.get_temp_file_path(original_name)
-
-                # Upload the file to the destination
-                print(f"Temporary file path: {os_path}")
-                print(f"Uploading to: {destination_path}/{new_name}")
-                existing_files.add(new_name)
-                return self.current_session.upload_file(os_path, destination_path, new_name)
-                
-        except Exception as e:
-            print(f"Error during copy-paste operation: {e}")
-            raise
-
+        source = self.session_manager.get_session(source_session) if source_session != '0' else self.manager
+        return self.current_session.copy_file(path, destination_path, destination_manager=source)
+    
     @promise
-    @enrichable
     def copy_folder(self, path: str, destination_path: str, source_session: str):
         """
         Copy and paste folders to a destination path.
@@ -468,57 +433,8 @@ class Gateway:
         @param source_session: The session UID from which the files are copied, 0 if main session
         @return: List of new folder paths in the destination folder.
         """
-        try:
-            if self.get_current_session() == source_session:
-                print(f"Copying folder (same session): {path} to destination: {destination_path}")
-                return self.current_session.copy_folder(path, destination_path)
-            
-            else:
-                print(f"Copying folder from different session: {source_session} to {self.get_current_session()}")
-                
-                source_sess = self.session_manager.get_session(source_session)
-                if source_sess is None:
-                    source_sess = self.session_manager.main_session
-
-            # List existing items in the destination folder
-            existing_items = {item["name"] for item in self.current_session.get_items_in_folder(destination_path)}
-
-            # Check for name conflicts for the folder itself
-            original_name = path.split("/")[-1]
-            new_folder_name = original_name
-            counter = 1
-            while new_folder_name in existing_items:
-                new_folder_name = f"Copy_of_{original_name}" if counter == 1 else f"Copy_({counter})_of_{original_name}"
-                counter += 1
-
-            # Create a temporary directory for the folder
-            tmp_dir = self.current_session.get_temp_file_path()
-            tmp_dir_folder = self.current_session.get_temp_file_path(original_name)
-            # Download the folder to the temporary directory
-            print(f"Downloading folder '{path}' to temporary location: {tmp_dir}")
-            source_sess.download_folder(path, tmp_dir)
-
-            # Rename the folder in the temporary directory to match the new name
-            renamed_tmp_dir_folder = os.path.join(tmp_dir, new_folder_name)
-            os.rename(tmp_dir_folder, renamed_tmp_dir_folder)
-            print(f"Renamed folder in temporary location to: {renamed_tmp_dir_folder}")
-
-            # Upload the folder from the temporary directory to the destination
-            new_folder_path = f"{destination_path}/{new_folder_name}"
-            print(f"Uploading folder from temporary location '{renamed_tmp_dir_folder}' to destination: {new_folder_path}")
-            self.current_session.upload_folder(renamed_tmp_dir_folder, destination_path)
-
-            print(f"Folder '{path}' successfully copied to '{destination_path}'.")
-            if os.path.exists(renamed_tmp_dir_folder):
-                shutil.rmtree(renamed_tmp_dir_folder)
-                print(f"Temporary directory '{renamed_tmp_dir_folder}' cleaned up.")
-            return True
-                
-        except Exception as e:
-            print(f"Error during copy-paste operation: {e}")
-            if renamed_tmp_dir_folder and os.path.exists(renamed_tmp_dir_folder):
-                shutil.rmtree(renamed_tmp_dir_folder)
-            raise e
+        source = self.session_manager.get_session(source_session) if source_session != '0' else self.manager
+        return self.current_session.copy_folder(path, destination_path, destination_manager=source)
 
     @promise
     @enrichable

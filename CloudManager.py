@@ -762,7 +762,7 @@ class CloudManager:
         for item_path in to_remove:
             self.fs.pop(item_path)
 
-    def copy_file(self, file_path: str, destination_path: str):
+    def copy_file(self, file_path: str, destination_path: str, destination_manager=None):
         """
         Copy and paste a file to a destination path.
         Downloads the file, checks for name conflicts, and uploads it to the destination path.
@@ -770,24 +770,26 @@ class CloudManager:
         Skips the file if it cannot be copied due to errors.
         @param file_path: The path of the file to copy.
         @param destination_path: The destination folder path.
+        @param destination_manager: A cloudmanager that the file in file_path exists in, if none will use self
         """
         try:
+            if destination_manager is None:
+                destination_manager = self
+
             if not self.fs.get(destination_path) or not isinstance(self.fs.get(destination_path), Directory):
                 raise FileNotFoundError(f"Destination path '{destination_path}' does not exist or is not a folder.")
-
-            destination_folder = self.fs.get(destination_path)
 
             # List existing files in the destination folder
             existing_files = {item["name"] for item in self.get_items_in_folder(destination_path)}
 
             # Retrieve the file to copy
-            file = self.fs.get(file_path)
+            file = destination_manager.fs.get(file_path)
             if not file or not isinstance(file, CloudFile):
                 raise FileNotFoundError(f"File '{file_path}' does not exist.")
 
             # Download the file
             print(f"Downloading file: {file_path}")
-            file_data = self.download_file(file_path, True)
+            file_data = destination_manager.download_file(file_path, True)
 
             # Check for name conflicts
             original_name = file_path.split("/")[-1]
@@ -818,7 +820,7 @@ class CloudManager:
 
         return False
 
-    def copy_folder(self, folder_path: str, destination_path: str):
+    def copy_folder(self, folder_path: str, destination_path: str, destination_manager=None):
         """
         Copy and paste a folder and its contents to a destination path.
         Downloads the folder to a temporary location, checks for name conflicts,
@@ -827,8 +829,12 @@ class CloudManager:
         Skips any folders that cannot be copied due to errors.
         @param folder_path: The path of the folder to copy.
         @param destination_path: The destination folder path.
+        @param destination_manager: A cloudmanager that the file in file_path exists in, if none will use self
         """
         try:
+            if destination_manager is None:
+                destination_manager = self
+
             # Validate the destination path
             if not self.fs.get(destination_path) or not isinstance(self.fs.get(destination_path), Directory):
                 raise FileNotFoundError(f"Destination path '{destination_path}' does not exist or is not a folder.")
@@ -836,7 +842,7 @@ class CloudManager:
             destination_folder = self.fs.get(destination_path)
 
             # Retrieve the folder to copy
-            folder = self.fs.get(folder_path)
+            folder = destination_manager.fs.get(folder_path)
             if not folder or not isinstance(folder, Directory):
                 raise FileNotFoundError(f"Folder '{folder_path}' does not exist.")
 
@@ -856,7 +862,7 @@ class CloudManager:
             tmp_dir_folder = self.get_temp_file_path(original_name)
             # Download the folder to the temporary directory
             print(f"Downloading folder '{folder_path}' to temporary location: {tmp_dir}")
-            self.download_folder(folder_path, tmp_dir)
+            destination_manager.download_folder(folder_path, tmp_dir)
 
             # Rename the folder in the temporary directory to match the new name
             renamed_tmp_dir_folder = os.path.join(tmp_dir, new_folder_name)

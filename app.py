@@ -1644,7 +1644,7 @@ class SessionsFolder(Folder):
         self.loaded = True
         self.update_button_lists(self.controller.get_api().get_shared_folders())
 
-    def refresh(self):
+    def refresh(self, path=None):
         self.pack(fill=ctk.BOTH, expand=True)
         if self.loaded:
             self.update_button_lists(self.controller.get_api().get_shared_folders())
