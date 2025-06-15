@@ -12,7 +12,7 @@ from CloudObjects import Directory, CloudFile
 
 import concurrent.futures
 import threading
-import tempfile
+
 
 SYNC_TIME = 300  # Sync time in seconds
 FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
@@ -39,6 +39,8 @@ class CloudManager:
         self.cloud_name_list = list(map(lambda c: c.get_name(), self.clouds))
         self.fd = None
         self.sync_thread = None
+        self.temporary_files = []
+        self.dup_lock = threading.RLock()
         self.stop_event = threading.Event()  # Event to signal
         self.fs : dict[str, CloudFile | Directory]= {} # filesystem
         self.root = root # Temporary until login module
@@ -109,16 +111,16 @@ class CloudManager:
         
         # Go through all folders in cache that match path and try to find one of them
         parent = '/'.join(path.rstrip('/').split('/')[:-1]) or '/'
-        while True:
-            if parent in self.fs and isinstance(self.fs.get(parent), Directory):
-                parent = self.fs.get(parent)
-                break
-            path = '/'.join(path.rstrip('/').split('/')[:-1]) or '/'
-
+        while not (parent in self.fs and isinstance(self.fs.get(parent), Directory)):
+            if parent == '/':
+                print("We somehow do not have the root folder loaded (/). Running authenticate")
+                self.authenticate()
+            parent = '/'.join(parent.rstrip('/').split('/')[:-1]) or '/'
+        parent = self.fs.get(parent)
         # Create each folder
         futures = {}
         current_path = parent.path if parent.path != "/" else ""
-        for name in path.split("/")[len(parent.path.split("/"))-1:]:
+        for name in path.split("/")[len(parent.path.split("/")):]:
             current_path = f"{current_path}/{name}"
             for cloud in self.clouds:
                 futures[self.executor.submit(cloud.create_folder, name, parent.get(cloud.get_name()))] = cloud.get_name()
@@ -161,7 +163,24 @@ class CloudManager:
             return SHARED_TEMP_FOLDER
         else:
             return os.path.join(SHARED_TEMP_FOLDER, filename)
+        
+    def check_for_duplicates(self, path):
+        with self.dup_lock:
+            return path in self.temporary_files
+        
+    def create_temporary_placeholder(self, path):
+        if self.check_for_duplicates(path):
+            return None
+        with self.dup_lock:
+            self.temporary_files.append(path)
+            return path
     
+    def remove_temporary_placeholder(self, path):
+        if not self.check_for_duplicates(path):
+            return
+        with self.dup_lock:
+            self.temporary_files.remove(path)
+
     def authenticate(self):
         """
         Authenticates the clouds and loads the file descriptor.
@@ -761,8 +780,8 @@ class CloudManager:
         
         for item_path in to_remove:
             self.fs.pop(item_path)
-
-    def copy_file(self, file_path: str, destination_path: str):
+    
+    def copy_file(self, file_path: str, destination_path: str, source_manager=None):
         """
         Copy and paste a file to a destination path.
         Downloads the file, checks for name conflicts, and uploads it to the destination path.
@@ -770,33 +789,39 @@ class CloudManager:
         Skips the file if it cannot be copied due to errors.
         @param file_path: The path of the file to copy.
         @param destination_path: The destination folder path.
+        @param source_manager: A cloudmanager that the file in file_path exists in, if none will use self
         """
+        temp_path = None
         try:
+            if source_manager is None:
+                source_manager = self
+
             if not self.fs.get(destination_path) or not isinstance(self.fs.get(destination_path), Directory):
                 raise FileNotFoundError(f"Destination path '{destination_path}' does not exist or is not a folder.")
 
-            destination_folder = self.fs.get(destination_path)
-
-            # List existing files in the destination folder
-            existing_files = {item["name"] for item in self.get_items_in_folder(destination_path)}
 
             # Retrieve the file to copy
-            file = self.fs.get(file_path)
+            file = source_manager.fs.get(file_path)
             if not file or not isinstance(file, CloudFile):
                 raise FileNotFoundError(f"File '{file_path}' does not exist.")
 
             # Download the file
             print(f"Downloading file: {file_path}")
-            file_data = self.download_file(file_path, True)
+            source_manager.download_file(file_path, True)
 
             # Check for name conflicts
             original_name = file_path.split("/")[-1]
             new_name = original_name
             counter = 1
-            while new_name in existing_files:
-                new_name = f"Copy_of_{original_name}" if counter == 1 else f"Copy_({counter})_of_{original_name}"
-                counter += 1
 
+            # List existing files in the destination folder
+            existing_files = {item["name"] for item in self.get_items_in_folder(destination_path)}
+            dest_path = destination_path if destination_path != '/' else ''
+            while new_name in existing_files or self.create_temporary_placeholder(f"{dest_path}{new_name}") is None:
+                new_name = f"{original_name} ({counter})"
+                counter += 1
+            
+            temp_path = f"{dest_path}{new_name}"
             # Get the temporary file path
             os_path = self.get_temp_file_path(original_name)
 
@@ -815,10 +840,12 @@ class CloudManager:
             print(f"File not found: {fnfe}. Skipping file '{file_path}'.")
         except Exception as e:
             print(f"Unexpected error while copying file '{file_path}': {e}. Skipping file.")
-
+        finally:
+            if temp_path:
+                self.remove_temporary_placeholder(temp_path)
         return False
 
-    def copy_folder(self, folder_path: str, destination_path: str):
+    def copy_folder(self, folder_path: str, destination_path: str, source_manager=None):
         """
         Copy and paste a folder and its contents to a destination path.
         Downloads the folder to a temporary location, checks for name conflicts,
@@ -827,16 +854,20 @@ class CloudManager:
         Skips any folders that cannot be copied due to errors.
         @param folder_path: The path of the folder to copy.
         @param destination_path: The destination folder path.
+        @param destination_manager: A cloudmanager that the file in file_path exists in, if none will use self
         """
+        temp_path = None
+        renamed_tmp_dir_folder = None
         try:
+            if source_manager is None:
+                source_manager = self
+
             # Validate the destination path
             if not self.fs.get(destination_path) or not isinstance(self.fs.get(destination_path), Directory):
                 raise FileNotFoundError(f"Destination path '{destination_path}' does not exist or is not a folder.")
 
-            destination_folder = self.fs.get(destination_path)
-
             # Retrieve the folder to copy
-            folder = self.fs.get(folder_path)
+            folder = source_manager.fs.get(folder_path)
             if not folder or not isinstance(folder, Directory):
                 raise FileNotFoundError(f"Folder '{folder_path}' does not exist.")
 
@@ -847,20 +878,23 @@ class CloudManager:
             original_name = folder_path.split("/")[-1]
             new_folder_name = original_name
             counter = 1
-            while new_folder_name in existing_items:
-                new_folder_name = f"Copy_of_{original_name}" if counter == 1 else f"Copy_({counter})_of_{original_name}"
+            dest_path = destination_path if destination_path != '/' else ''
+            while new_folder_name in existing_items or self.create_temporary_placeholder(f"{dest_path}{new_folder_name}") is None:
+                new_folder_name = f"{original_name} ({counter})"
                 counter += 1
 
+            temp_path = f"{dest_path}{new_folder_name}"
+
             # Create a temporary directory for the folder
-            tmp_dir = self.get_temp_file_path()
-            tmp_dir_folder = self.get_temp_file_path(original_name)
+            tmp_dir = tempfile.mkdtemp(prefix="EncryptoSphere_FolderTransfer_", dir=self.get_temp_file_path())
+
             # Download the folder to the temporary directory
             print(f"Downloading folder '{folder_path}' to temporary location: {tmp_dir}")
-            self.download_folder(folder_path, tmp_dir)
+            source_manager.download_folder(folder_path, tmp_dir)
 
             # Rename the folder in the temporary directory to match the new name
             renamed_tmp_dir_folder = os.path.join(tmp_dir, new_folder_name)
-            os.rename(tmp_dir_folder, renamed_tmp_dir_folder)
+            os.rename(os.path.join(tmp_dir, original_name), renamed_tmp_dir_folder)
             print(f"Renamed folder in temporary location to: {renamed_tmp_dir_folder}")
 
             # Upload the folder from the temporary directory to the destination
@@ -876,13 +910,15 @@ class CloudManager:
         
         except FileNotFoundError as fnfe:
             print(f"File not found: {fnfe}. Skipping folder '{folder_path}'.")
-            if os.path.exists(renamed_tmp_dir_folder):
+            if renamed_tmp_dir_folder is not None and os.path.exists(renamed_tmp_dir_folder):
                 shutil.rmtree(renamed_tmp_dir_folder)
         except Exception as e:
-            if os.path.exists(renamed_tmp_dir_folder):
+            if renamed_tmp_dir_folder is not None and os.path.exists(renamed_tmp_dir_folder):
                 shutil.rmtree(renamed_tmp_dir_folder)
             print(f"Unexpected error while copying folder '{folder_path}': {e}. Skipping folder.")
-
+        finally:
+            if temp_path:
+                self.remove_temporary_placeholder(temp_path)
         return False
                 
     @staticmethod
