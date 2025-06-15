@@ -1016,6 +1016,8 @@ class MainPage(ctk.CTkFrame):
             Perform a search based on the input in the search entry field.
             """
             query = self.search_entry.get()
+            if query == '':
+                return
             print(f"Searching for: {query}")
             self.search_results_session.set_query(query, self.current_session.curr_path, isinstance(self.current_session, SessionsFolder))
             self.display_page(self.search_results_session, options=[])
@@ -2257,6 +2259,7 @@ class FolderButton(IconButton):
             self.data.get("id", None),
             new_name
         )
+    
 
     def on_double_click(self, event=None):
         """
