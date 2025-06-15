@@ -421,7 +421,7 @@ class Gateway:
         @return: List of new file paths in the destination folder.
         """
         source = self.session_manager.get_session(source_session) if source_session != '0' else self.manager
-        return self.current_session.copy_file(path, destination_path, destination_manager=source)
+        return self.current_session.copy_file(path, destination_path, source_manager=source)
     
     @promise
     def copy_folder(self, path: str, destination_path: str, source_session: str):
@@ -434,7 +434,7 @@ class Gateway:
         @return: List of new folder paths in the destination folder.
         """
         source = self.session_manager.get_session(source_session) if source_session != '0' else self.manager
-        return self.current_session.copy_folder(path, destination_path, destination_manager=source)
+        return self.current_session.copy_folder(path, destination_path, source_manager=source)
 
     @promise
     @enrichable
