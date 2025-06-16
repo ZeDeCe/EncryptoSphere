@@ -222,7 +222,7 @@ class Gateway:
             encryptor.set_key(encryptor.generate_key_from_key(key))
 
             self.manager = CloudManager(
-                self.authenticated_clouds,
+                self.authenticated_clouds.copy(),
                 MAIN_SESSION,
                 Split.get_class(split_type)(),
                 encryptor
