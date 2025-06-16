@@ -14,19 +14,23 @@ from google_auth_httplib2 import AuthorizedHttp
 from modules.CloudDataManager import CloudDataManager
 from typing import Iterable
 import httplib2
+from utils import input_dialog
+from google_auth_oauthlib.flow import Flow
+
 
 load_dotenv()
 # Set up Google Drive API
-CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = "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"
 API_KEY = os.getenv("GOOGLE_API_KEY")
 SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
 GOOGLE_TOKEN_PATH = "cloud_tokens.json"
 GOOGLE_ENCRYPTOSPHERE_ROOT = "EncryptoSphere"
 
 class GoogleDrive(CloudService):
-    
+
     def build_drive_service(self, creds):
-        # Set up Drive service
+        # Build Google Drive service with authorized HTTP using the provided credentials
         def build_request(http, *args, **kwargs):
             new_http = AuthorizedHttp(creds, http=httplib2.Http())
             return HttpRequest(new_http, *args, **kwargs)
@@ -36,7 +40,7 @@ class GoogleDrive(CloudService):
 
         self.authenticated = True
         return True
-    
+
     def create_session_folder(self):
         try:
             self.root_folder = self.create_folder(GOOGLE_ENCRYPTOSPHERE_ROOT, CloudService.Folder("", ""))
@@ -49,60 +53,68 @@ class GoogleDrive(CloudService):
             self.deleted_items_folder = self.create_folder("$DELETED", self.root_folder)
         except Exception as e:
             print(f"Google Drive     : Failed to create deleted folder: {e}")
-        
-        
+
     def authenticate_by_token(self):
         if self.authenticated:
             return True
+
         self.token_manager = CloudDataManager("EncryptoSphereApp", "google")
         creds = None
 
         try:
-            print("Google Drive     : Loading clouds token file...")
+            print("Google Drive     : Loading cloud token file...")
             token_data = self.token_manager.get_data(self.email)
             if token_data:
                 creds = Credentials(
                     token=token_data.get('token'),
                     refresh_token=token_data.get('refresh_token'),
                     token_uri=token_data.get('token_uri'),
-                    client_id=token_data.get('client_id'),
-                    client_secret=token_data.get('client_secret'),
-                    scopes=token_data.get('scopes')
+                    client_id=GOOGLE_CLIENT_ID,
+                    scopes=token_data.get('scopes'),
+                    
                 )
 
-            # Refresh or start new authentication
-            if creds and not creds.expired:
+            if creds and creds.valid:
                 pass
             elif creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
                 self._save_google_token_to_json(creds)
             else:
                 return False
+
             self.build_drive_service(creds)
             self.create_session_folder()
             return True
         except Exception as e:
             print(f"Google Drive     : Authentication error: {e}")
             return False
-        
 
     def authenticate_cloud(self):
-        """
-        Authenticate with Google Drive using CloudDataManager.
-        Loads the token from JSON by email, or initiates new login if needed.
-        Also creates the root folder if it does not exist.
-        """
         if self.authenticated:
             return True
 
         if self.authenticate_by_token():
             return True
-            
-        # Start new authentication flow
-        flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
-        creds = flow.run_local_server(port=0)
 
-        # Verify email
+        print("Google Drive     : No valid token found, starting OAuth flow...")
+
+        # Use InstalledAppFlow with client_id only (no client_secret)
+        flow = InstalledAppFlow.from_client_config(
+            {
+                "installed": {
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token"
+                }
+            },
+            scopes=SCOPES
+        )
+
+        # This opens a local web server on port 8080 to receive the OAuth redirect
+        creds = flow.run_local_server(port=8080)
+
+        # Verify that the token belongs to the expected user
         if not self._verify_google_token_for_user(creds):
             return False
 
@@ -115,15 +127,12 @@ class GoogleDrive(CloudService):
         self.__delete_leftover_files()
         return True
 
-    
     def _save_google_token_to_json(self, creds):
         try:
             token_data = {
                 'token': creds.token,
                 'refresh_token': creds.refresh_token,
                 'token_uri': creds.token_uri,
-                'client_id': creds.client_id,
-                'client_secret': creds.client_secret,
                 'scopes': creds.scopes
             }
             self.token_manager.add_data({self.email: token_data})
@@ -131,7 +140,6 @@ class GoogleDrive(CloudService):
         except Exception as e:
             print(f"Google Drive     : Error saving token: {e}")
 
-    
     def _verify_google_token_for_user(self, creds):
         """
         Verify that the credentials match the expected user email.
@@ -148,7 +156,7 @@ class GoogleDrive(CloudService):
         except Exception as e:
             print(f"Google Drive     : Error verifying email: {e}")
             return False
-
+        
 
     def __delete_leftover_files(self):
         """
