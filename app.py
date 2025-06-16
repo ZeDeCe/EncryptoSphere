@@ -525,7 +525,7 @@ class FormPage(ctk.CTkFrame):
         self.controller.focus_set()
         self.submit_button.configure(state="disabled")
         if hasattr(self, 'backbutton'):
-            self.backbutton.configure(state="disabled")
+            self.backbutton.pack_forget()
 
         user_input = self.entry.get()
         self.show_loading()
@@ -608,7 +608,7 @@ class LocalPasswordPage(FormPage):
         # Display the error message
         self.error_label.configure(text=error_message)
         self.submit_button.configure(state="normal")
-        self.backbutton.configure(state="normal")
+        self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
 
 @clickable
 class LoginCloudsPage(ctk.CTkFrame):
@@ -692,7 +692,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         self.remove_loading()
         for widget in self.clouds_container.winfo_children():
             widget.destroy()
-        self.backbutton.configure(state="normal")
+        self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
         self.authenticated_clouds = self.controller.get_api().get_authenticated_clouds()
         for i, cloud in enumerate(self.cloud_list):
             icon_path = cloud.get_icon_static()
@@ -713,9 +713,9 @@ class LoginCloudsPage(ctk.CTkFrame):
         if self.controller.get_api().get_metadata_exists():
             self.submit_button.configure(text="Continue to Login")
         self.notice_message()
-        self.backbutton.configure(width=40, height=40)
-    
-    
+        self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
+
+
     def cloud_button_clicked(self, cloud, cloud_button):
         self.controller.get_api().cloud_authenticate(lambda f, cloud=cloud, cloud_button=cloud_button : self.cloud_button_run(f, cloud_button), cloud.get_name_static())
                                                      
@@ -738,7 +738,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
         self.submit_button.configure(state="disabled")
-        self.backbutton.configure(state="disabled")
+        self.backbutton.pack_forget()
         # Remove error label and block the button
         if hasattr(self, 'error_label'):
             self.error_label.pack_forget()
@@ -847,7 +847,7 @@ class RegistrationPage(ctk.CTkFrame):
         """
         Login page refresh - as of now we don't need this functionality
         """
-        self.backbutton.configure(state="normal", width=40, height=40)
+        self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
         self.submit_button.configure(state="normal")
 
     def show_error(self, error_message):
@@ -864,7 +864,7 @@ class RegistrationPage(ctk.CTkFrame):
         The function handles the login process. If successful, it passes control to the MainPage class to display the main page.
         """
         self.submit_button.configure(state="disabled")
-        self.backbutton.configure(state="disabled")
+        self.backbutton.pack_forget()
         if hasattr(self, 'retry_button'):
             self.retry_button.configure(state="disabled")
 
