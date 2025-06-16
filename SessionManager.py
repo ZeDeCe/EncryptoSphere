@@ -55,15 +55,13 @@ class SessionManager():
         assert isinstance(session, str) or isinstance(session, SharedCloudManager)
         try:
             pending = False
+            sess = session
             if isinstance(session, str):
-                sess = self.sessions.get(session)
+                sess = self.sessions.get(session, self.pending_folders.get(session, None))
                 if not sess:
-                    sess = self.pending_folders.get(session)
-                    pending = True
-                    if not sess:
-                        raise KeyError(f"No such session '{session}' exists.")
+                    raise KeyError(f"No such session '{session}' exists.")
             sess.delete_session()  # Call delete_session in SharedCloudManager
-            if not pending:
+            if self.sessions.get(sess.get_uid()):
                 self.sessions.pop(sess.get_uid(), None)
             else:
                 self.pending_folders.pop(sess.get_uid(), None)
@@ -171,6 +169,10 @@ class SessionManager():
                     # We should technically gray out the session in the UI since we can't access it but should not attempt to delete it
             else:
                 session.share_keys()
+        for folder, session in self.pending_folders.items():
+            if not session.test_access():
+                to_end.append(session)
+
         for session in to_end:
             self.end_session(session)
 

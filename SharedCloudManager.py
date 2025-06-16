@@ -366,35 +366,29 @@ class SharedCloudManager(CloudManager):
             if not cloud:
                 print(f"Cloud {cloud_name} not found in the current session.")
                 continue
-
+            # Unshare the folder with the specified user
+            root = self.root_folder.get(cloud_name)
             try:
-                # Unshare the folder with the specified user
-                root = self.root_folder.get(cloud_name)
                 cloud.unshare_by_email(root, [email])
-                print(f"User {email} revoked from share session on {cloud_name}.")
-
-                # Delete the user's specific FEK file
-                fek_file_name = f"$FEK_{email}"
-                fek = cloud.list_files(root, fek_file_name)
-                for f in fek:
-                    fek = f
-                    break
-                if not fek:
-                    raise FileNotFoundError(f"FEK file '{fek_file_name}' not found for user {email} on {cloud_name}.")
-                try:
-                    cloud.delete_file(fek)
-                    print(f"Deleted FEK file '{fek_file_name}' for user {email} on {cloud_name}.")
-                except Exception as e:
-                    print(f"Failed to delete FEK file '{fek_file_name}' for user {email} on {cloud_name}: {e}")
-
-                # Remove the user from the shared session
-                if self.users:
-                    self.users = [
-                        user for user in self.users if not (cloud_name in user and user[cloud_name] == email)
-                    ]
-
             except Exception as e:
-                print(f"Failed to remove user {email} from shared session on {cloud_name}: {e}")
+                raise Exception("Failed to unshare user from share!")
+            
+            print(f"User {email} revoked from share session on {cloud_name}.")
+
+            # Remove the user from the shared session
+            if self.users:
+                self.users = [
+                    user for user in self.users if not (cloud_name in user and user[cloud_name] == email)
+                ]
+            # Delete all special files of the user
+            sfiles = cloud.list_files(root, f"$")
+            for f in sfiles:
+                if f.get_name().startswith("$") and f.get_name().endswith(email):
+                    try:
+                        cloud.delete_file(f)
+                    except:
+                        print(f"Failed to delete file: {f.get_name()}")
+                        continue
     
     def add_users_to_share(self, users : list[dict[str, str]]):
         """
@@ -466,25 +460,30 @@ class SharedCloudManager(CloudManager):
     def get_shared_emails(self) -> list[str]:
         """
         Returns the emails of the users shared in the session
+        Does not return your own email
         @param cloud_name the name of the cloud to get the emails from
         @return a list of emails of the users shared in the session
         """
-        cloud = self.clouds[0]
-        feks = cloud.list_files(self.root_folder.get(cloud.get_name()), "$FEK")
-        users = set()
+        users = False
         self.users = []
-        for fek in feks:
-            if not re.match(r"\$FEK_.+?@.+", fek.get_name()):
+        for cloud in self.clouds:
+            try:
+                users = cloud.get_members_shared(self.root_folder.get(cloud.get_name()))
+                if users:
+                    break
+            except Exception as e:
                 continue
-            email = fek.get_name()[5:]
-            if email == "" or email == cloud.get_email():
-                continue
-            users.add(email)
+        if not users:
+            raise Exception("Folder is not a shared folder")
+        
         for user in users:
             u = {}
             for cloud in self.clouds:
-                    u[cloud.get_name()] = user
-            self.users.append(u)
+                if cloud.get_email() == user:
+                    continue
+                u[cloud.get_name()] = user
+            if u != {}:
+                self.users.append(u)
         return self.users
     
     def delete_session(self):
