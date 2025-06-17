@@ -11,9 +11,16 @@ import re
 
 import threading
 import time
+import sys
 
 AUTO_REFRESH_TIME = 30
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 def clickable(cls):
     original_init = cls.__init__ if hasattr(cls, '__init__') else lambda f: None
@@ -83,9 +90,9 @@ class App(ctk.CTk):
         App.controller = self
         ctk.CTk.__init__(self)
         ctk.set_appearance_mode("Dark")
-        ctk.set_default_color_theme("resources/custom_theme.json")
+        ctk.set_default_color_theme(resource_path("resources/custom_theme.json"))
         self.title("EncryptoSphere")
-        self.iconbitmap("resources/EncryptoSphere_logo.ico")
+        self.iconbitmap(resource_path("resources/EncryptoSphere_logo.ico"))
  
         # As of now we are using specific sizing, on the advanced ui we will need to make dynamic sizing
         screen_width = self.winfo_screenwidth()
@@ -466,7 +473,7 @@ class FormPage(ctk.CTkFrame):
         self.left_panel = ctk.CTkFrame(self, width=320, fg_color="#5389C7", corner_radius=0)
         self.left_panel.place(relx=0, rely=0, relwidth=0.4, relheight=1)
 
-        self.image = ctk.CTkImage(Image.open("resources/main_logo.png"), size=(320, 320))
+        self.image = ctk.CTkImage(Image.open(resource_path("resources/main_logo.png")), size=(320, 320))
         self.image_label = ctk.CTkLabel(self.left_panel, image=self.image, text="")
         self.image_label.place(relx=0.5, rely=0.5, anchor="center")
         
@@ -477,7 +484,7 @@ class FormPage(ctk.CTkFrame):
         self.right_panel.place(relx=0.4, rely=0, relwidth=0.6, relheight=1)
         
         if previous_page is not None:
-            self.backbutton = ctk.CTkButton(self.right_panel, image=ctk.CTkImage(Image.open("resources/back.png"), size=(40,40)), text="", command=lambda: self.controller.show_frame(previous_page), width=40, height=40, fg_color="#2B2D2F", corner_radius=1000)
+            self.backbutton = ctk.CTkButton(self.right_panel, image=ctk.CTkImage(Image.open(resource_path("resources/back.png")), size=(40,40)), text="", command=lambda: self.controller.show_frame(previous_page), width=40, height=40, fg_color="#2B2D2F", corner_radius=1000)
             self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
         # Title Label
         label = ctk.CTkLabel(self.right_panel, text=title, 
@@ -626,7 +633,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         self.left_panel = ctk.CTkFrame(self, width=320, fg_color="#5389C7", corner_radius=0)
         self.left_panel.place(relx=0, rely=0, relwidth=0.4, relheight=1)
 
-        self.image = ctk.CTkImage(Image.open("resources/main_logo.png"), size=(320, 320))
+        self.image = ctk.CTkImage(Image.open(resource_path("resources/main_logo.png")), size=(320, 320))
         self.image_label = ctk.CTkLabel(self.left_panel, image=self.image, text="")
         self.image_label.place(relx=0.5, rely=0.5, anchor="center")
         
@@ -636,7 +643,7 @@ class LoginCloudsPage(ctk.CTkFrame):
         self.right_panel = ctk.CTkFrame(self, width=580,fg_color="#2B2D2F", corner_radius=0)
         self.right_panel.place(relx=0.4, rely=0, relwidth=0.6, relheight=1)
 
-        self.backbutton = ctk.CTkButton(self.right_panel, image=ctk.CTkImage(Image.open("resources/back.png"), size=(40,40)) ,text="", command=lambda: self.controller.show_frame(EmailPage), width=40, height=40, corner_radius=1000, fg_color="#2B2D2F", hover=True)
+        self.backbutton = ctk.CTkButton(self.right_panel, image=ctk.CTkImage(Image.open(resource_path("resources/back.png")), size=(40,40)) ,text="", command=lambda: self.controller.show_frame(EmailPage), width=40, height=40, corner_radius=1000, fg_color="#2B2D2F", hover=True)
         self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
         # Title Label
         self.message = ctk.CTkLabel(self.right_panel, text="Choose Your Clouds", font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"))
@@ -702,7 +709,7 @@ class LoginCloudsPage(ctk.CTkFrame):
                     icon_path = cloud_object.get_icon()
                     is_auth = True
                     break
-            cloud_button = ctk.CTkButton(self.clouds_container, image=ctk.CTkImage(Image.open(icon_path), size=(100, 100)), text="", hover=True, fg_color="#2B2D2F", corner_radius=20, width=90, height=90)
+            cloud_button = ctk.CTkButton(self.clouds_container, image=ctk.CTkImage(Image.open(resource_path(icon_path)), size=(100, 100)), text="", hover=True, fg_color="#2B2D2F", corner_radius=20, width=90, height=90)
             cloud_button.pack(side=ctk.LEFT, expand=True)
             cloud_button.pack_propagate(False)
             if not is_auth:
@@ -723,7 +730,7 @@ class LoginCloudsPage(ctk.CTkFrame):
     def cloud_button_run(self, f, cloud_button):
         
         if f.result():
-            cloud_button.configure(image=ctk.CTkImage(Image.open(f.result().get_icon()), size=(100, 100)))
+            cloud_button.configure(image=ctk.CTkImage(Image.open(resource_path(f.result().get_icon())), size=(100, 100)))
             cloud_button.configure(state="disabled")  # Disable the button after successful authentication
             self.submit_button.configure(state="normal")
             self.notice_message()
@@ -780,7 +787,7 @@ class RegistrationPage(ctk.CTkFrame):
         label = ctk.CTkLabel(self, text="Create Your Account", 
                              font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"))
         label.pack(pady=(40, 20), padx=20)
-        self.backbutton = ctk.CTkButton(self, image=ctk.CTkImage(Image.open("resources/back.png"), size=(40,40)), text="", command=lambda: self.controller.show_frame(LoginCloudsPage), width=40, height=40, corner_radius=1000, fg_color="#2B2D2F", hover=True)
+        self.backbutton = ctk.CTkButton(self, image=ctk.CTkImage(Image.open(resource_path("resources/back.png")), size=(40,40)), text="", command=lambda: self.controller.show_frame(LoginCloudsPage), width=40, height=40, corner_radius=1000, fg_color="#2B2D2F", hover=True)
         self.backbutton.pack(side=ctk.BOTTOM, pady=(20, 5), padx=20, anchor="w")
 
         # Password Label
@@ -898,7 +905,7 @@ class MainPage(ctk.CTkFrame):
         self.side_bar.pack_propagate(False)  # Prevent the side bar from resizing to fit its contents
 
         # Add the EncryptoSphere label to the side bar
-        encryptosphere_icon = ctk.CTkImage(light_image=Image.open("resources/encryptosphere_logo.png"), size=(40, 40))
+        encryptosphere_icon = ctk.CTkImage(light_image=Image.open(resource_path("resources/encryptosphere_logo.png")), size=(40, 40))
         self.encryptosphere_label = ctk.CTkLabel(self.side_bar, image=encryptosphere_icon, text="  EncryptoSphere", font=("Segoe UI", 15), compound="left")
         self.encryptosphere_label.pack(anchor="nw", padx=10, pady=10, expand=False)
 
@@ -908,13 +915,13 @@ class MainPage(ctk.CTkFrame):
                                            width=80, height=40, corner_radius=10)
         self.upload_button.pack(anchor="w", padx=10, pady=10, expand=False)
         
-        home_icon = ctk.CTkImage(light_image=Image.open("resources/home_icon.png"), size=(20, 20))
+        home_icon = ctk.CTkImage(light_image=Image.open(resource_path("resources/home_icon.png")), size=(20, 20))
         self.homepage_button = ctk.CTkButton(self.side_bar, image=home_icon, text="Home", compound="left",
                                                  command=lambda: (self.controller.change_session(None), self.search_entry.delete(0, 'end')),
                                                  width=120, height=30, hover=False, fg_color="#3A3C41", anchor="w")
         self.homepage_button.pack(anchor="w", padx=10, pady=5, expand=False)
 
-        users_icon = ctk.CTkImage(light_image=Image.open("resources/users_icon.png"), size=(20, 20))
+        users_icon = ctk.CTkImage(light_image=Image.open(resource_path("resources/users_icon.png")), size=(20, 20))
         self.shared_files_button = ctk.CTkButton(self.side_bar, image=users_icon, text="Shared",compound="left",
                                                  command=lambda: self.display_page(self.sessions_folder, options=["New Share"]),
                                                  width=120, height=30, hover=False, fg_color="#3A3C41", anchor="w")
@@ -946,7 +953,7 @@ class MainPage(ctk.CTkFrame):
 
 
         # Add refresh button to the search bar
-        refresh_icon = ctk.CTkImage(light_image=Image.open("resources/refresh_icon.png"), size=(20, 20))
+        refresh_icon = ctk.CTkImage(light_image=Image.open(resource_path("resources/refresh_icon.png")), size=(20, 20))
         self.refresh_button = ctk.CTkButton(self.search_bar, image=refresh_icon, text="",command=lambda: self.refresh_button_click(), width=20, height=20, corner_radius=20, fg_color="#2B2D2F", hover_color="gray40")
         self.refresh_button.pack(side=ctk.RIGHT, padx=10, pady=5)
 
@@ -979,25 +986,25 @@ class MainPage(ctk.CTkFrame):
         self.context_menu = OptionMenu(self, self.controller, [
             {
                 "label": "New Folder",
-                "image": ctk.CTkImage(Image.open("resources/new_folder.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/new_folder.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.create_new_folder()
             },
             {
                 "label": "Upload File",
-                "image": ctk.CTkImage(Image.open("resources/upload_file.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/upload_file.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.upload_file()
             },
             {
                 "label": "Upload Folder",
-                "image": ctk.CTkImage(Image.open("resources/upload_folder.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/upload_folder.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.upload_folder()
             },
             {
                 "label": "New Share",
-                "image": ctk.CTkImage(Image.open("resources/new_share.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/new_share.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.open_sharing_window()
             }
@@ -1525,13 +1532,13 @@ class Folder(ctk.CTkScrollableFrame):
         self.context_menu = OptionMenu(controller.container, self.controller, [
             {
                 "label": "Paste",
-                "image": ctk.CTkImage(Image.open("resources/paste.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/paste.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.paste()
             },
             {
                 "label": "Select All",
-                "image": ctk.CTkImage(Image.open("resources/select.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/select.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.controller.select_all()
             }
@@ -1722,7 +1729,7 @@ class IconButton(ctk.CTkFrame):
         self.master = master
         self.id = id
         self.selected = False
-        self.file_icon = ctk.CTkImage(light_image=Image.open(icon_path), size=(60, 60))
+        self.file_icon = ctk.CTkImage(light_image=Image.open(resource_path(icon_path)), size=(60, 60))
 
         self.icon_label = ctk.CTkLabel(self, image=self.file_icon, text="")
         self.icon_label.pack(pady=(5, 0))
@@ -1788,7 +1795,7 @@ class FileButton(IconButton):
     """
     classid = "file"
     def __init__(self, master, width, height, data, controller):
-        IconButton.__init__(self, master, width, height, "resources/file_icon.png", data["name"], data["id"], controller)
+        IconButton.__init__(self, master, width, height, resource_path("resources/file_icon.png"), data["name"], data["id"], controller)
         self.data = data
         self.data["id"] = data.get("id", self.data.get("search_index", None)) 
         self.id = self.data.get("id")
@@ -1798,30 +1805,30 @@ class FileButton(IconButton):
             {
                 "label": "Download",
                 "color": "#3A3C41",
-                "image": ctk.CTkImage(Image.open("resources/download.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/download.png")), size=(20, 20)),
                 "event": lambda: self.download()
              },
              {
                 "label": "Delete",
-                "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/delete.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.delete()
              },
              {
                 "label": "Rename",
-                "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/rename.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.rename()
              },
              {
                 "label": "Copy",
-                "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/copy.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.copy()
              },
              {
                 "label": "Cut",
-                "image": ctk.CTkImage(Image.open("resources/cut.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/cut.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.cut()
              }
@@ -2148,7 +2155,7 @@ class FolderButton(IconButton):
         self.data["id"] = data.get("id", self.data.get("search_index", None))
         self.id =  self.data.get("id")
         self.folder_name = data.get("name")
-        IconButton.__init__(self, master, width, height, "resources/folder_icon.png", data.get("name"), self.data.get("id", None), controller)
+        IconButton.__init__(self, master, width, height, resource_path("resources/folder_icon.png"), data.get("name"), self.data.get("id", None), controller)
         self.controller = controller
         self.master = master
 
@@ -2156,31 +2163,31 @@ class FolderButton(IconButton):
         self.context_menu = OptionMenu(self.controller.container, self.controller, [
             {
                 "label": "Download",
-                "image": ctk.CTkImage(Image.open("resources/download.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/download.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.download()
              },
              {
                  "label": "Delete",
-                 "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
+                 "image": ctk.CTkImage(Image.open(resource_path("resources/delete.png")), size=(20, 20)),
                  "color": "#3A3C41",
                  "event": lambda: self.delete() 
              },
             {
                 "label": "Rename",
-                "image": ctk.CTkImage(Image.open("resources/rename.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/rename.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.rename()
             },
             {
                 "label": "Copy",
-                "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/copy.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.copy()
              },
              {
                 "label": "Cut",
-                "image": ctk.CTkImage(Image.open("resources/copy.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/cut.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.cut()
              }
@@ -2320,9 +2327,9 @@ class SharedFolderButton(IconButton):
         self.id = self.uid # For the stupid comparison in Folder
         self.is_owner = data.get("isowner", False)
         if self.is_owner:
-            super().__init__(master, width, height, "resources/shared_folder_owner_icon.png", self.name, self.uid, controller)
+            super().__init__(master, width, height, resource_path("resources/shared_folder_owner_icon.png"), self.name, self.uid, controller)
         else:
-            super().__init__(master, width, height, "resources/shared_folder_icon.png", self.name, self.uid, controller)
+            super().__init__(master, width, height, resource_path("resources/shared_folder_icon.png"), self.name, self.uid, controller)
         self.controller = controller
         self.master = master
         self.selectable = False
@@ -2335,13 +2342,13 @@ class SharedFolderButton(IconButton):
             menu_options = [
                 {
                     "label": "Manage Permissions",
-                    "image": ctk.CTkImage(Image.open("resources/manage_permissions.png"), size=(20, 20)),
+                    "image": ctk.CTkImage(Image.open(resource_path("resources/manage_permissions.png")), size=(20, 20)),
                     "color": "#3A3C41",
                     "event": lambda: self.manage_share_permissions()
                 },
                 {
                     "label": "Delete Share",
-                    "image": ctk.CTkImage(Image.open("resources/delete.png"), size=(20, 20)),
+                    "image": ctk.CTkImage(Image.open(resource_path("resources/delete.png")), size=(20, 20)),
                     "color": "#3A3C41",
                     "event": lambda: self.delete_shared_folder()
                 }
@@ -2350,7 +2357,7 @@ class SharedFolderButton(IconButton):
             menu_options = [
                 {
                     "label": "Leave Share",
-                    "image": ctk.CTkImage(Image.open("resources/leave.png"), size=(20, 20)),
+                    "image": ctk.CTkImage(Image.open(resource_path("resources/leave.png")), size=(20, 20)),
                     "color": "#3A3C41",
                     "event": lambda: self.leave_shared_folder()
                 }
@@ -2578,7 +2585,7 @@ class PendingSharedFolderButton(IconButton):
         self.uid = data.get("uid")
         self.name = self.uid.split("$")[0]
         self.id = self.uid  # For the stupid comparison in Folder
-        super().__init__(master, width, height, "resources/folder_icon_pending.png", self.name, self.uid, controller)
+        super().__init__(master, width, height, resource_path("resources/folder_icon_pending.png"), self.name, self.uid, controller)
         self.controller = controller
         self.master = master
 
@@ -2586,7 +2593,7 @@ class PendingSharedFolderButton(IconButton):
         menu_options = [
             {
                 "label": "Decline Share",
-                "image": ctk.CTkImage(Image.open("resources/decline.png"), size=(20, 20)),
+                "image": ctk.CTkImage(Image.open(resource_path("resources/decline.png")), size=(20, 20)),
                 "color": "#3A3C41",
                 "event": lambda: self.leave_shared_folder()
             }
