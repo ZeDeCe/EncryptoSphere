@@ -71,7 +71,7 @@ class GoogleDrive(CloudService):
                     token_uri=token_data.get('token_uri'),
                     client_id=GOOGLE_CLIENT_ID,
                     scopes=token_data.get('scopes'),
-                    
+                    client_secret=GOOGLE_CLIENT_SECRET
                 )
 
             if creds and creds.valid:
