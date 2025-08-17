@@ -577,7 +577,8 @@ class CloudManager:
                         shutil.move(downloaded_file, local_path)
                         print(f"Moved file to: {local_path}")
                     else:
-                        raise FileNotFoundError(f"Downloaded file not found: {downloaded_file}")
+                        #raise FileNotFoundError(f"Downloaded file not found: {downloaded_file}")
+                        print(f"Downloaded file not found: {downloaded_file}, skipping.")
 
             print(f"Folder '{folder_path}' successfully downloaded to: {local_folder_path}")
 
