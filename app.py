@@ -811,7 +811,7 @@ class RegistrationPage(ctk.CTkFrame):
             encryption.insert(0, encryption.pop(index))
         index = -1
         for ind, cls in enumerate(split):
-            if cls.get_name() == "Shamir":
+            if cls.get_name() == "ReedSolomon":
                 index = ind
                 break
         if index != -1:
