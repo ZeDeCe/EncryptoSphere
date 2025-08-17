@@ -5,7 +5,7 @@ from zfec.easyfec import Decoder
 #from .Split import Split
 from modules.Split.Split import Split
 
-class ShamirSplit(Split):
+class ReedSolomonSplit(Split):
     def __init__(self):
         super().__init__()
         self.copies_per_cloud = 2
@@ -15,7 +15,7 @@ class ShamirSplit(Split):
 
     @staticmethod
     def get_name():
-        return "Shamir"
+        return "ReedSolomon"
 
     def split(self, data, clouds_num):
         num_parts= clouds_num * self.copies_per_cloud
@@ -26,7 +26,7 @@ class ShamirSplit(Split):
             return [data_parts[i:i + clouds_num] for i in range(0, len(data_parts), clouds_num)]
 
         except Exception as e:
-            raise Exception(f"Shamir-Split Error: {e}")
+            raise Exception(f"ReedSolomon-Split Error: {e}")
 
 
     def merge_parts(self, data, clouds_num):
@@ -39,7 +39,7 @@ class ShamirSplit(Split):
         data = [part for part in data if part is not None]
 
         if len(data) < min_parts:
-            raise Exception(f"Shamir-Merge: At least {min_parts} parts are required to reconstruct the file, got {len(data)} parts")
+            raise Exception(f"Reed-Solomon- Error: At least {min_parts} parts are required to reconstruct the file, got {len(data)} parts")
 
         decoder = Decoder(k=min_parts, m=num_parts)
         if len(data) > min_parts:
@@ -51,7 +51,7 @@ class ShamirSplit(Split):
             return decoder.decode(data, sharenums, padlen)
 
         except Exception as e:
-            raise Exception(f"Shamir-Merge: error during reconstruction, {e}")
+            raise Exception(f"ReedSolomon-Merge: error during reconstruction, {e}")
 
 """
 def test():
@@ -60,7 +60,7 @@ def test():
     print("3. Exit")
 
     choice = input("Enter your choice: ")
-    split = ShamirSplit()
+    split = ReedSolomonSplit()
 
     if choice == '1':
         file_path = r"C:\\Users\\hadas\\Desktop\\final_project\\test.txt" #path to the file you want to split
