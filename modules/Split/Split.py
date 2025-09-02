@@ -39,7 +39,7 @@ class Split(ABC):
     def get_name(self) -> str:
         """
         Returns the signature of the splitting algorithm
-        Used to write to the file descriptor
+        Used to write to the metadata file
         """
         pass
 

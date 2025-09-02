@@ -2,32 +2,21 @@
 This is the main file that runs the the entire program
 Runs the GUI and handles the requests from the GUI to the backend
 """
-import os
-from dotenv import load_dotenv
-load_dotenv()
 from CloudManager import CloudManager
 from SharedCloudManager import SharedCloudManager
 from modules.Encrypt import *
 from modules.Split import *
 from modules.CloudAPI import *
 from SessionManager import SessionManager
-import customtkinter as ctk
-from threading import Thread
 import concurrent.futures
 import time
 import threading
 from functools import wraps
 from LoginManager import LoginManager
-import hashlib
-import json
-import shutil
 
 import utils.DialogBox as DialogBox
 import app as app
 
-
-# This is temporary:
-from cryptography.fernet import Fernet
 
 FILE_INDEX_SEPERATOR = "#"
 SYNC_TIME = 90 # 1 min 30 sec

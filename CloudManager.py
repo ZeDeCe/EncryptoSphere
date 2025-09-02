@@ -15,7 +15,6 @@ import threading
 
 
 SYNC_TIME = 300  # Sync time in seconds
-FILE_DESCRIPTOR_FOLDER = os.path.join(os.getcwd(), "Test") #temporary
 FILE_INDEX_SEPERATOR = "#"
 SHARED_TEMP_FOLDER = None
 
@@ -31,8 +30,7 @@ class CloudManager:
         @param root the root directory name
         @param split the split class to use
         @param encrypt the encrypt class to use
-        @param file_descriptor the filedescriptor to use. If none provided, will assume that the session already exists and try syncing it from the cloud
-        """
+       """
         self.split = split
         self.encrypt = encrypt
         self.clouds = clouds
@@ -183,7 +181,7 @@ class CloudManager:
 
     def authenticate(self):
         """
-        Authenticates the clouds and loads the file descriptor.
+        Authenticates the clouds and loads the metadata.
         Returns True if the process succeeds, False otherwise.
         """
         futures = {}
@@ -213,15 +211,14 @@ class CloudManager:
                 print(f"Failed to get session folder in cloud: {e}")
                 return False
         try:
-            # Attempt to load the file descriptor
             
             self.fs["/"] = Directory(folders, "/")
             self.fs["/"].set_root()
             
 
-            return True  # Authentication and file descriptor loading succeeded
+            return True  # Authentication succeeded
         except Exception as e:
-            print(f"Error during authentication, loading of file descriptor: {e}")
+            print(f"Error during authentication: {e}")
             return False
         
     def upload_file(self, os_filepath, path="/", name=None):
@@ -230,7 +227,6 @@ class CloudManager:
         
         @param os_filepath: The path to the file on the OS.
         @param path: The root path for the file in EncryptoSphere hierarchy.
-        @param sync: Whether to sync the file descriptor after uploading. Defaults to True.
         """
 
         if not os.path.isfile(os_filepath):
@@ -430,8 +426,7 @@ class CloudManager:
     
     def download_file(self, path, isopen=False):
         """
-        Downloads a file from the various clouds
-        file_id is a FileDescriptor ID of the file.
+        Downloads a file from the various clouds using their path
         Make sure to check if the clouds of this object exist in the "parts" array
         """
         try:
@@ -514,7 +509,7 @@ class CloudManager:
             # Get the downloaded file's metadata
             file = self.fs.get(path)
             if not file:
-                raise Exception(f"File not found in file descriptor: {path}")
+                raise Exception(f"File not found in cache: {path}")
 
             # Determine the temporary file path
             temp_file_path = self.get_temp_file_path(file.name)
@@ -589,7 +584,7 @@ class CloudManager:
 
     def delete_file(self, path):
         """
-        Deletes a specific file from the file descriptor.
+        Deletes a specific file from the clouds
         If the file cannot be deleted, an error is raised and displayed in a message box.
         @param path: The path to the file in the EncryptoSphere hierarchy.
         """
@@ -618,7 +613,7 @@ class CloudManager:
         """
         Deletes a folder from all clouds.
         If any cloud fails, an error is raised.
-        @param folder_path: The path to the folder in the file descriptor.
+        @param folder_path: The path to the folder.
         """
         if folder_path == "/":
             raise Exception("Cannot delete the root folder.")
@@ -652,7 +647,7 @@ class CloudManager:
     
     def rename_item(self, old_path : str, new_name : str):
         """
-        Renames an item (file or folder) in the EncryptoSphere file descriptor.
+        Renames an item (file or folder)
         @param old_path: The current path of the item to rename.
         @param new_name: The new name for the item.
         """
@@ -713,7 +708,7 @@ class CloudManager:
                         appended[cloud.get_name()] = []
                     appended[cloud.get_name()].append(result)
 
-        self.fs.pop(old_path, None)  # Remove the old path from the file descriptor
+        self.fs.pop(old_path, None)
         self.fs[new_path] = Directory(appended, new_path) if isinstance(item, Directory) else CloudFile(appended, new_path)
         return True
     
@@ -977,7 +972,7 @@ class CloudManager:
 
     def load_metadata(self):
         """
-        Downloads the filedescriptor from the clouds and sets it as this object's file descriptor.
+        Downloads the metadata from the clouds and sets it as this object's metadata.
         This function does NOT perform authentication or key creation — it only loads metadata.
         """
         #metadata = self._download_replicated("$META")

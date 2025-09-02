@@ -1,8 +1,4 @@
-import os
 import io
-import json
-from dotenv import load_dotenv
-import webbrowser
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build, Resource
 from googleapiclient.errors import HttpError
@@ -14,17 +10,12 @@ from google_auth_httplib2 import AuthorizedHttp
 from modules.CloudDataManager import CloudDataManager
 from typing import Iterable
 import httplib2
-from utils import input_dialog
 from google_auth_oauthlib.flow import Flow
 
-
-load_dotenv()
 # Set up Google Drive API
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_ID = '976718573943-f6gbi7mff0s3apr2vs87gmbq24b906us.apps.googleusercontent.com'
 GOOGLE_CLIENT_SECRET = "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"
-API_KEY = os.getenv("GOOGLE_API_KEY")
 SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
-GOOGLE_TOKEN_PATH = "cloud_tokens.json"
 GOOGLE_ENCRYPTOSPHERE_ROOT = "EncryptoSphere"
 
 class GoogleDrive(CloudService):

@@ -16,9 +16,7 @@ from modules.CloudDataManager import CloudDataManager
 
 
 DROPBOX_ENCRYPTOSPHERE_ROOT = "EncryptoSphere"
-DROPBOX_APP_KEY = os.getenv("DROPBOX_APP_KEY")
-DROPBOX_APP_SECRET = os.getenv("DROPBOX_APP_SECRET")
-DROPBOX_TOKEN_PATH = "cloud_tokens.json"
+DROPBOX_APP_KEY = '2z0bryo6s04eoil'
 
 class DropBox(CloudService):
 

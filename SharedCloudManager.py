@@ -1,5 +1,4 @@
 from CloudManager import CloudManager
-from FileDescriptor import FileDescriptor
 from modules.Encrypt import Encrypt
 from modules.Split import Split
 from modules.CloudAPI.CloudService import CloudService
@@ -11,12 +10,10 @@ import re
 from uuid import uuid4
 import concurrent.futures
 import time
-from dotenv import load_dotenv
-load_dotenv()
 
 class SharedCloudManager(CloudManager):
     """
-    This class holds a shared session using a list of clouds, encryption method, split method, and a filedescriptor
+    This class holds a shared session using a list of clouds, encryption method, split method, and a metadata file
     """
 
     # Shared folder names are comprised of 2 parts: FOLDERNAME_ENCRSH
@@ -134,12 +131,11 @@ class SharedCloudManager(CloudManager):
                 print(f"Failed to get session folder in cloud: {e}")
                 return False
         try:
-            # Attempt to load the file descriptor
             self.fs["/"] = Directory(folders, "/")
             self.fs["/"].set_root()
             self.root_folder = self.fs["/"]
         except Exception as e:
-            print(f"Error during authentication, loading of file descriptor: {e}")
+            print(f"Error during authentication: {e}")
             return False
         self.uid = f"{self.root.replace(SharedCloudManager.shared_suffix, '')}${uuid}"
         self._upload_replicated(f"$UID_{uuid}",uuid.encode())
